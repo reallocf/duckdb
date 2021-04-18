@@ -243,19 +243,25 @@ bool Executor::GetPipelinesProgress(int &current_progress) {
 }
 
 unique_ptr<DataChunk> Executor::FetchChunk() {
-	D_ASSERT(physical_plan);
+    D_ASSERT(physical_plan);
 
-	ThreadContext thread(context);
-	TaskContext task;
-	ExecutionContext econtext(context, thread, task);
+    ThreadContext thread(context);
+    TaskContext task;
+    ExecutionContext econtext(context, thread, task);
 
-	auto chunk = make_unique<DataChunk>();
-	// run the plan to get the next chunks
-	physical_plan->InitializeChunkEmpty(*chunk);
-	physical_plan->GetChunk(econtext, *chunk, physical_state.get());
-	physical_plan->FinalizeOperatorState(*physical_state, econtext);
-	context.profiler.Flush(thread.profiler);
-	return chunk;
+    auto chunk = make_unique<DataChunk>();
+    // run the plan to get the next chunks
+    std::cout << physical_plan->ToString() << std::endl;
+
+    physical_plan->InitializeChunkEmpty(*chunk);
+    physical_plan->GetChunk(econtext, *chunk, physical_state.get());
+    physical_plan->FinalizeOperatorState(*physical_state, econtext);
+    context.profiler.Flush(thread.profiler);
+
+    if (chunk->size() > 0) // figure out what is the proper way to store all these fine-grained lineage data structures
+        chunks_lineage.push_back(move(econtext.lineage));
+
+    return chunk;
 }
 
 } // namespace duckdb

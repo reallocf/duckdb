@@ -22,6 +22,7 @@ class PhysicalOperator;
 class PhysicalOperatorState;
 class ThreadContext;
 class Task;
+class LineageContext;
 
 struct ProducerToken;
 
@@ -34,6 +35,7 @@ public:
 	~Executor();
 
 	ClientContext &context;
+    vector<unique_ptr<LineageContext>> chunks_lineage;
 
 public:
 	void Initialize(PhysicalOperator *physical_plan);
