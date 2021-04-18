@@ -193,6 +193,26 @@ void ManageLineage::CreateLineageTables(PhysicalOperator *op) {
     CreateLineageTables(op->children[0].get());
 		break;
   }
+  case PhysicalOperatorType::INDEX_JOIN: {
+    // CREATE TABLE INDEX_JOIN (lhs_value INT, rhs_value BIGINT, in_index INT, out_chunk_id INT)
+    auto info = make_unique<CreateTableInfo>();
+    info->schema = DEFAULT_SCHEMA;
+    info->table = base;
+    info->on_conflict = OnCreateConflict::ERROR_ON_CONFLICT;
+    info->temporary = false;
+    info->columns.push_back(ColumnDefinition("lhs_value", LogicalType::INTEGER));
+    info->columns.push_back(ColumnDefinition("rhs_value", LogicalType::BIGINT));
+    info->columns.push_back(ColumnDefinition("in_index", LogicalType::INTEGER));
+    info->columns.push_back(ColumnDefinition("out_chunk_id", LogicalType::INTEGER));
+    auto binder = Binder::CreateBinder(context);
+    auto bound_create_info = binder->BindCreateTableInfo(move(info));
+    auto &catalog = Catalog::GetCatalog(context);
+    catalog.CreateTable(context, bound_create_info.get());
+
+    CreateLineageTables(op->children[0].get());
+    CreateLineageTables(op->children[1].get());
+    break;
+  }
   case PhysicalOperatorType::HASH_JOIN: {
     // CREATE TABLE base_PROBE:
     // schema: [INT out_index, INT lhs_value, BIGINT rhs_address, INT out_chunk_id]
@@ -427,6 +447,29 @@ void ManageLineage::Persist(PhysicalOperator *op, shared_ptr<LineageContext> lin
     }
     break;
   }
+  case PhysicalOperatorType::INDEX_JOIN: {
+    // CREATE TABLE INDEX_JOIN (lhs_value INT, rhs_value BIGINT, in_index INT, out_chunk_id INT)
+    LineageOpBinary *lop = dynamic_cast<LineageOpBinary *>(lineage->GetLineageOp(op->id, 0).get());
+    if (!lop) return;
+    TableCatalogEntry * table = Catalog::GetCatalog(context).GetEntry<TableCatalogEntry>(context,  DEFAULT_SCHEMA, tablename);
+    DataChunk insert_chunk;
+    insert_chunk.Initialize(table->GetTypes());
+    idx_t count = dynamic_cast<LineageSelVec&>(*lop->data_lhs).count;
+    insert_chunk.SetCardinality(count);
+
+    Vector lhs_values(table->GetTypes()[0], (data_ptr_t)&dynamic_cast<LineageSelVec&>(*lop->data_lhs).vec[0]);
+    Vector rhs_values(table->GetTypes()[1], (data_ptr_t)&dynamic_cast<LineageDataVector<row_t>&>(*lop->data_rhs).vec[0]);
+    Vector out_chunk_ids(Value::Value::INTEGER(lineage->chunk_id));
+
+    insert_chunk.data[0].Reference(lhs_values);
+    insert_chunk.data[1].Reference(rhs_values);
+    insert_chunk.data[2].Sequence(0, 1);
+    insert_chunk.data[3].Reference(out_chunk_ids);
+
+    table->Persist(*table, context, insert_chunk);
+    Persist(op->children[0].get(), move(lineage), is_sink);
+    break;
+  }
   default:
     for (idx_t i = 0; i < op->children.size(); ++i)
       Persist(op->children[i].get(), lineage, is_sink);
@@ -543,7 +586,24 @@ void ManageLineage::BackwardLineage(PhysicalOperator *op, shared_ptr<LineageCont
       BackwardLineage(op->children[0].get(), lineage, oidx);
       BackwardLineage(op->children[1].get(), lineage, oidx);
       break;
-    } default: {
+    }
+    case PhysicalOperatorType::INDEX_JOIN: {
+      std::shared_ptr<LineageOpBinary> lop = std::dynamic_pointer_cast<LineageOpBinary>(lineage->GetLineageOp(op->id, 0));
+      if (!lop) {
+          std::cout << "something is wrong, lop not found" << std::endl;
+          return;
+      }
+
+      auto lhs_idx = dynamic_cast<LineageSelVec&>(*lop->data_lhs).getAtIndex(oidx);
+      std::cout << "-> Index Join LHS " <<  lhs_idx << std::endl;
+      auto rhs_idx =  dynamic_cast<LineageDataVector<row_t>&>(*lop->data_rhs).getAtIndex(oidx);
+      std::cout << "-> Index Join RHS " <<  rhs_idx << std::endl;
+
+      BackwardLineage(op->children[0].get(), lineage, oidx);
+      BackwardLineage(op->children[1].get(), lineage, oidx);
+      break;
+    }
+    default: {
       for (idx_t i = 0; i < op->children.size(); ++i)
         BackwardLineage(op->children[i].get(), lineage, oidx);
     }

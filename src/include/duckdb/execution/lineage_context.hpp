@@ -96,6 +96,10 @@ public:
     std::cout << std::endl;
   }
 
+  idx_t getAtIndex(idx_t idx) {
+    return (idx_t)vec[idx];
+  }
+
   unsigned long size_bytes() {
     return count * sizeof(vec[0]);
   }
