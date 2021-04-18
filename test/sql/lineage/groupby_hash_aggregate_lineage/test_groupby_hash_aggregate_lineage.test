@@ -1,0 +1,17 @@
+# name: test/sql/lineage/groupby_lineage/test_groupby_hash_aggregate_lineage.test
+# description: Test Group By linage -- hash aggregate
+# group: [groupby_hash_aggregate_lineage]
+
+statement ok
+CREATE TABLE t1(i VARCHAR(10), j INTEGER);
+
+statement ok
+INSERT INTO t1 VALUES ('Haneen', 2), ('Haneen', 3), ('Haneen', 4), ('Mohammed', 1), ('Mohammed', 2), ('Omar', 1), ('Omar', 2), ('Omar', 1)
+
+# standalone limit
+query II
+select t1.i, avg(t1.j) from t1 GROUP BY t1.i
+----
+Haneen	3.000000
+Mohammed	1.500000
+Omar	1.333333
