@@ -89,6 +89,9 @@ void PhysicalIndexJoin::Output(ExecutionContext &context, DataChunk &chunk, Phys
 			state->lhs_idx++;
 		}
 	}
+
+	auto lop = make_unique<LineageOpBinary>();
+
 	//! Now we fetch the RHS data
 	if (!fetch_types.empty()) {
 		if (fetch_rows.empty()) {
@@ -100,6 +103,7 @@ void PhysicalIndexJoin::Output(ExecutionContext &context, DataChunk &chunk, Phys
 		row_ids.SetType(LOGICAL_ROW_TYPE);
 		FlatVector::SetData(row_ids, (data_ptr_t)&fetch_rows[0]);
 		tbl->Fetch(transaction, rhs_chunk, fetch_ids, row_ids, output_sel_idx, fetch_state);
+		lop->setRHS(make_unique<LineageDataVector>(move(row_ids), output_sel_idx));
 	}
 
 	//! Now we actually produce our result chunk
@@ -118,6 +122,9 @@ void PhysicalIndexJoin::Output(ExecutionContext &context, DataChunk &chunk, Phys
 		chunk.data[left_offset + i].Reference(state->child_chunk.data[left_projection_map[i]]);
 		chunk.data[left_offset + i].Slice(sel, output_sel_idx);
 	}
+
+	lop->setLHS(make_unique<LineageDataSelVec>(move(sel), output_sel_idx));
+	context.lineage->RegisterDataPerOp((void *)this,  move(lop));
 
 	state->result_size = output_sel_idx;
 	chunk.SetCardinality(state->result_size);
