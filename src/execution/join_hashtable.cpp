@@ -7,6 +7,7 @@
 #include "duckdb/common/vector_operations/vector_operations.hpp"
 #include "duckdb/common/vector_operations/unary_executor.hpp"
 #include "duckdb/common/operator/comparison_operators.hpp"
+#include <iostream>
 
 namespace duckdb {
 
@@ -337,6 +338,7 @@ void JoinHashTable::Build(DataChunk &keys, DataChunk &payload) {
 		idx_t next = append_idx + append_entry.count;
 		for (; append_idx < next; append_idx++) {
 			key_locations[append_idx] = append_entry.baseptr;
+      std::cout << "key_locations[" << append_idx << "]" << " = " << static_cast<void*>(key_locations[append_idx]) << std::endl;
 			append_entry.baseptr += entry_size;
 		}
 	}
@@ -416,6 +418,7 @@ void JoinHashTable::Finalize() {
 			for (idx_t i = 0; i < next; i++) {
 				hash_data[i] = Load<hash_t>((data_ptr_t)(dataptr + pointer_offset));
 				key_locations[i] = dataptr;
+        std::cout << "final: key_locations[" << i << "]" << " = " << static_cast<void*>(key_locations[i]) << std::endl;
 				dataptr += entry_size;
 			}
 			// now insert into the hash table
@@ -698,6 +701,7 @@ static void TemplatedGatherResult(Vector &result, uintptr_t *pointers, const Sel
 		auto ridx = result_vector.get_index(i);
 		auto pidx = sel_vector.get_index(i);
 		T hdata = Load<T>((data_ptr_t)(pointers[pidx] + offset));
+    std::cout << i <<  " @ pointers[" << pidx << "]" << " -> " << static_cast<void*>((data_ptr_t)pointers[pidx]) << std::endl;
 		if (IsNullValue<T>(hdata)) {
 			mask.SetInvalid(ridx);
 		} else {
@@ -798,6 +802,7 @@ void ScanStructure::NextInnerJoin(DataChunk &keys, DataChunk &left, DataChunk &r
 			auto &vector = result.data[left.ColumnCount() + i];
 			D_ASSERT(vector.GetType() == ht.build_types[i]);
 			GatherResult(vector, result_vector, result_count, offset);
+      // store pointers pidx
 		}
 		AdvancePointers();
 	}

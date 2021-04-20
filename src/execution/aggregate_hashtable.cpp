@@ -14,6 +14,7 @@
 
 #include <cmath>
 #include <map>
+#include <iostream>
 
 namespace duckdb {
 
@@ -631,8 +632,9 @@ idx_t GroupedAggregateHashTable::FindOrCreateGroupsInternal(DataChunk &groups, V
 
 	// we start out with all entries [0, 1, 2, ..., groups.size()]
 	const SelectionVector *sel_vector = &FlatVector::INCREMENTAL_SELECTION_VECTOR;
+    SelectionVector sel_lineage(STANDARD_VECTOR_SIZE);
 
-	idx_t remaining_entries = groups.size();
+    idx_t remaining_entries = groups.size();
 
 	// orrify all the groups
 	auto group_data = unique_ptr<VectorData[]>(new VectorData[groups.ColumnCount()]);
@@ -650,7 +652,7 @@ idx_t GroupedAggregateHashTable::FindOrCreateGroupsInternal(DataChunk &groups, V
 		for (idx_t i = 0; i < remaining_entries; i++) {
 			const idx_t index = sel_vector->get_index(i);
 			const auto ht_entry_ptr = ((T *)this->hashes_hdl_ptr) + ht_offsets_ptr[index];
-			if (ht_entry_ptr->page_nr == 0) { // we use page number 0 as a "unused marker"
+            if (ht_entry_ptr->page_nr == 0) { // we use page number 0 as a "unused marker"
 				// cell is empty; setup the new entry
 				if (payload_page_offset == tuples_per_block || payload_hds.empty()) {
 					NewBlock();
@@ -678,15 +680,19 @@ idx_t GroupedAggregateHashTable::FindOrCreateGroupsInternal(DataChunk &groups, V
 				// GetPtr undoes this
 				ht_entry_ptr->page_nr = payload_hds.size();
 				ht_entry_ptr->page_offset = payload_page_offset++;
+                sel_lineage.set_index(index, ht_entry_ptr->page_offset);
 
 				// update selection lists for outer loops
 				empty_vector.set_index(new_entry_count++, index);
+				// create new groups, and map the input index to that group
+
 				new_groups_out.set_index(new_group_count++, index);
 				entries++;
 
 				addresses_ptr[index] = entry_payload_ptr + HASH_WIDTH;
+                std::cout << index << " -> " << static_cast<void*>(addresses_ptr[index]) << " -> ht_entry_ptr -> " << static_cast<void*>(ht_entry_ptr) << " " <<  ht_offsets_ptr[index] << " page_nr: " << ht_entry_ptr->page_nr <<  " page_offset: " << ht_entry_ptr->page_offset << std::endl;
 
-			} else {
+            } else {
 				// cell is occupied: add to check list
 				// only need to check if hash salt in ptr == prefix of hash in payload
 				if (ht_entry_ptr->salt == hash_salts_ptr[index]) {
@@ -695,8 +701,12 @@ idx_t GroupedAggregateHashTable::FindOrCreateGroupsInternal(DataChunk &groups, V
 					auto page_ptr = payload_hds_ptrs[ht_entry_ptr->page_nr - 1];
 					auto page_offset = ht_entry_ptr->page_offset * tuple_size;
 					addresses_ptr[index] = page_ptr + page_offset + HASH_WIDTH;
+                    sel_lineage.set_index(index, ht_entry_ptr->page_offset);
 
-				} else {
+                    std::cout << " dup " << index << " -> " << static_cast<void*>(addresses_ptr[index])  << " -> ht_entry_ptr -> " << static_cast<void*>(ht_entry_ptr) << " " <<  ht_offsets_ptr[index] << " page_nr: " << ht_entry_ptr->page_nr <<  " page_offset: " << ht_entry_ptr->page_offset << std::endl;
+
+
+                } else {
 					no_match_vector.set_index(no_match_count++, index);
 				}
 			}
@@ -724,7 +734,9 @@ idx_t GroupedAggregateHashTable::FindOrCreateGroupsInternal(DataChunk &groups, V
 		sel_vector = &no_match_vector;
 		remaining_entries = no_match_count;
 	}
-	// pointers in addresses now were moved behind the grousp by CompareGroups/ScatterGroups but we may have to add
+
+	std::cout << "lineage: " <<   sel_lineage.ToString(groups.size())<< std::endl;
+    // pointers in addresses now were moved behind the grousp by CompareGroups/ScatterGroups but we may have to add
 	// padding still to point at the payload.
 	VectorOperations::AddInPlace(addresses, group_padding, groups.size());
 	return new_group_count;
@@ -886,15 +898,19 @@ idx_t GroupedAggregateHashTable::Scan(idx_t &scan_position, DataChunk &result) {
 	auto chunk_offset = (scan_position % tuples_per_block) * tuple_size;
 	D_ASSERT(chunk_offset + tuple_size <= Storage::BLOCK_ALLOC_SIZE);
 
+  std::cout << "data_pointers: ";
 	auto read_ptr = payload_hds_ptrs[chunk_idx++];
 	for (idx_t i = 0; i < this_n; i++) {
 		data_pointers[i] = read_ptr + chunk_offset + HASH_WIDTH;
+    std::cout << " " << i << " -> " << chunk_offset << " "  << HASH_WIDTH << " " << static_cast<void*>(data_pointers[i]) << " read_ptr -> " << static_cast<void*>(read_ptr);
 		chunk_offset += tuple_size;
 		if (chunk_offset >= tuples_per_block * tuple_size) {
 			read_ptr = payload_hds_ptrs[chunk_idx++];
 			chunk_offset = 0;
 		}
 	}
+
+  std::cout << std::endl;
 
 	result.SetCardinality(this_n);
 	// fetch the group columns

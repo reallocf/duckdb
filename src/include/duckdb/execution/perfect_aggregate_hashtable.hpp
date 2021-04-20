@@ -30,7 +30,8 @@ public:
 	void Scan(idx_t &scan_position, DataChunk &result);
 
 protected:
-	Vector addresses;
+	vector<SelectionVector> sink_lineage;
+    Vector addresses;
 	//! The required bits per group
 	vector<idx_t> required_bits;
 	//! The total required bits for the HT (this determines the max capacity)

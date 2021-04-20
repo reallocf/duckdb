@@ -1,7 +1,7 @@
 #include "duckdb/execution/perfect_aggregate_hashtable.hpp"
 #include "duckdb/execution/expression_executor.hpp"
 #include "duckdb/execution/aggregate_hashtable.hpp"
-
+#include <iostream>
 namespace duckdb {
 
 PerfectAggregateHashTable::PerfectAggregateHashTable(BufferManager &buffer_manager, vector<LogicalType> group_types_p,
@@ -102,13 +102,23 @@ void PerfectAggregateHashTable::AddChunk(DataChunk &groups, DataChunk &payload) 
 		current_shift -= required_bits[i];
 		ComputeGroupLocation(groups.data[i], group_minima[i], address_data, current_shift, groups.size());
 	}
+
+    SelectionVector sel;
+    sel.Initialize(STANDARD_VECTOR_SIZE);
+
 	// now we have the HT entry number for every tuple
 	// compute the actual pointer to the data by adding it to the base HT pointer and multiplying by the tuple size
 	for (idx_t i = 0; i < groups.size(); i++) {
 		D_ASSERT(address_data[i] < total_groups);
 		group_is_set[address_data[i]] = true;
+		sel.set_index(i, address_data[i]);
 		address_data[i] = uintptr_t(data) + address_data[i] * tuple_size;
 	}
+
+	std::cout << "group_is_set: " << sel.ToString(groups.size()) << std::endl;
+	// todo: to handle parallel execution, we need to assign unique id per chunk to be able to reference it later
+	// log sel and groups.size();
+    sink_lineage.push_back(sel);
 
 	// after finding the group location we update the aggregates
 	idx_t payload_idx = 0;
@@ -225,13 +235,17 @@ void PerfectAggregateHashTable::Scan(idx_t &scan_position, DataChunk &result) {
 	auto data_pointers = FlatVector::GetData<data_ptr_t>(addresses);
 	uint32_t group_values[STANDARD_VECTOR_SIZE];
 
+	// input <- group_is_set[i] -> output
 	// iterate over the HT until we either have exhausted the entire HT, or
 	idx_t entry_count = 0;
-	for (; scan_position < total_groups; scan_position++) {
+    std::cout << "group values: ";
+    for (; scan_position < total_groups; scan_position++) {
 		if (group_is_set[scan_position]) {
 			// this group is set: add it to the set of groups to extract
 			data_pointers[entry_count] = data + tuple_size * scan_position;
 			group_values[entry_count] = scan_position;
+			std::cout << " " << entry_count << " -> " << scan_position;
+
 			entry_count++;
 			if (entry_count == STANDARD_VECTOR_SIZE) {
 				scan_position++;
@@ -239,6 +253,7 @@ void PerfectAggregateHashTable::Scan(idx_t &scan_position, DataChunk &result) {
 			}
 		}
 	}
+	std::cout << std::endl;
 	if (entry_count == 0) {
 		// no entries found
 		return;
@@ -249,6 +264,9 @@ void PerfectAggregateHashTable::Scan(idx_t &scan_position, DataChunk &result) {
 		shift -= required_bits[i];
 		ReconstructGroupVector(group_values, group_minima[i], required_bits[i], shift, entry_count, result.data[i]);
 	}
+
+	// log group_values & count for this chunk
+
 	// then construct the payloads
 	for (idx_t i = 0; i < aggregates.size(); i++) {
 		auto &target = result.data[group_types.size() + i];
