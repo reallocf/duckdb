@@ -45,6 +45,10 @@ void PhysicalFilter::GetChunkInternal(ExecutionContext &context, DataChunk &chun
 		result_count = state->executor.SelectExpression(chunk, sel);
 	} while (result_count == 0);
 
+    context.lineage->RegisterDataPerOp(
+	    (void *)this,
+	    make_unique<LineageOpUnary>(make_unique<LineageDataSelVec>(sel, result_count))
+	);
 	if (result_count == initial_count) {
 		// nothing was filtered: skip adding any selection vectors
 		return;

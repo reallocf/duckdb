@@ -1,0 +1,22 @@
+# name: test/sql/lineage/test_filter_lineage/test_filter_lineage.test
+# description: Test Filter Lineage
+# group: [filter_lineage]
+
+
+statement ok
+PRAGMA explain_output = PHYSICAL_ONLY;
+
+statement ok
+CREATE TABLE t1(i INTEGER);
+
+statement ok
+INSERT INTO t1 SELECT i FROM range(0,5) tbl(i);
+
+query I
+select * from t1 where 15 < i  OR i < 20
+----
+0
+1
+2
+3
+4
