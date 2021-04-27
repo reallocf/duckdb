@@ -69,7 +69,7 @@ static void TableScanFunc(ExecutionContext &context, const FunctionData *bind_da
 	auto &bind_data = (TableScanBindData &)*bind_data_p;
 	auto &state = (TableScanOperatorData &)*operator_state;
 	auto &transaction = Transaction::GetTransaction(context.client);
-	bind_data.table->storage->Scan(transaction, output, state.scan_state, state.column_ids);
+	bind_data.table->storage->Scan(context, transaction, output, state.scan_state, state.column_ids);
 	bind_data.chunk_count++;
 }
 

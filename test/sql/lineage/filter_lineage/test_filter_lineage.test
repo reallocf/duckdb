@@ -1,4 +1,4 @@
-# name: test/sql/lineage/test_filter_lineage/test_filter_lineage.test
+# name: test/sql/lineage/filter_lineage/test_filter_lineage.test
 # description: Test Filter Lineage
 # group: [filter_lineage]
 
