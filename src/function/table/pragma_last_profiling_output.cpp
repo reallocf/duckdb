@@ -61,9 +61,15 @@ unique_ptr<FunctionOperatorData> PragmaLastProfilingOutputInit(ClientContext &co
 	return make_unique<PragmaLastProfilingOutputOperatorData>();
 }
 
+#ifdef LINEAGE
+static void PragmaLastProfilingOutputFunction(ExecutionContext &context, const FunctionData *bind_data_p,
+                                              FunctionOperatorData *operator_state, DataChunk *input,
+                                              DataChunk &output) {
+#else
 static void PragmaLastProfilingOutputFunction(ClientContext &context, const FunctionData *bind_data_p,
                                               FunctionOperatorData *operator_state, DataChunk *input,
                                               DataChunk &output) {
+#endif
 	auto &state = (PragmaLastProfilingOutputOperatorData &)*operator_state;
 	auto &data = (PragmaLastProfilingOutputData &)*bind_data_p;
 	if (!state.initialized) {
@@ -73,8 +79,13 @@ static void PragmaLastProfilingOutputFunction(ClientContext &context, const Func
 		DataChunk chunk;
 		chunk.Initialize(data.types);
 		int operator_counter = 1;
+#ifdef LINEAGE
+		if (!context.client.query_profiler_history->GetPrevProfilers().empty()) {
+			for (auto op : context.client.query_profiler_history->GetPrevProfilers().back().second->GetTreeMap()) {
+#else
 		if (!context.query_profiler_history->GetPrevProfilers().empty()) {
 			for (auto op : context.query_profiler_history->GetPrevProfilers().back().second->GetTreeMap()) {
+#endif
 				SetValue(chunk, chunk.size(), operator_counter++, op.second->name, op.second->info.time,
 				         op.second->info.elements, " ");
 				chunk.SetCardinality(chunk.size() + 1);

@@ -77,8 +77,13 @@ void AddFunction(BaseScalarFunction &f, idx_t &count, DataChunk &output, bool is
 	count++;
 }
 
+#ifdef LINEAGE
+static void PragmaFunctionsFunction(ExecutionContext &context, const FunctionData *bind_data,
+                                    FunctionOperatorData *operator_state, DataChunk *input, DataChunk &output) {
+#else
 static void PragmaFunctionsFunction(ClientContext &context, const FunctionData *bind_data,
                                     FunctionOperatorData *operator_state, DataChunk *input, DataChunk &output) {
+#endif
 	auto &data = (PragmaFunctionsData &)*operator_state;
 	if (data.offset >= data.entries.size()) {
 		// finished returning values

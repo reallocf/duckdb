@@ -1004,8 +1004,13 @@ void ArrowTableFunction::ArrowToDuckDB(ArrowScanState &scan_state,
 	}
 }
 
+#ifdef LINEAGE
+void ArrowTableFunction::ArrowScanFunction(ExecutionContext &context, const FunctionData *bind_data,
+                                           FunctionOperatorData *operator_state, DataChunk *input, DataChunk &output) {
+#else
 void ArrowTableFunction::ArrowScanFunction(ClientContext &context, const FunctionData *bind_data,
                                            FunctionOperatorData *operator_state, DataChunk *input, DataChunk &output) {
+#endif
 
 	auto &data = (ArrowScanFunctionData &)*bind_data;
 	auto &state = (ArrowScanState &)*operator_state;
@@ -1029,9 +1034,15 @@ void ArrowTableFunction::ArrowScanFunction(ClientContext &context, const Functio
 	state.chunk_offset += output.size();
 }
 
+#ifdef LINEAGE
+void ArrowTableFunction::ArrowScanFunctionParallel(ExecutionContext &context, const FunctionData *bind_data,
+                                                   FunctionOperatorData *operator_state, DataChunk *input,
+                                                   DataChunk &output, ParallelState *parallel_state_p) {
+#else
 void ArrowTableFunction::ArrowScanFunctionParallel(ClientContext &context, const FunctionData *bind_data,
                                                    FunctionOperatorData *operator_state, DataChunk *input,
                                                    DataChunk &output, ParallelState *parallel_state_p) {
+#endif
 	auto &data = (ArrowScanFunctionData &)*bind_data;
 	auto &state = (ArrowScanState &)*operator_state;
 	//! Out of tuples in this chunk

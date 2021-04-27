@@ -282,8 +282,13 @@ void ColumnHelper::WriteColumns(idx_t start_index, idx_t start_col, idx_t end_co
 
 } // anonymous namespace
 
+#ifdef LINEAGE
+void DuckDBColumnsFunction(ExecutionContext &context, const FunctionData *bind_data, FunctionOperatorData *operator_state,
+                           DataChunk *input, DataChunk &output) {
+#else
 void DuckDBColumnsFunction(ClientContext &context, const FunctionData *bind_data, FunctionOperatorData *operator_state,
                            DataChunk *input, DataChunk &output) {
+#endif
 	auto &data = (DuckDBColumnsData &)*operator_state;
 	if (data.offset >= data.entries.size()) {
 		// finished returning values

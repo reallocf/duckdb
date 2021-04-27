@@ -48,8 +48,13 @@ unique_ptr<FunctionOperatorData> DuckDBSchemasInit(ClientContext &context, const
 	return move(result);
 }
 
+#ifdef LINEAGE
+void DuckDBSchemasFunction(ExecutionContext &context, const FunctionData *bind_data, FunctionOperatorData *operator_state,
+                           DataChunk *input, DataChunk &output) {
+#else
 void DuckDBSchemasFunction(ClientContext &context, const FunctionData *bind_data, FunctionOperatorData *operator_state,
                            DataChunk *input, DataChunk &output) {
+#endif
 	auto &data = (DuckDBSchemasData &)*operator_state;
 	if (data.offset >= data.entries.size()) {
 		// finished returning values

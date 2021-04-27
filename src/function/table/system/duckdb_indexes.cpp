@@ -72,8 +72,13 @@ unique_ptr<FunctionOperatorData> DuckDBIndexesInit(ClientContext &context, const
 	return move(result);
 }
 
+#ifdef LINEAGE
+void DuckDBIndexesFunction(ExecutionContext &context, const FunctionData *bind_data, FunctionOperatorData *operator_state,
+                           DataChunk *input, DataChunk &output) {
+#else
 void DuckDBIndexesFunction(ClientContext &context, const FunctionData *bind_data, FunctionOperatorData *operator_state,
                            DataChunk *input, DataChunk &output) {
+#endif
 	auto &data = (DuckDBIndexesData &)*operator_state;
 	if (data.offset >= data.entries.size()) {
 		// finished returning values
@@ -100,8 +105,13 @@ void DuckDBIndexesFunction(ClientContext &context, const FunctionData *bind_data
 		output.SetValue(4, count, Value(index.info->table));
 		// table_oid, BIGINT
 		// find the table in the catalog
+#ifdef LINEAGE
+		auto &catalog = Catalog::GetCatalog(context.client);
+		auto table_entry = catalog.GetEntry(context.client, CatalogType::TABLE_ENTRY, index.info->schema, index.info->table);
+#else
 		auto &catalog = Catalog::GetCatalog(context);
 		auto table_entry = catalog.GetEntry(context, CatalogType::TABLE_ENTRY, index.info->schema, index.info->table);
+#endif
 		output.SetValue(5, count, Value::BIGINT(table_entry->oid));
 		// is_unique, BOOLEAN
 		output.SetValue(6, count, Value::BOOLEAN(index.index->is_unique));

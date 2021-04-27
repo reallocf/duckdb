@@ -24,8 +24,13 @@ static unique_ptr<FunctionData> SummaryFunctionBind(ClientContext &context, vect
 	return make_unique<TableFunctionData>();
 }
 
+#ifdef LINEAGE
+static void SummaryFunction(ExecutionContext &context, const FunctionData *bind_data_p, FunctionOperatorData *state_p,
+                            DataChunk *input, DataChunk &output) {
+#else
 static void SummaryFunction(ClientContext &context, const FunctionData *bind_data_p, FunctionOperatorData *state_p,
                             DataChunk *input, DataChunk &output) {
+#endif
 	D_ASSERT(input);
 	output.SetCardinality(input->size());
 

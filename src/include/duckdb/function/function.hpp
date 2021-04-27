@@ -12,6 +12,9 @@
 #include "duckdb/common/unordered_map.hpp"
 #include "duckdb/common/unordered_set.hpp"
 #include "duckdb/parser/column_definition.hpp"
+#ifdef LINEAGE
+#include "duckdb/execution/execution_context.hpp"
+#endif
 
 namespace duckdb {
 class CatalogEntry;

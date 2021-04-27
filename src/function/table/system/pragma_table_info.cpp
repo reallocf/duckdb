@@ -158,8 +158,13 @@ static void PragmaTableInfoView(PragmaTableOperatorData &data, ViewCatalogEntry 
 	data.offset = next;
 }
 
+#ifdef LINEAGE
+static void PragmaTableInfoFunction(ExecutionContext &context, const FunctionData *bind_data_p,
+                                    FunctionOperatorData *operator_state, DataChunk *input, DataChunk &output) {
+#else
 static void PragmaTableInfoFunction(ClientContext &context, const FunctionData *bind_data_p,
                                     FunctionOperatorData *operator_state, DataChunk *input, DataChunk &output) {
+#endif
 	auto &bind_data = (PragmaTableFunctionData &)*bind_data_p;
 	auto &state = (PragmaTableOperatorData &)*operator_state;
 	switch (bind_data.entry->type) {

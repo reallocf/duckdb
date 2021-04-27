@@ -34,8 +34,13 @@ unique_ptr<FunctionOperatorData> PragmaDatabaseListInit(ClientContext &context, 
 	return make_unique<PragmaDatabaseListData>();
 }
 
+#ifdef LINEAGE
+void PragmaDatabaseListFunction(ExecutionContext &context, const FunctionData *bind_data,
+                                FunctionOperatorData *operator_state, DataChunk *input, DataChunk &output) {
+#else
 void PragmaDatabaseListFunction(ClientContext &context, const FunctionData *bind_data,
                                 FunctionOperatorData *operator_state, DataChunk *input, DataChunk &output) {
+#endif
 	auto &data = (PragmaDatabaseListData &)*operator_state;
 	if (data.finished) {
 		return;
@@ -44,7 +49,11 @@ void PragmaDatabaseListFunction(ClientContext &context, const FunctionData *bind
 	output.SetCardinality(1);
 	output.data[0].SetValue(0, Value::INTEGER(0));
 	output.data[1].SetValue(0, Value("main"));
+#ifdef LINEAGE
+	output.data[2].SetValue(0, Value(StorageManager::GetStorageManager(context.client).GetDBPath()));
+#else
 	output.data[2].SetValue(0, Value(StorageManager::GetStorageManager(context).GetDBPath()));
+#endif
 
 	data.finished = true;
 }

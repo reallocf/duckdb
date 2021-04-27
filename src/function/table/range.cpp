@@ -72,8 +72,13 @@ static unique_ptr<FunctionOperatorData> RangeFunctionInit(ClientContext &context
 	return make_unique<RangeFunctionState>();
 }
 
+#ifdef LINEAGE
+static void RangeFunction(ExecutionContext &context, const FunctionData *bind_data_p, FunctionOperatorData *state_p,
+                          DataChunk *input, DataChunk &output) {
+#else
 static void RangeFunction(ClientContext &context, const FunctionData *bind_data_p, FunctionOperatorData *state_p,
                           DataChunk *input, DataChunk &output) {
+#endif
 	auto &bind_data = (RangeFunctionBindData &)*bind_data_p;
 	auto &state = (RangeFunctionState &)*state_p;
 
@@ -179,8 +184,13 @@ static unique_ptr<FunctionOperatorData> RangeDateTimeInit(ClientContext &context
 	return make_unique<RangeDateTimeState>(bind_data.start);
 }
 
+#ifdef LINEAGE
+static void RangeDateTimeFunction(ExecutionContext &context, const FunctionData *bind_data_p,
+                                  FunctionOperatorData *state_p, DataChunk *input, DataChunk &output) {
+#else
 static void RangeDateTimeFunction(ClientContext &context, const FunctionData *bind_data_p,
                                   FunctionOperatorData *state_p, DataChunk *input, DataChunk &output) {
+#endif
 	auto &bind_data = (RangeDateTimeBindData &)*bind_data_p;
 	auto &state = (RangeDateTimeState &)*state_p;
 	if (state.finished) {
