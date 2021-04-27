@@ -37,6 +37,9 @@ void PhysicalTableScan::GetChunkInternal(ExecutionContext &context, DataChunk &c
 	if (column_ids.empty()) {
 		return;
 	}
+#ifdef LINEAGE
+  context.setCurrent(id);
+#endif
 	if (!state.initialized) {
 		state.parallel_state = nullptr;
 		if (function.init) {

@@ -168,6 +168,26 @@ public:
 	idx_t offset;
 };
 
+class LineageConstant : public LineageData {
+public:
+
+  LineageConstant(idx_t value) : value(value) {
+#ifdef LINEAGE_DEBUG
+    debug();
+#endif
+  }
+
+  void debug() {
+    std::cout << "LineageConstant: " << value << std::endl;
+  }
+
+  unsigned long size_bytes() {
+    return sizeof(value);
+  }
+
+  idx_t value;
+};
+
 
 // A Range of values where each successive number in the range indicates the lineage
 // used to quickly capture Limits

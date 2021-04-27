@@ -65,6 +65,9 @@ public:
 	//! Whether or not the transaction has been invalidated
 	bool is_invalidated;
 
+#ifdef LINEAGE
+  unique_ptr<LineageCollection> scan_lineage_data;
+#endif
 public:
 	static Transaction &GetTransaction(ClientContext &context);
 
