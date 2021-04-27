@@ -45,14 +45,24 @@ static unique_ptr<FunctionData> DbgenBind(ClientContext &context, vector<Value> 
 	return move(result);
 }
 
+#ifdef LINEAGE
+static void DbgenFunction(ExecutionContext &context, const FunctionData *bind_data, FunctionOperatorData *operator_state,
+                          DataChunk *input, DataChunk &output) {
+#else
 static void DbgenFunction(ClientContext &context, const FunctionData *bind_data, FunctionOperatorData *operator_state,
                           DataChunk *input, DataChunk &output) {
+#endif
 	auto &data = (DBGenFunctionData &)*bind_data;
 	if (data.finished) {
 		return;
 	}
+#ifdef LINEAGE
+	tpch::DBGenWrapper::CreateTPCHSchema(context.client, data.schema, data.suffix);
+	tpch::DBGenWrapper::LoadTPCHData(context.client, data.sf, data.schema, data.suffix);
+#else
 	tpch::DBGenWrapper::CreateTPCHSchema(context, data.schema, data.suffix);
 	tpch::DBGenWrapper::LoadTPCHData(context, data.sf, data.schema, data.suffix);
+#endif
 
 	data.finished = true;
 }
@@ -82,8 +92,13 @@ static unique_ptr<FunctionData> TPCHQueryBind(ClientContext &context, vector<Val
 	return nullptr;
 }
 
+#ifdef LINEAGE
+static void TPCHQueryFunction(ExecutionContext &context, const FunctionData *bind_data,
+                              FunctionOperatorData *operator_state, DataChunk *input, DataChunk &output) {
+#else
 static void TPCHQueryFunction(ClientContext &context, const FunctionData *bind_data,
                               FunctionOperatorData *operator_state, DataChunk *input, DataChunk &output) {
+#endif
 	auto &data = (TPCHData &)*operator_state;
 	idx_t tpch_queries = 22;
 	if (data.offset >= tpch_queries) {
@@ -120,8 +135,13 @@ static unique_ptr<FunctionData> TPCHQueryAnswerBind(ClientContext &context, vect
 	return nullptr;
 }
 
+#ifdef LINEAGE
+static void TPCHQueryAnswerFunction(ExecutionContext &context, const FunctionData *bind_data,
+                                    FunctionOperatorData *operator_state, DataChunk *input, DataChunk &output) {
+#else
 static void TPCHQueryAnswerFunction(ClientContext &context, const FunctionData *bind_data,
                                     FunctionOperatorData *operator_state, DataChunk *input, DataChunk &output) {
+#endif
 	auto &data = (TPCHData &)*operator_state;
 	idx_t tpch_queries = 22;
 	vector<double> scale_factors {0.01, 0.1, 1};

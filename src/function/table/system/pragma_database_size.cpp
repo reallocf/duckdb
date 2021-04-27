@@ -53,15 +53,26 @@ unique_ptr<FunctionOperatorData> PragmaDatabaseSizeInit(ClientContext &context, 
 	return make_unique<PragmaDatabaseSizeData>();
 }
 
+#ifdef LINEAGE
+void PragmaDatabaseSizeFunction(ExecutionContext &context, const FunctionData *bind_data,
+                                FunctionOperatorData *operator_state, DataChunk *input, DataChunk &output) {
+#else
 void PragmaDatabaseSizeFunction(ClientContext &context, const FunctionData *bind_data,
                                 FunctionOperatorData *operator_state, DataChunk *input, DataChunk &output) {
+#endif
 	auto &data = (PragmaDatabaseSizeData &)*operator_state;
 	if (data.finished) {
 		return;
 	}
+#ifdef LINEAGE
+	auto &storage = StorageManager::GetStorageManager(context.client);
+	auto &block_manager = BlockManager::GetBlockManager(context.client);
+	auto &buffer_manager = BufferManager::GetBufferManager(context.client);
+#else
 	auto &storage = StorageManager::GetStorageManager(context);
 	auto &block_manager = BlockManager::GetBlockManager(context);
 	auto &buffer_manager = BufferManager::GetBufferManager(context);
+#endif
 
 	output.SetCardinality(1);
 	if (!storage.InMemory()) {

@@ -133,8 +133,13 @@ private:
 	                                                      TableFilterCollection *filters);
 
 	//! Scan Function for Single Thread Execution
+#ifdef LINEAGE
+	static void ArrowScanFunction(ExecutionContext &context, const FunctionData *bind_data,
+	                              FunctionOperatorData *operator_state, DataChunk *input, DataChunk &output);
+#else
 	static void ArrowScanFunction(ClientContext &context, const FunctionData *bind_data,
 	                              FunctionOperatorData *operator_state, DataChunk *input, DataChunk &output);
+#endif
 
 	//! -----Multi Thread Functions:-----
 	//! Initialize Parallel State
@@ -148,9 +153,15 @@ private:
 	//! Defines Maximum Number of Threads
 	static idx_t ArrowScanMaxThreads(ClientContext &context, const FunctionData *bind_data_p);
 	//! Scan Function for Parallel Execution
+#ifdef LINEAGE
+	static void ArrowScanFunctionParallel(ExecutionContext &context, const FunctionData *bind_data,
+	                                      FunctionOperatorData *operator_state, DataChunk *input, DataChunk &output,
+	                                      ParallelState *parallel_state_p);
+#else
 	static void ArrowScanFunctionParallel(ClientContext &context, const FunctionData *bind_data,
 	                                      FunctionOperatorData *operator_state, DataChunk *input, DataChunk &output,
 	                                      ParallelState *parallel_state_p);
+#endif
 	//! Get next chunk for the running thread
 	static bool ArrowScanParallelStateNext(ClientContext &context, const FunctionData *bind_data_p,
 	                                       FunctionOperatorData *operator_state, ParallelState *parallel_state_p);

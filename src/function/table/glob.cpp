@@ -35,8 +35,13 @@ static unique_ptr<FunctionOperatorData> GlobFunctionInit(ClientContext &context,
 	return make_unique<GlobFunctionState>();
 }
 
+#ifdef LINEAGE
+static void GlobFunction(ExecutionContext &context, const FunctionData *bind_data_p, FunctionOperatorData *state_p,
+                         DataChunk *input, DataChunk &output) {
+#else
 static void GlobFunction(ClientContext &context, const FunctionData *bind_data_p, FunctionOperatorData *state_p,
                          DataChunk *input, DataChunk &output) {
+#endif
 	auto &bind_data = (GlobFunctionBindData &)*bind_data_p;
 	auto &state = (GlobFunctionState &)*state_p;
 

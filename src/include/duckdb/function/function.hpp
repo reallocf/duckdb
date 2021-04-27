@@ -11,6 +11,7 @@
 #include "duckdb/common/types/data_chunk.hpp"
 #include "duckdb/common/unordered_map.hpp"
 #include "duckdb/common/unordered_set.hpp"
+#include "duckdb/execution/execution_context.hpp"
 #include "duckdb/parser/column_definition.hpp"
 
 namespace duckdb {

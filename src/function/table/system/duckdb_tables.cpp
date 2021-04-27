@@ -101,8 +101,13 @@ static idx_t CheckConstraintCount(TableCatalogEntry &table) {
 	return check_count;
 }
 
+#ifdef LINEAGE
+void DuckDBTablesFunction(ExecutionContext &context, const FunctionData *bind_data, FunctionOperatorData *operator_state,
+                          DataChunk *input, DataChunk &output) {
+#else
 void DuckDBTablesFunction(ClientContext &context, const FunctionData *bind_data, FunctionOperatorData *operator_state,
                           DataChunk *input, DataChunk &output) {
+#endif
 	auto &data = (DuckDBTablesData &)*operator_state;
 	if (data.offset >= data.entries.size()) {
 		// finished returning values

@@ -69,8 +69,13 @@ unique_ptr<FunctionOperatorData> DuckDBDependenciesInit(ClientContext &context, 
 	return move(result);
 }
 
+#ifdef LINEAGE
+void DuckDBDependenciesFunction(ExecutionContext &context, const FunctionData *bind_data,
+                                FunctionOperatorData *operator_state, DataChunk *input, DataChunk &output) {
+#else
 void DuckDBDependenciesFunction(ClientContext &context, const FunctionData *bind_data,
                                 FunctionOperatorData *operator_state, DataChunk *input, DataChunk &output) {
+#endif
 	auto &data = (DuckDBDependenciesData &)*operator_state;
 	if (data.offset >= data.entries.size()) {
 		// finished returning values

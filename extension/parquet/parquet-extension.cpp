@@ -152,7 +152,11 @@ public:
 		return nullptr;
 	}
 
+#ifdef LINEAGE
+	static void ParquetScanFuncParallel(ExecutionContext &context, const FunctionData *bind_data,
+#else
 	static void ParquetScanFuncParallel(ClientContext &context, const FunctionData *bind_data,
+#endif
 	                                    FunctionOperatorData *operator_state, DataChunk *input, DataChunk &output,
 	                                    ParallelState *parallel_state_p) {
 		//! FIXME: Have specialized parallel function from pandas scan here
@@ -254,8 +258,13 @@ public:
 		return move(result);
 	}
 
+#ifdef LINEAGE
+	static void ParquetScanImplementation(ExecutionContext &context, const FunctionData *bind_data_p,
+	                                      FunctionOperatorData *operator_state, DataChunk *input, DataChunk &output) {
+#else
 	static void ParquetScanImplementation(ClientContext &context, const FunctionData *bind_data_p,
 	                                      FunctionOperatorData *operator_state, DataChunk *input, DataChunk &output) {
+#endif
 		auto &data = (ParquetReadOperatorData &)*operator_state;
 		auto &bind_data = (ParquetReadBindData &)*bind_data_p;
 
@@ -271,8 +280,13 @@ public:
 					bind_data.chunk_count = 0;
 					string file = bind_data.files[data.file_index];
 					// move to the next file
+#ifdef LINEAGE
+					data.reader =
+					    make_shared<ParquetReader>(context.client, file, data.reader->return_types, bind_data.files[0]);
+#else
 					data.reader =
 					    make_shared<ParquetReader>(context, file, data.reader->return_types, bind_data.files[0]);
+#endif
 					vector<idx_t> group_ids;
 					for (idx_t i = 0; i < data.reader->NumRowGroups(); i++) {
 						group_ids.push_back(i);

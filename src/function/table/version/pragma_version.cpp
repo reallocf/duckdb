@@ -27,8 +27,13 @@ static unique_ptr<FunctionOperatorData> PragmaVersionInit(ClientContext &context
 	return make_unique<PragmaVersionData>();
 }
 
+#ifdef LINEAGE
+static void PragmaVersionFunction(ExecutionContext &context, const FunctionData *bind_data,
+                                  FunctionOperatorData *operator_state, DataChunk *input, DataChunk &output) {
+#else
 static void PragmaVersionFunction(ClientContext &context, const FunctionData *bind_data,
                                   FunctionOperatorData *operator_state, DataChunk *input, DataChunk &output) {
+#endif
 	auto &data = (PragmaVersionData &)*operator_state;
 	if (data.finished) {
 		// finished returning values

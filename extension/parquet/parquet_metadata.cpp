@@ -444,8 +444,13 @@ unique_ptr<FunctionOperatorData> ParquetMetaDataInit(ClientContext &context, con
 }
 
 template <bool SCHEMA>
+#ifdef LINEAGE
+void ParquetMetaDataImplementation(ExecutionContext &context, const FunctionData *bind_data_p,
+                                   FunctionOperatorData *operator_state, DataChunk *input, DataChunk &output) {
+#else
 void ParquetMetaDataImplementation(ClientContext &context, const FunctionData *bind_data_p,
                                    FunctionOperatorData *operator_state, DataChunk *input, DataChunk &output) {
+#endif
 	auto &data = (ParquetMetaDataOperatorData &)*operator_state;
 	auto &bind_data = (ParquetMetaDataBindData &)*bind_data_p;
 	while (true) {
@@ -454,11 +459,19 @@ void ParquetMetaDataImplementation(ClientContext &context, const FunctionData *b
 			if (data.file_index + 1 < bind_data.files.size()) {
 				// load the metadata for the next file
 				data.file_index++;
+#ifdef LINEAGE
+				if (SCHEMA) {
+					data.LoadSchemaData(context.client, bind_data.return_types, bind_data.files[data.file_index]);
+				} else {
+					data.LoadFileMetaData(context.client, bind_data.return_types, bind_data.files[data.file_index]);
+				}
+#else
 				if (SCHEMA) {
 					data.LoadSchemaData(context, bind_data.return_types, bind_data.files[data.file_index]);
 				} else {
 					data.LoadFileMetaData(context, bind_data.return_types, bind_data.files[data.file_index]);
 				}
+#endif
 				continue;
 			} else {
 				// no files remaining: done

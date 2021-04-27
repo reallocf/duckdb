@@ -41,12 +41,23 @@ typedef unique_ptr<FunctionOperatorData> (*table_function_init_t)(ClientContext 
                                                                   TableFilterCollection *filters);
 typedef unique_ptr<BaseStatistics> (*table_statistics_t)(ClientContext &context, const FunctionData *bind_data,
                                                          column_t column_index);
+#ifdef LINEAGE
+typedef void (*table_function_t)(ExecutionContext &context, const FunctionData *bind_data,
+                                 FunctionOperatorData *operator_state, DataChunk *input, DataChunk &output);
+#else
 typedef void (*table_function_t)(ClientContext &context, const FunctionData *bind_data,
                                  FunctionOperatorData *operator_state, DataChunk *input, DataChunk &output);
+#endif
 
+#ifdef LINEAGE
+typedef void (*table_function_parallel_t)(ExecutionContext &context, const FunctionData *bind_data,
+                                          FunctionOperatorData *operator_state, DataChunk *input, DataChunk &output,
+                                          ParallelState *parallel_state);
+#else
 typedef void (*table_function_parallel_t)(ClientContext &context, const FunctionData *bind_data,
                                           FunctionOperatorData *operator_state, DataChunk *input, DataChunk &output,
                                           ParallelState *parallel_state);
+#endif
 
 typedef void (*table_function_cleanup_t)(ClientContext &context, const FunctionData *bind_data,
                                          FunctionOperatorData *operator_state);

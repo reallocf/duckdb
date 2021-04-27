@@ -17,6 +17,7 @@
 
 namespace duckdb {
 class PhysicalOperator;
+class ClientContext;
 class LineageContext;
 
 
