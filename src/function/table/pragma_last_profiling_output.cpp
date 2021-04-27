@@ -60,7 +60,7 @@ unique_ptr<FunctionOperatorData> PragmaLastProfilingOutputInit(ClientContext &co
 	return make_unique<PragmaLastProfilingOutputOperatorData>();
 }
 
-static void PragmaLastProfilingOutputFunction(ClientContext &context, const FunctionData *bind_data_p,
+static void PragmaLastProfilingOutputFunction(ExecutionContext &context, const FunctionData *bind_data_p,
                                               FunctionOperatorData *operator_state, DataChunk *input,
                                               DataChunk &output) {
 	auto &state = (PragmaLastProfilingOutputOperatorData &)*operator_state;
@@ -72,8 +72,8 @@ static void PragmaLastProfilingOutputFunction(ClientContext &context, const Func
 		DataChunk chunk;
 		chunk.Initialize(data.types);
 		int operator_counter = 1;
-		if (!context.query_profiler_history.GetPrevProfilers().empty()) {
-			for (auto op : context.query_profiler_history.GetPrevProfilers().back().second.GetTreeMap()) {
+		if (!context.client.query_profiler_history.GetPrevProfilers().empty()) {
+			for (auto op : context.client.query_profiler_history.GetPrevProfilers().back().second.GetTreeMap()) {
 				SetValue(chunk, chunk.size(), operator_counter++, op.second->name, op.second->info.time,
 				         op.second->info.elements, " ");
 				chunk.SetCardinality(chunk.size() + 1);

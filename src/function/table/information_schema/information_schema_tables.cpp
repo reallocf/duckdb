@@ -77,7 +77,7 @@ unique_ptr<FunctionOperatorData> InformationSchemaTablesInit(ClientContext &cont
 	return move(result);
 }
 
-void InformationSchemaTablesFunction(ClientContext &context, const FunctionData *bind_data,
+void InformationSchemaTablesFunction(ExecutionContext &context, const FunctionData *bind_data,
                                      FunctionOperatorData *operator_state, DataChunk *input, DataChunk &output) {
 	auto &data = (InformationSchemaTablesData &)*operator_state;
 	if (data.offset >= data.entries.size()) {

@@ -56,7 +56,7 @@ unique_ptr<FunctionOperatorData> SQLiteMasterInit(ClientContext &context, const 
 	return move(result);
 }
 
-void SQLiteMasterFunction(ClientContext &context, const FunctionData *bind_data, FunctionOperatorData *operator_state,
+void SQLiteMasterFunction(ExecutionContext &context, const FunctionData *bind_data, FunctionOperatorData *operator_state,
                           DataChunk *input, DataChunk &output) {
 	auto &data = (SQLiteMasterData &)*operator_state;
 	if (data.offset >= data.entries.size()) {

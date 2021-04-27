@@ -59,7 +59,7 @@ unique_ptr<FunctionOperatorData> InformationSchemaSchemataInit(ClientContext &co
 	return move(result);
 }
 
-void InformationSchemaSchemataFunction(ClientContext &context, const FunctionData *bind_data,
+void InformationSchemaSchemataFunction(ExecutionContext &context, const FunctionData *bind_data,
                                        FunctionOperatorData *operator_state, DataChunk *input, DataChunk &output) {
 	auto &data = (InformationSchemaSchemataData &)*operator_state;
 	if (data.offset >= data.entries.size()) {

@@ -37,7 +37,7 @@ void PhysicalTableInOutFunction::GetChunkInternal(ExecutionContext &context, Dat
 	D_ASSERT(children.size() == 1);
 	state.child_chunk.Reset();
 	children[0]->GetChunkInternal(context, state.child_chunk, state.child_state.get());
-	function.function(context.client, bind_data.get(), state.operator_data.get(), &state.child_chunk, chunk);
+	function.function(context, bind_data.get(), state.operator_data.get(), &state.child_chunk, chunk);
 }
 
 unique_ptr<PhysicalOperatorState> PhysicalTableInOutFunction::GetOperatorState() {

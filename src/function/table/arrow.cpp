@@ -145,7 +145,7 @@ static unique_ptr<FunctionOperatorData> ArrowScanInit(ClientContext &context, co
 	return make_unique<FunctionOperatorData>();
 }
 
-static void ArrowScanFunction(ClientContext &context, const FunctionData *bind_data,
+static void ArrowScanFunction(ExecutionContext &context, const FunctionData *bind_data,
                               FunctionOperatorData *operator_state, DataChunk *input, DataChunk &output) {
 	auto &data = (ArrowScanFunctionData &)*bind_data;
 	if (!data.stream->release) {

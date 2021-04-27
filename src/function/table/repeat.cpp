@@ -32,7 +32,7 @@ static unique_ptr<FunctionOperatorData> RepeatInit(ClientContext &context, const
 	return make_unique<RepeatOperatorData>();
 }
 
-static void RepeatFunction(ClientContext &context, const FunctionData *bind_data_p,
+static void RepeatFunction(ExecutionContext &context, const FunctionData *bind_data_p,
                            FunctionOperatorData *operator_state, DataChunk *input, DataChunk &output) {
 	auto &bind_data = (RepeatFunctionData &)*bind_data_p;
 	auto &state = (RepeatOperatorData &)*operator_state;

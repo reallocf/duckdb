@@ -39,7 +39,7 @@ unique_ptr<FunctionOperatorData> PragmaCollateInit(ClientContext &context, const
 	return move(result);
 }
 
-static void PragmaCollateFunction(ClientContext &context, const FunctionData *bind_data,
+static void PragmaCollateFunction(ExecutionContext &context, const FunctionData *bind_data,
                                   FunctionOperatorData *operator_state, DataChunk *input, DataChunk &output) {
 	auto &data = (PragmaCollateData &)*operator_state;
 	if (data.offset >= data.entries.size()) {

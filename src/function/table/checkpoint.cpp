@@ -16,10 +16,10 @@ static unique_ptr<FunctionData> CheckpointBind(ClientContext &context, vector<Va
 }
 
 template <bool FORCE>
-static void TemplatedCheckpointFunction(ClientContext &context, const FunctionData *bind_data_p,
+static void TemplatedCheckpointFunction(ExecutionContext &context, const FunctionData *bind_data_p,
                                         FunctionOperatorData *operator_state, DataChunk *input, DataChunk &output) {
-	auto &transaction_manager = TransactionManager::Get(context);
-	transaction_manager.Checkpoint(context, FORCE);
+	auto &transaction_manager = TransactionManager::Get(context.client);
+	transaction_manager.Checkpoint(context.client, FORCE);
 }
 
 void CheckpointFunction::RegisterFunction(BuiltinFunctions &set) {
