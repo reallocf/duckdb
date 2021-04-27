@@ -50,6 +50,27 @@ void ManageLineage::AnnotatePlan(PhysicalOperator *op) {
 void ManageLineage::BackwardLineage(PhysicalOperator *op, shared_ptr<LineageContext> lineage, int oidx) {
   std::cout << "Backward Lineage: TraverseTree op " << op << " " << op->GetName() << std::endl;
   switch (op->type) {
+    case PhysicalOperatorType::TABLE_SCAN: {
+      LineageOpUnary *lop = dynamic_cast<LineageOpUnary *>(lineage->GetLineageOp(op->id, 0).get());
+      if (!lop) {
+        std::cout << "something is wrong, lop not found for  table scan" << std::endl;
+        return;
+      }
+      std::shared_ptr<LineageCollection> collection = std::dynamic_pointer_cast<LineageCollection>(lop->data);
+      // need to adjust the offset based on start
+      if (collection->collection.find("vector_index") != collection->collection.end()) {
+        auto vector_index = dynamic_cast<LineageConstant&>(*collection->collection["vector_index"]).value;
+        std::cout << "Table scan chunk Id " << vector_index <<  std::endl;
+      }
+
+      if (collection->collection.find("filter") != collection->collection.end()) {
+        // get selection vector
+        std::cout << "filter on scan" <<  std::endl;
+        auto fidx = dynamic_cast<LineageSelVec&>(*collection->collection["filter"]).getAtIndex(oidx);
+        std::cout << oidx << " maps to " << fidx  << std::endl;
+      }
+      break;
+    }
     case PhysicalOperatorType::PERFECT_HASH_GROUP_BY:
     case PhysicalOperatorType::HASH_GROUP_BY: {
       std::shared_ptr<LineageOpUnary> lop = std::dynamic_pointer_cast<LineageOpUnary>(lineage->GetLineageOp(op->id, 0));
