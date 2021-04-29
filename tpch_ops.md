@@ -39,3 +39,4 @@ Top N: 5
 Limit: 3
 Piecewise Merge Join: 2
 Chunk Scan: 2
+Perfect Hash Group By: 1
