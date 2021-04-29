@@ -45,14 +45,14 @@ static unique_ptr<FunctionData> dbgen_bind(ClientContext &context, vector<Value>
 	return move(result);
 }
 
-static void dbgen_function(ClientContext &context, const FunctionData *bind_data, FunctionOperatorData *operator_state,
+static void dbgen_function(ExecutionContext &context, const FunctionData *bind_data, FunctionOperatorData *operator_state,
                            DataChunk *input, DataChunk &output) {
 	auto &data = (DBGenFunctionData &)*bind_data;
 	if (data.finished) {
 		return;
 	}
-	tpch::DBGenWrapper::CreateTPCHSchema(context, data.schema, data.suffix);
-	tpch::DBGenWrapper::LoadTPCHData(context, data.sf, data.schema, data.suffix);
+	tpch::DBGenWrapper::CreateTPCHSchema(context.client, data.schema, data.suffix);
+	tpch::DBGenWrapper::LoadTPCHData(context.client, data.sf, data.schema, data.suffix);
 
 	data.finished = true;
 }
