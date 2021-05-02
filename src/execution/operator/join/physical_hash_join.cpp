@@ -136,6 +136,9 @@ void PhysicalHashJoin::Sink(ExecutionContext &context, GlobalOperatorState &stat
 		// there is not a projected map: place the entire right chunk in the HT
 		sink.hash_table->Build(lstate.join_keys, input);
 	}
+
+	// log lineage
+	context.lineage->RegisterDataPerOp(this, move(sink.hash_table->sink_per_chunk_lineage));
 }
 
 //===--------------------------------------------------------------------===//

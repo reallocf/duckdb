@@ -300,6 +300,7 @@ void JoinHashTable::Build(DataChunk &keys, DataChunk &payload) {
 	vector<unique_ptr<BufferHandle>> handles;
 	vector<BlockAppendEntry> append_entries;
 	data_ptr_t key_locations[STANDARD_VECTOR_SIZE];
+	data_ptr_t key_locations_lineage[STANDARD_VECTOR_SIZE];
 	// first allocate space of where to serialize the keys and payload columns
 	idx_t remaining = added_count;
 	{
@@ -332,38 +333,51 @@ void JoinHashTable::Build(DataChunk &keys, DataChunk &payload) {
 			blocks.push_back(move(new_block));
 		}
 	}
-	// now set up the key_locations based on the append entries
+
+    // now set up the key_locations based on the append entries
 	idx_t append_idx = 0;
 	for (auto &append_entry : append_entries) {
 		idx_t next = append_idx + append_entry.count;
 		for (; append_idx < next; append_idx++) {
 			key_locations[append_idx] = append_entry.baseptr;
-      std::cout << "key_locations[" << append_idx << "]" << " = " << static_cast<void*>(key_locations[append_idx]) << std::endl;
+            key_locations_lineage[append_idx] = append_entry.baseptr;
+            std::cout << "key_locations[" << append_idx << "]" << " = " << (uintptr_t)(key_locations[append_idx]) << std::endl;
 			append_entry.baseptr += entry_size;
 		}
 	}
 
+	// log key_locations and current_sel
 	// hash the keys and obtain an entry in the list
 	// note that we only hash the keys used in the equality comparison
 	Vector hash_values(LogicalType::HASH);
 	Hash(keys, *current_sel, added_count, hash_values);
 
-	// serialize the keys to the key locations
+    // serialize the keys to the key locations
 	for (idx_t i = 0; i < keys.ColumnCount(); i++) {
 		SerializeVectorData(key_data[i], keys.data[i].GetType().InternalType(), *current_sel, added_count,
 		                    key_locations);
 	}
-	// now serialize the payload
+
+    // now serialize the payload
 	if (!build_types.empty()) {
 		for (idx_t i = 0; i < payload.ColumnCount(); i++) {
 			SerializeVector(payload.data[i], payload.size(), *current_sel, added_count, key_locations);
 		}
 	}
-	if (IsRightOuterJoin(join_type)) {
+
+    if (IsRightOuterJoin(join_type)) {
 		// for FULL/RIGHT OUTER joins initialize the "found" boolean to false
 		InitializeOuterJoin(added_count, key_locations);
 	}
 	SerializeVector(hash_values, payload.size(), *current_sel, added_count, key_locations);
+
+	// log lineage data that maps input to output ht payload entries
+	auto lineage_data_1 = make_unique<LineageDataArray<uintptr_t>>(move((uintptr_t *)key_locations_lineage), added_count);
+	auto lineage_data_2 = make_unique<LineageDataArray<sel_t>>(current_sel->data(), added_count);
+	auto lineage = make_unique<LineageCollection>();
+	lineage->add(move(lineage_data_1));
+	lineage->add(move(lineage_data_2));
+	sink_per_chunk_lineage =  make_unique<LineageOpUnary>(move(lineage));
 }
 
 void JoinHashTable::InsertHashes(Vector &hashes, idx_t count, data_ptr_t key_locations[]) {
@@ -411,6 +425,7 @@ void JoinHashTable::Finalize() {
 	for (auto &block : blocks) {
 		auto handle = buffer_manager.Pin(block.block);
 		data_ptr_t dataptr = handle->node->buffer;
+		std::cout << "dataptr -> " << static_cast<void*>(dataptr) << std::endl;
 		idx_t entry = 0;
 		while (entry < block.count) {
 			// fetch the next vector of entries from the blocks
@@ -418,7 +433,10 @@ void JoinHashTable::Finalize() {
 			for (idx_t i = 0; i < next; i++) {
 				hash_data[i] = Load<hash_t>((data_ptr_t)(dataptr + pointer_offset));
 				key_locations[i] = dataptr;
-        std::cout << "final: key_locations[" << i << "]" << " = " << static_cast<void*>(key_locations[i]) << std::endl;
+
+				// using entry size & dataptr for index 0, I can infer the location a pointer maps to
+				std::cout << "final: key_locations[" << i << "]" << " = " << (uintptr_t)(key_locations[i])
+				          << " entry size: " << entry_size <<  std::endl;
 				dataptr += entry_size;
 			}
 			// now insert into the hash table
@@ -701,7 +719,6 @@ static void TemplatedGatherResult(Vector &result, uintptr_t *pointers, const Sel
 		auto ridx = result_vector.get_index(i);
 		auto pidx = sel_vector.get_index(i);
 		T hdata = Load<T>((data_ptr_t)(pointers[pidx] + offset));
-    std::cout << i <<  " @ pointers[" << pidx << "]" << " -> " << static_cast<void*>((data_ptr_t)pointers[pidx]) << std::endl;
 		if (IsNullValue<T>(hdata)) {
 			mask.SetInvalid(ridx);
 		} else {
@@ -795,6 +812,15 @@ void ScanStructure::NextInnerJoin(DataChunk &keys, DataChunk &left, DataChunk &r
 		// construct the result
 		// on the LHS, we create a slice using the result vector
 		result.Slice(left, result_vector, result_count);
+		std::cout << " NextInnerJoin: " << result_vector.ToString(result_count) << std::endl;
+		auto ptrs = FlatVector::GetData<uintptr_t>(pointers);
+		uintptr_t key_locations_lineage[STANDARD_VECTOR_SIZE];
+		for (idx_t i = 0; i < result_count; i++) {
+			auto idx = result_vector.get_index(i);
+			key_locations_lineage[i] = ptrs[idx];
+			std::cout << i <<  " match sel: " <<    ptrs[idx]   << std::endl;
+		}
+
 
 		// on the RHS, we need to fetch the data from the hash table
 		idx_t offset = ht.condition_size;
@@ -802,8 +828,14 @@ void ScanStructure::NextInnerJoin(DataChunk &keys, DataChunk &left, DataChunk &r
 			auto &vector = result.data[left.ColumnCount() + i];
 			D_ASSERT(vector.GetType() == ht.build_types[i]);
 			GatherResult(vector, result_vector, result_count, offset);
-      // store pointers pidx
 		}
+		// copy from ptrs and used it later with result vector
+		lop = make_unique<LineageOpBinary>();
+		auto lineage_probe = make_unique<LineageDataArray<sel_t>>(result_vector.data(), result_count);
+		auto lineage_build = make_unique<LineageDataArray<uintptr_t>>(move(key_locations_lineage), result_count);
+		lop->setRHS(move(lineage_probe));
+		lop->setLHS(move(lineage_build));
+
 		AdvancePointers();
 	}
 }

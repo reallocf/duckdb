@@ -55,6 +55,7 @@ public:
 		unique_ptr<bool[]> found_match;
 		JoinHashTable &ht;
 		bool finished;
+		unique_ptr<LineageOpBinary> lop;
 
 		explicit ScanStructure(JoinHashTable &ht);
 		//! Get the next batch of data from the scan structure
@@ -173,6 +174,8 @@ public:
 	uint64_t bitmask;
 	//! The amount of entries stored per block
 	idx_t block_capacity;
+
+	unique_ptr<LineageOpUnary> sink_per_chunk_lineage;
 
 	struct {
 		std::mutex mj_lock;
