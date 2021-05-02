@@ -22,15 +22,6 @@ public:
     LineageData() {}
 };
 
-class LineageDataSelVec : public LineageData {
-public:
-    LineageDataSelVec(SelectionVector sel_p, idx_t count) : sel(sel_p), count(count) {
-        std::cout << "LineageDataSelVecL " << sel.ToString(count) << std::endl;
-    }
-    SelectionVector sel;
-    idx_t count;
-};
-
 class LineageDataVector : public LineageData {
 public:
     LineageDataVector(Vector vec_p, idx_t count) : vec(move(vec_p)), count(count) {
@@ -39,6 +30,34 @@ public:
 
     Vector vec;
     idx_t count;
+};
+
+template <class T>
+class LineageDataArray : public LineageData {
+public:
+
+    LineageDataArray (T *vec_p, idx_t count) : vec(move(vec_p)), count(count) {
+        std::cout << "LineageDataArray " << " " << typeid(vec_p).name() << std::endl;
+
+        for (idx_t i = 0; i < count; i++) {
+            std::cout << " (" << i << " -> " << vec_p[i] << ") ";
+        }
+        std::cout << std::endl;
+    }
+
+    T *vec;
+    idx_t count;
+};
+
+
+class LineageCollection : public LineageData {
+public:
+
+	void add(unique_ptr<LineageData> new_data) {
+        data.push_back(move(new_data));
+	}
+
+    vector<unique_ptr<LineageData>> data;
 };
 
 // base operator for Unary and Binary
