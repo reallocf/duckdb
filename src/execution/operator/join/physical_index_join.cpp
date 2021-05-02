@@ -123,7 +123,7 @@ void PhysicalIndexJoin::Output(ExecutionContext &context, DataChunk &chunk, Phys
 		chunk.data[left_offset + i].Slice(sel, output_sel_idx);
 	}
 
-	lop->setLHS(make_unique<LineageDataSelVec>(move(sel), output_sel_idx));
+	lop->setLHS(make_unique<LineageDataArray<sel_t>>(move(sel.data()), output_sel_idx));
 	context.lineage->RegisterDataPerOp((void *)this,  move(lop));
 
 	state->result_size = output_sel_idx;
