@@ -64,12 +64,12 @@ static unique_ptr<FunctionOperatorData> TableScanParallelInit(ClientContext &con
 	return move(result);
 }
 
-static void TableScanFunc(ClientContext &context, const FunctionData *bind_data_p, FunctionOperatorData *operator_state,
+static void TableScanFunc(ExecutionContext &context, const FunctionData *bind_data_p, FunctionOperatorData *operator_state,
                           DataChunk *, DataChunk &output) {
 	auto &bind_data = (TableScanBindData &)*bind_data_p;
 	auto &state = (TableScanOperatorData &)*operator_state;
-	auto &transaction = Transaction::GetTransaction(context);
-	bind_data.table->storage->Scan(transaction, output, state.scan_state, state.column_ids);
+	auto &transaction = Transaction::GetTransaction(context.client);
+	bind_data.table->storage->Scan(context, transaction, output, state.scan_state, state.column_ids);
 	bind_data.chunk_count++;
 }
 
@@ -158,11 +158,11 @@ static unique_ptr<FunctionOperatorData> IndexScanInit(ClientContext &context, co
 	return move(result);
 }
 
-static void IndexScanFunction(ClientContext &context, const FunctionData *bind_data_p,
+static void IndexScanFunction(ExecutionContext &context, const FunctionData *bind_data_p,
                               FunctionOperatorData *operator_state, DataChunk *input, DataChunk &output) {
 	auto &bind_data = (const TableScanBindData &)*bind_data_p;
 	auto &state = (IndexScanOperatorData &)*operator_state;
-	auto &transaction = Transaction::GetTransaction(context);
+	auto &transaction = Transaction::GetTransaction(context.client);
 	if (!state.finished) {
 		bind_data.table->storage->Fetch(transaction, output, state.column_ids, state.row_ids,
 		                                bind_data.result_ids.size(), state.fetch_state);

@@ -92,7 +92,8 @@ public:
 	//! from offset and store them in result. Offset is incremented with how many
 	//! elements were returned.
 	//! Returns true if all pushed down filters were executed during data fetching
-	void Scan(Transaction &transaction, DataChunk &result, TableScanState &state, vector<column_t> &column_ids);
+	void Scan(ExecutionContext &context, Transaction &transaction, DataChunk &result, TableScanState &state,
+	          vector<column_t> &column_ids);
 
 	//! Fetch data from the specific row identifiers from the base table
 	void Fetch(Transaction &transaction, DataChunk &result, vector<column_t> &column_ids, Vector &row_ids,
@@ -158,7 +159,7 @@ private:
 	                              TableFilterSet *table_filters, idx_t start_row, idx_t end_row);
 	bool CheckZonemap(TableScanState &state, const vector<column_t> &column_ids, TableFilterSet *table_filters,
 	                  idx_t &current_row);
-	bool ScanBaseTable(Transaction &transaction, DataChunk &result, TableScanState &state,
+	bool ScanBaseTable(ExecutionContext &context, Transaction &transaction, DataChunk &result, TableScanState &state,
 	                   const vector<column_t> &column_ids, idx_t &current_row, idx_t max_row);
 	bool ScanCreateIndex(CreateIndexScanState &state, const vector<column_t> &column_ids, DataChunk &result,
 	                     idx_t &current_row, idx_t max_row, bool allow_pending_updates = false);

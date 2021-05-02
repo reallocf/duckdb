@@ -276,7 +276,7 @@ void ColumnHelper::WriteColumns(idx_t start_index, idx_t start_col, idx_t end_co
 
 } // anonymous namespace
 
-void InformationSchemaColumnsFunction(ClientContext &context, const FunctionData *bind_data,
+void InformationSchemaColumnsFunction(ExecutionContext &context, const FunctionData *bind_data,
                                       FunctionOperatorData *operator_state, DataChunk *input, DataChunk &output) {
 	auto &data = (InformationSchemaColumnsData &)*operator_state;
 	if (data.offset >= data.entries.size()) {

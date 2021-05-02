@@ -73,15 +73,15 @@ static string BytesToHumanReadableString(idx_t bytes) {
 	}
 }
 
-void PragmaDatabaseSizeFunction(ClientContext &context, const FunctionData *bind_data,
+void PragmaDatabaseSizeFunction(ExecutionContext &context, const FunctionData *bind_data,
                                 FunctionOperatorData *operator_state, DataChunk *input, DataChunk &output) {
 	auto &data = (PragmaDatabaseSizeData &)*operator_state;
 	if (data.finished) {
 		return;
 	}
-	auto &storage = StorageManager::GetStorageManager(context);
-	auto &block_manager = BlockManager::GetBlockManager(context);
-	auto &buffer_manager = BufferManager::GetBufferManager(context);
+	auto &storage = StorageManager::GetStorageManager(context.client);
+	auto &block_manager = BlockManager::GetBlockManager(context.client);
+	auto &buffer_manager = BufferManager::GetBufferManager(context.client);
 
 	output.SetCardinality(1);
 	if (!storage.InMemory()) {

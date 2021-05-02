@@ -27,7 +27,7 @@ static unique_ptr<FunctionOperatorData> PragmaVersionInit(ClientContext &context
 	return make_unique<PragmaVersionData>();
 }
 
-static void PragmaVersionFunction(ClientContext &context, const FunctionData *bind_data,
+static void PragmaVersionFunction(ExecutionContext &context, const FunctionData *bind_data,
                                   FunctionOperatorData *operator_state, DataChunk *input, DataChunk &output) {
 	auto &data = (PragmaVersionData &)*operator_state;
 	if (data.finished) {

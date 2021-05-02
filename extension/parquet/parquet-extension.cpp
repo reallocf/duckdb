@@ -202,7 +202,7 @@ public:
 		return move(result);
 	}
 
-	static void ParquetScanImplementation(ClientContext &context, const FunctionData *bind_data_p,
+	static void ParquetScanImplementation(ExecutionContext &context, const FunctionData *bind_data_p,
 	                                      FunctionOperatorData *operator_state, DataChunk *input, DataChunk &output) {
 		auto &data = (ParquetReadOperatorData &)*operator_state;
 		auto &bind_data = (ParquetReadBindData &)*bind_data_p;
@@ -220,7 +220,7 @@ public:
 					string file = bind_data.files[data.file_index];
 					// move to the next file
 					data.reader =
-					    make_shared<ParquetReader>(context, file, data.reader->return_types, bind_data.files[0]);
+					    make_shared<ParquetReader>(context.client, file, data.reader->return_types, bind_data.files[0]);
 					vector<idx_t> group_ids;
 					for (idx_t i = 0; i < data.reader->NumRowGroups(); i++) {
 						group_ids.push_back(i);

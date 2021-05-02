@@ -33,7 +33,7 @@ unique_ptr<FunctionOperatorData> PragmaDatabaseListInit(ClientContext &context, 
 	return make_unique<PragmaDatabaseListData>();
 }
 
-void PragmaDatabaseListFunction(ClientContext &context, const FunctionData *bind_data,
+void PragmaDatabaseListFunction(ExecutionContext &context, const FunctionData *bind_data,
                                 FunctionOperatorData *operator_state, DataChunk *input, DataChunk &output) {
 	auto &data = (PragmaDatabaseListData &)*operator_state;
 	if (data.finished) {
@@ -43,7 +43,7 @@ void PragmaDatabaseListFunction(ClientContext &context, const FunctionData *bind
 	output.SetCardinality(1);
 	output.data[0].SetValue(0, Value::INTEGER(0));
 	output.data[1].SetValue(0, Value("main"));
-	output.data[2].SetValue(0, Value(StorageManager::GetStorageManager(context).GetDBPath()));
+	output.data[2].SetValue(0, Value(StorageManager::GetStorageManager(context.client).GetDBPath()));
 
 	data.finished = true;
 }

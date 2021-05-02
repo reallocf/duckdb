@@ -173,7 +173,7 @@ static unique_ptr<FunctionData> ReadCSVAutoBind(ClientContext &context, vector<V
 	return ReadCSVBind(context, inputs, named_parameters, input_table_types, input_table_names, return_types, names);
 }
 
-static void ReadCSVFunction(ClientContext &context, const FunctionData *bind_data_p,
+static void ReadCSVFunction(ExecutionContext &context, const FunctionData *bind_data_p,
                             FunctionOperatorData *operator_state, DataChunk *input, DataChunk &output) {
 	auto &bind_data = (ReadCSVData &)*bind_data_p;
 	auto &data = (ReadCSVOperatorData &)*operator_state;
@@ -184,7 +184,7 @@ static void ReadCSVFunction(ClientContext &context, const FunctionData *bind_dat
 			// exhausted this file, but we have more files we can read
 			// open the next file and increment the counter
 			bind_data.options.file_path = bind_data.files[data.file_index];
-			data.csv_reader = make_unique<BufferedCSVReader>(context, bind_data.options, data.csv_reader->sql_types);
+			data.csv_reader = make_unique<BufferedCSVReader>(context.client, bind_data.options, data.csv_reader->sql_types);
 			data.file_index++;
 		} else {
 			break;

@@ -77,7 +77,7 @@ static void ExtractExpressions(ChunkCollection &collection, ExpressionInformatio
 	}
 }
 
-static void PragmaDetailedProfilingOutputFunction(ClientContext &context, const FunctionData *bind_data_p,
+static void PragmaDetailedProfilingOutputFunction(ExecutionContext &context, const FunctionData *bind_data_p,
                                                   FunctionOperatorData *operator_state, DataChunk *input,
                                                   DataChunk &output) {
 	auto &state = (PragmaDetailedProfilingOutputOperatorData &)*operator_state;
@@ -90,8 +90,8 @@ static void PragmaDetailedProfilingOutputFunction(ClientContext &context, const 
 		chunk.Initialize(data.types);
 
 		int operator_counter = 1;
-		if (!context.query_profiler_history.GetPrevProfilers().empty()) {
-			for (auto op : context.query_profiler_history.GetPrevProfilers().back().second.GetTreeMap()) {
+		if (!context.client.query_profiler_history.GetPrevProfilers().empty()) {
+			for (auto op : context.client.query_profiler_history.GetPrevProfilers().back().second.GetTreeMap()) {
 				int function_counter = 1;
 				if (op.second->info.has_executor) {
 					for (auto &info : op.second->info.executors_info->roots) {

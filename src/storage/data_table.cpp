@@ -288,9 +288,10 @@ bool DataTable::NextParallelScan(ClientContext &context, ParallelTableScanState 
 	}
 }
 
-void DataTable::Scan(Transaction &transaction, DataChunk &result, TableScanState &state, vector<column_t> &column_ids) {
+void DataTable::Scan(ExecutionContext &context, Transaction &transaction, DataChunk &result, TableScanState &state,
+                     vector<column_t> &column_ids) {
 	// scan the persistent segments
-	while (ScanBaseTable(transaction, result, state, column_ids, state.current_row, state.max_row)) {
+	while (ScanBaseTable(context, transaction, result, state, column_ids, state.current_row, state.max_row)) {
 		if (result.size() > 0) {
 			return;
 		}
@@ -330,8 +331,9 @@ bool DataTable::CheckZonemap(TableScanState &state, const vector<column_t> &colu
 	return true;
 }
 
-bool DataTable::ScanBaseTable(Transaction &transaction, DataChunk &result, TableScanState &state,
-                              const vector<column_t> &column_ids, idx_t &current_row, idx_t max_row) {
+bool DataTable::ScanBaseTable(ExecutionContext &context, Transaction &transaction, DataChunk &result,
+                              TableScanState &state, const vector<column_t> &column_ids, idx_t &current_row,
+                              idx_t max_row) {
 	if (current_row >= max_row) {
 		// exceeded the amount of rows to scan
 		return false;
@@ -369,6 +371,8 @@ bool DataTable::ScanBaseTable(Transaction &transaction, DataChunk &result, Table
 				columns[column]->Scan(transaction, state.column_scans[i], result.data[i]);
 			}
 		}
+
+		// We don't need lineage in this case - we're doing a simple scan so we can assume we have all underlying values
 	} else {
 		SelectionVector sel;
 
@@ -413,6 +417,12 @@ bool DataTable::ScanBaseTable(Transaction &transaction, DataChunk &result, Table
 			state.adaptive_filter->AdaptRuntimeStatistics(
 			    duration_cast<duration<double>>(end_time - start_time).count());
 		}
+
+		// We need lineage here because we have pushed down filters and such
+        context.lineage->RegisterDataPerOp(
+            (void *)this,
+            make_unique<LineageOpUnary>(make_unique<LineageDataSelVec>(sel, approved_tuple_count))
+        );
 	}
 
 	result.SetCardinality(approved_tuple_count);
