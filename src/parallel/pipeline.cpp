@@ -94,6 +94,7 @@ void Pipeline::Execute(TaskContext &task) {
 		// incrementally process the pipeline
 		DataChunk intermediate;
 		child->InitializeChunkEmpty(intermediate);
+		if (!context.lineage)   context.lineage = make_unique<LineageContext>();
 		while (true) {
 			child->GetChunk(context, intermediate, state.get());
 			thread.profiler.StartOperator(sink);
@@ -102,6 +103,9 @@ void Pipeline::Execute(TaskContext &task) {
 				break;
 			}
 			sink->Sink(context, *sink_state, *lstate, intermediate);
+
+			// todo: collect this lineage context
+			executor.AddLocalSinkLineage(sink, move(context.lineage));
 			thread.profiler.EndOperator(nullptr);
 		}
 		child->FinalizeOperatorState(*state, context);
@@ -119,6 +123,9 @@ void Pipeline::FinishTask() {
 	if (current_finished == total_tasks) {
 		try {
 			sink->Finalize(*this, executor.context, move(sink_state));
+			// todo: Finalize lineage for sink operator
+			// e.g. executor.AddGlobalSinkLineage(sink, sink->getLineage());
+
 		} catch (std::exception &ex) {
 			executor.PushError(ex.what());
 		} catch (...) {
