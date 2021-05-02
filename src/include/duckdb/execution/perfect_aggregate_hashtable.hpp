@@ -21,16 +21,21 @@ public:
 
 public:
 	//! Add the given data to the HT
-	void AddChunk(DataChunk &groups, DataChunk &payload);
+	void AddChunk(ExecutionContext &context, DataChunk &groups, DataChunk &payload);
 
 	//! Combines the target perfect aggregate HT into this one
 	void Combine(PerfectAggregateHashTable &other);
 
 	//! Scan the HT starting from the scan_position
-	void Scan(idx_t &scan_position, DataChunk &result);
+	void Scan(ExecutionContext &context, idx_t &scan_position, DataChunk &result);
+
+	// used to map input to groups
+	unique_ptr<LineageOpUnary> sink_per_chunk_lineage;
+	// used during scan to pass lineage from ht to operator
+	// maps output to groups
+	unique_ptr<LineageDataArray<uint32_t>> per_chunk_lineage;
 
 protected:
-	vector<SelectionVector> sink_lineage;
     Vector addresses;
 	//! The required bits per group
 	vector<idx_t> required_bits;

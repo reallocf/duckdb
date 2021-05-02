@@ -89,7 +89,7 @@ static void ComputeGroupLocation(Vector &group, Value &min, uintptr_t *address_d
 	}
 }
 
-void PerfectAggregateHashTable::AddChunk(DataChunk &groups, DataChunk &payload) {
+void PerfectAggregateHashTable::AddChunk(ExecutionContext &context, DataChunk &groups, DataChunk &payload) {
 	// first we need to find the location in the HT of each of the groups
 	auto address_data = FlatVector::GetData<uintptr_t>(addresses);
 	// zero-initialize the address data
@@ -115,10 +115,9 @@ void PerfectAggregateHashTable::AddChunk(DataChunk &groups, DataChunk &payload) 
 		address_data[i] = uintptr_t(data) + address_data[i] * tuple_size;
 	}
 
-	std::cout << "group_is_set: " << sel.ToString(groups.size()) << std::endl;
 	// todo: to handle parallel execution, we need to assign unique id per chunk to be able to reference it later
-	// log sel and groups.size();
-    sink_lineage.push_back(sel);
+	// log lineage data that maps input to output groups
+	sink_per_chunk_lineage = make_unique<LineageOpUnary>(make_unique<LineageDataArray<sel_t>>(move(sel.data()), groups.size()));
 
 	// after finding the group location we update the aggregates
 	idx_t payload_idx = 0;
@@ -231,20 +230,18 @@ static void ReconstructGroupVector(uint32_t group_values[], Value &min, idx_t re
 	}
 }
 
-void PerfectAggregateHashTable::Scan(idx_t &scan_position, DataChunk &result) {
+void PerfectAggregateHashTable::Scan(ExecutionContext &context, idx_t &scan_position, DataChunk &result) {
 	auto data_pointers = FlatVector::GetData<data_ptr_t>(addresses);
 	uint32_t group_values[STANDARD_VECTOR_SIZE];
 
 	// input <- group_is_set[i] -> output
 	// iterate over the HT until we either have exhausted the entire HT, or
 	idx_t entry_count = 0;
-    std::cout << "group values: ";
-    for (; scan_position < total_groups; scan_position++) {
+	for (; scan_position < total_groups; scan_position++) {
 		if (group_is_set[scan_position]) {
 			// this group is set: add it to the set of groups to extract
 			data_pointers[entry_count] = data + tuple_size * scan_position;
 			group_values[entry_count] = scan_position;
-			std::cout << " " << entry_count << " -> " << scan_position;
 
 			entry_count++;
 			if (entry_count == STANDARD_VECTOR_SIZE) {
@@ -253,7 +250,7 @@ void PerfectAggregateHashTable::Scan(idx_t &scan_position, DataChunk &result) {
 			}
 		}
 	}
-	std::cout << std::endl;
+
 	if (entry_count == 0) {
 		// no entries found
 		return;
@@ -266,6 +263,7 @@ void PerfectAggregateHashTable::Scan(idx_t &scan_position, DataChunk &result) {
 	}
 
 	// log group_values & count for this chunk
+	this->per_chunk_lineage = make_unique<LineageDataArray<uint32_t>>(move(group_values), entry_count);
 
 	// then construct the payloads
 	for (idx_t i = 0; i < aggregates.size(); i++) {
