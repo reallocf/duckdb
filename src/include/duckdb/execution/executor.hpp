@@ -35,7 +35,12 @@ public:
 	~Executor();
 
 	ClientContext &context;
-    vector<unique_ptr<LineageContext>> chunks_lineage;
+
+    // lineage for tree starting from this operator
+    unordered_map<PhysicalOperator*, vector<unique_ptr<LineageContext>>> chunks_lineage;
+
+    // lineage for tree starting for sink operator
+    unordered_map<PhysicalOperator*, vector<unique_ptr<LineageContext>>> sink_lineage;
 
 public:
 	void Initialize(PhysicalOperator *physical_plan);
@@ -52,6 +57,9 @@ public:
 
 	//! Flush a thread context into the client context
 	void Flush(ThreadContext &context);
+
+    void AddOutputLineage(PhysicalOperator* opKey, unique_ptr<LineageContext>  lineage);
+    void AddLocalSinkLineage(PhysicalOperator* opKey,  unique_ptr<LineageContext> lineage);
 
 	//! Returns the progress of the pipelines
 	bool GetPipelinesProgress(int &current_progress);
