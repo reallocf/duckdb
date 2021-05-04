@@ -77,7 +77,7 @@ public:
 	idx_t get_index(idx_t idx) const {
 		return sel_vector[idx];
 	}
-	sel_t *data() {
+	sel_t *data() const {
 		return sel_vector;
 	}
 	buffer_ptr<SelectionData> sel_data() {
