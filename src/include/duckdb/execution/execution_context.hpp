@@ -10,6 +10,8 @@
 
 #include "duckdb/common/common.hpp"
 
+#include <iostream>
+
 namespace duckdb {
 class ClientContext;
 class ThreadContext;

@@ -251,6 +251,7 @@ unique_ptr<DataChunk> Executor::FetchChunk() {
 
 	auto chunk = make_unique<DataChunk>();
 	// run the plan to get the next chunks
+    std::cout << physical_plan->ToString() << std::endl;
 	physical_plan->InitializeChunkEmpty(*chunk);
 	physical_plan->GetChunk(econtext, *chunk, physical_state.get());
 	physical_plan->FinalizeOperatorState(*physical_state, econtext);
