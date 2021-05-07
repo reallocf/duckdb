@@ -16,6 +16,3 @@ WHERE
 GROUP BY
     l_returnflag,
     l_linestatus
-ORDER BY
-    l_returnflag,
-    l_linestatus;

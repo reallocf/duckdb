@@ -27,6 +27,4 @@ GROUP BY
     n_name,
     c_address,
     c_comment
-ORDER BY
-    revenue DESC
 LIMIT 20;
