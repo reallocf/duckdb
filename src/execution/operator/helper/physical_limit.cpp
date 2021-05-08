@@ -95,6 +95,13 @@ void PhysicalLimit::GetChunkInternal(ExecutionContext &context, DataChunk &chunk
 
 		state->current_offset += state->child_chunk.size();
 	} while (chunk.size() == 0);
+
+#ifdef LINEAGE
+    context.lineage->RegisterDataPerOp(
+        id,
+        make_shared<LineageOpUnary>(make_shared<LineageRange>(offset, limit))
+    );
+#endif
 }
 
 unique_ptr<PhysicalOperatorState> PhysicalLimit::GetOperatorState() {

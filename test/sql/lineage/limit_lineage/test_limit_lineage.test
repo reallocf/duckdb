@@ -1,0 +1,38 @@
+# name: test/sql/lineage/limit_lineage/test_limit_lineage.test
+# description: Test Limit Lineage
+# group: [limit_lineage]
+
+
+statement ok
+PRAGMA explain_output = PHYSICAL_ONLY;
+
+statement ok
+CREATE TABLE t1(i INTEGER);
+
+statement ok
+INSERT INTO t1 SELECT i FROM range(0,5) tbl(i);
+
+statement ok
+PRAGMA trace_lineage = "ON";
+
+query I
+select * from t1 limit 3 offset 1
+----
+1
+2
+3
+
+statement ok
+PRAGMA trace_lineage = "OFF";
+
+query II
+SELECT * FROM queries_list;
+----
+9	select * from t1 limit 3 offset 1
+11	PRAGMA trace_lineage = "OFF";
+
+
+query IIII
+select rowid, * from LIMIT_9_0
+----
+0	1	3	0

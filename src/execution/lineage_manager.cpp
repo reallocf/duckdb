@@ -106,6 +106,23 @@ void ManageLineage::logQuery(string input_query) {
 void ManageLineage::CreateLineageTables(PhysicalOperator *op) {
 	string base = op->GetName() + "_" + to_string(query_id) + "_" + to_string( op->id );
   switch (op->type) {
+  case PhysicalOperatorType::LIMIT: {
+    // schema: [INT limit, INT offset, INT out_chunk_id]
+    auto info = make_unique<CreateTableInfo>();
+    info->schema = DEFAULT_SCHEMA;
+    info->table = base;
+    info->on_conflict = OnCreateConflict::ERROR_ON_CONFLICT;
+    info->temporary = false;
+    info->columns.push_back(ColumnDefinition("offset", LogicalType::INTEGER));
+    info->columns.push_back(ColumnDefinition("limit", LogicalType::INTEGER));
+    info->columns.push_back(ColumnDefinition("out_chunk_id", LogicalType::INTEGER));
+    auto binder = Binder::CreateBinder(context);
+    auto bound_create_info = binder->BindCreateTableInfo(move(info));
+    auto &catalog = Catalog::GetCatalog(context);
+    catalog.CreateTable(context, bound_create_info.get());
+    CreateLineageTables(op->children[0].get());
+    break;
+  }
   case PhysicalOperatorType::FILTER: {
     // CREATE TABLE base:
     // schema: [INT in_index, INT out_index, INT out_chunk_id]
@@ -218,6 +235,27 @@ void ManageLineage::CreateLineageTables(PhysicalOperator *op) {
 void ManageLineage::Persist(PhysicalOperator *op, shared_ptr<LineageContext> lineage, bool is_sink = false) {
   string tablename = op->GetName() + "_" + to_string(query_id) + "_" + to_string( op->id );
   switch (op->type) {
+  case PhysicalOperatorType::LIMIT: {
+    LineageOpUnary *lop = dynamic_cast<LineageOpUnary *>(lineage->GetLineageOp(op->id, 0).get());
+    if (!lop) return;
+    // schema: [INT limit, INT offset, INT out_chunk_id]
+    TableCatalogEntry * table = Catalog::GetCatalog(context).GetEntry<TableCatalogEntry>(context,  DEFAULT_SCHEMA, tablename);
+    DataChunk insert_chunk;
+    insert_chunk.Initialize(table->GetTypes());
+    insert_chunk.SetCardinality(1);
+
+    Vector offset(Value::Value::INTEGER(dynamic_cast<LineageRange&>(*lop->data).start));
+    Vector limit(Value::Value::INTEGER(dynamic_cast<LineageRange&>(*lop->data).end));
+    Vector out_chunk_ids(Value::Value::INTEGER(lineage->chunk_id));
+
+    insert_chunk.data[0].Reference(offset);
+    insert_chunk.data[1].Reference(limit);
+    insert_chunk.data[2].Reference(out_chunk_ids);
+
+    table->Persist(*table, context, insert_chunk);
+    Persist(op->children[0].get(), move(lineage), is_sink);
+    break;
+  }
   case PhysicalOperatorType::FILTER: {
     LineageOpUnary *lop = dynamic_cast<LineageOpUnary *>(lineage->GetLineageOp(op->id, 0).get());
     if (!lop) return;
@@ -398,6 +436,19 @@ void ManageLineage::Persist(PhysicalOperator *op, shared_ptr<LineageContext> lin
 void ManageLineage::BackwardLineage(PhysicalOperator *op, shared_ptr<LineageContext> lineage, int oidx) {
   std::cout << "Backward Lineage: TraverseTree op " << op << " " << op->GetName() << std::endl;
   switch (op->type) {
+    case PhysicalOperatorType::LIMIT: {
+      LineageOpUnary *lop = dynamic_cast<LineageOpUnary *>(lineage->GetLineageOp(op->id, 0).get());
+      if (!lop) {
+        std::cout << "something is wrong, lop not found for  limit" << std::endl;
+        return;
+      }
+
+      auto offset = dynamic_cast<LineageRange&>(*lop->data).start;
+      auto limit = dynamic_cast<LineageRange&>(*lop->data).end;
+      std::cout << "Limit: offset " << offset << " limit: " << limit << std::endl;
+      BackwardLineage(op->children[0].get(), lineage, oidx);
+      break;
+    }
     case PhysicalOperatorType::TABLE_SCAN: {
       LineageOpUnary *lop = dynamic_cast<LineageOpUnary *>(lineage->GetLineageOp(op->id, 0).get());
       if (!lop) {
