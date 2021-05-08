@@ -84,6 +84,17 @@ public:
 	idx_t end;
 };
 
+// A Reduce indicates that all input values lead to a single output
+// such as for simple aggregations COUNT(*) FROM foo
+class LineageReduce : public LineageData {
+public:
+
+    LineageReduce() {
+        std::cout << "LineageReduce" << std::endl;
+    }
+
+};
+
 // base operator for Unary and Binary
 class LineageOp {
 public:
