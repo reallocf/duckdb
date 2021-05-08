@@ -1,0 +1,24 @@
+# name: test/sql/lineage/filter_lineage/test_projection_lineage.test
+# description: Test Projection Lineage
+# group: [projection_lineage]
+
+
+statement ok
+PRAGMA explain_output = PHYSICAL_ONLY;
+
+statement ok
+CREATE TABLE t1(i INTEGER, j INTEGER, k INTEGER);
+CREATE TABLE t2(i INTEGER);
+
+statement ok
+INSERT INTO t1 SELECT i, i + 1, i + 2 FROM range(0,5) tbl(i);
+INSERT INTO t2 SELECT i FROM range(0,5) tbl(i);
+
+query I
+select t1.j from t1 join t2 on t1.i = t2.i
+----
+1
+2
+3
+4
+5

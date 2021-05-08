@@ -60,6 +60,16 @@ public:
     vector<unique_ptr<LineageData>> data;
 };
 
+// A PassThrough to indicate
+class LineagePassThrough : public LineageData {
+public:
+
+	LineagePassThrough() {
+		std::cout << "PassThrough Lineage" << std::endl;
+	}
+
+};
+
 // base operator for Unary and Binary
 class LineageOp {
 public:

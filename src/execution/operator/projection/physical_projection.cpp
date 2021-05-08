@@ -23,6 +23,11 @@ void PhysicalProjection::GetChunkInternal(ExecutionContext &context, DataChunk &
 		return;
 	}
 
+    context.lineage->RegisterDataPerOp(
+        (void *)this,
+        make_unique<LineageOpUnary>(make_unique<LineagePassThrough>())
+    );
+
 	state->executor.Execute(state->child_chunk, chunk);
 }
 
