@@ -50,7 +50,7 @@ public:
 		this->sink_state = move(gstate);
 	}
 
-	virtual unique_ptr<LocalSinkState> GetLocalSinkState(ExecutionContext &context) {
+    virtual unique_ptr<LocalSinkState> GetLocalSinkState(ExecutionContext &context) {
 		return make_unique<LocalSinkState>();
 	}
 	virtual unique_ptr<GlobalOperatorState> GetGlobalState(ClientContext &context) {

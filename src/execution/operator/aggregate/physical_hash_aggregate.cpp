@@ -407,7 +407,7 @@ void PhysicalHashAggregate::GetChunkInternal(ExecutionContext &context, DataChun
 			state.finished = true;
 			return;
 		}
-		elements_found = gstate.finalized_hts[state.ht_index]->Scan(state.ht_scan_position, state.scan_chunk);
+		elements_found = gstate.finalized_hts[state.ht_index]->Scan(context, state.ht_scan_position, state.scan_chunk);
 
 		if (elements_found > 0) {
 			break;

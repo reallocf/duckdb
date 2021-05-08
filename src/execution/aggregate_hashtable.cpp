@@ -632,7 +632,7 @@ idx_t GroupedAggregateHashTable::FindOrCreateGroupsInternal(DataChunk &groups, V
 
 	// we start out with all entries [0, 1, 2, ..., groups.size()]
 	const SelectionVector *sel_vector = &FlatVector::INCREMENTAL_SELECTION_VECTOR;
-    SelectionVector sel_lineage(STANDARD_VECTOR_SIZE);
+    SelectionVector sel_lineage(groups.size());
 
     idx_t remaining_entries = groups.size();
 
@@ -690,7 +690,9 @@ idx_t GroupedAggregateHashTable::FindOrCreateGroupsInternal(DataChunk &groups, V
 				entries++;
 
 				addresses_ptr[index] = entry_payload_ptr + HASH_WIDTH;
-                std::cout << index << " -> " << static_cast<void*>(addresses_ptr[index]) << " -> ht_entry_ptr -> " << static_cast<void*>(ht_entry_ptr) << " " <<  ht_offsets_ptr[index] << " page_nr: " << ht_entry_ptr->page_nr <<  " page_offset: " << ht_entry_ptr->page_offset << std::endl;
+                std::cout << index << " -> " << static_cast<void*>(addresses_ptr[index]) <<
+				    " -> ht_entry_ptr -> " << static_cast<void*>(ht_entry_ptr) << " " <<
+				    ht_offsets_ptr[index] << " page_nr: " << ht_entry_ptr->page_nr <<  " page_offset: " << ht_entry_ptr->page_offset << std::endl;
 
             } else {
 				// cell is occupied: add to check list
@@ -735,7 +737,10 @@ idx_t GroupedAggregateHashTable::FindOrCreateGroupsInternal(DataChunk &groups, V
 		remaining_entries = no_match_count;
 	}
 
-	std::cout << "lineage: " <<   sel_lineage.ToString(groups.size())<< std::endl;
+	// this maps input to groups, we can use it later to map output to input
+    auto lop = make_unique<LineageOpUnary>(make_unique<LineageDataArray<sel_t>>(move(sel_lineage.data()), groups.size()));
+    //context.lineage->RegisterDataPerOp((void *)this,  move(lop));
+
     // pointers in addresses now were moved behind the grousp by CompareGroups/ScatterGroups but we may have to add
 	// padding still to point at the payload.
 	VectorOperations::AddInPlace(addresses, group_padding, groups.size());
@@ -885,7 +890,7 @@ void GroupedAggregateHashTable::Partition(vector<GroupedAggregateHashTable *> &p
 	entries = 0;
 }
 
-idx_t GroupedAggregateHashTable::Scan(idx_t &scan_position, DataChunk &result) {
+idx_t GroupedAggregateHashTable::Scan(ExecutionContext &context, idx_t &scan_position, DataChunk &result) {
 	auto data_pointers = FlatVector::GetData<data_ptr_t>(addresses);
 
 	auto remaining = entries - scan_position;
@@ -897,12 +902,16 @@ idx_t GroupedAggregateHashTable::Scan(idx_t &scan_position, DataChunk &result) {
 	auto chunk_idx = scan_position / tuples_per_block;
 	auto chunk_offset = (scan_position % tuples_per_block) * tuple_size;
 	D_ASSERT(chunk_offset + tuple_size <= Storage::BLOCK_ALLOC_SIZE);
+    SelectionVector sel_lineage(this_n);
 
-  std::cout << "data_pointers: ";
 	auto read_ptr = payload_hds_ptrs[chunk_idx++];
+    std::cout << "read_ptr -> " << static_cast<void*>(read_ptr) << " chunk_idx: " << chunk_idx-1
+	          << "scan_position: " << scan_position << " tuples per block: " << tuples_per_block << std::endl;
+
 	for (idx_t i = 0; i < this_n; i++) {
+        sel_lineage.set_index(i, chunk_offset/tuple_size);
 		data_pointers[i] = read_ptr + chunk_offset + HASH_WIDTH;
-    std::cout << " " << i << " -> " << chunk_offset << " "  << HASH_WIDTH << " " << static_cast<void*>(data_pointers[i]) << " read_ptr -> " << static_cast<void*>(read_ptr);
+        //std::cout <<   i " << i << " -> " << " data ptr " << static_cast<void*>(data_pointers[i]) << std::endl;
 		chunk_offset += tuple_size;
 		if (chunk_offset >= tuples_per_block * tuple_size) {
 			read_ptr = payload_hds_ptrs[chunk_idx++];
@@ -910,7 +919,9 @@ idx_t GroupedAggregateHashTable::Scan(idx_t &scan_position, DataChunk &result) {
 		}
 	}
 
-  std::cout << std::endl;
+	// this tells us, which group an output index map to
+    auto lop = make_unique<LineageOpUnary>(make_unique<LineageDataArray<sel_t>>(move(sel_lineage.data()), this_n));
+    context.lineage->RegisterDataPerOp((void *)this,  move(lop));
 
 	result.SetCardinality(this_n);
 	// fetch the group columns

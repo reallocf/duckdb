@@ -4,32 +4,35 @@
 
 
 statement ok
-PRAGMA explain_output = PHYSICAL_ONLY;
-PRAGMA force_index_join
-
-statement ok
 CREATE TABLE t1(i INTEGER, j INTEGER);
-CREATE TABLE t2(i INTEGER);
-#CREATE TABLE t3(i INTEGER);
-#CREATE INDEX i_index ON t1 using art(i);
 
 statement ok
-INSERT INTO t1 SELECT i+1, i FROM range(0,60) tbl(i);
-INSERT INTO t2 SELECT i+1 FROM range(50,60) tbl(i);
-#INSERT INTO t3 SELECT i+3 FROM range(50,60) tbl(i);
+INSERT INTO t1 VALUES (3, 1),  (NULL, 2), (2, 3), (3, 4)
+#(1, 5), (2, 6), (1, 7), (1, 8), (NULL, 9), (1, 10), (NULL, 11), (2, 12)
+#INSERT INTO t1 VALUES ('A', 2),  ('B', 2), ('A', 4), ('C', 1), ('B', 1), ('C', 3)
+
+statement ok
+CREATE TABLE t2(i INTEGER, k VARCHAR(10));
+#CREATE TABLE t2(i VARCHAR(10), k INTEGER);
+
+statement ok
+INSERT INTO t2 VALUES (3, 'A'),   (2, 'B'), (3, 'C'), (1, 'D')
+#, (0, 'K'),(0, 'K'),(0, 'K'),(0, 'K'),(0, 'K'),(0, 'K'),(0, 'K'),(0, 'K'),(0, 'K'),(0, 'K'),(0, 'K'),(0, 'K'),(0, 'K'),(0, 'K')
+#INSERT INTO t2 VALUES ('A', 9),   ('A', 0), ('B', 9), ('C', 9)
+
 
 # standalone limit
-query III
-select t1.i, t1.j, t2.i from t1 inner join t2 on (t1.i = t2.i)
-#select t1.i, t1.j, t2.i, t3.i from t1 inner join t2 on (t1.i = t2.i)  inner join  t3 on (t3.i=t2.i)
+query II
+select t1.j, t2.k from t1 inner join t2 on (t1.i = t2.i)
 ----
-51	50	51
-52	51	52
-53	52	53
-54	53	54
-55	54	55
-56	55	56
-57	56	57
-58	57	58
-59	58	59
-60	59	60
+4	A
+12	B
+4	C
+10	D
+1	A
+6	B
+1	C
+8	D
+3	B
+7	D
+5	D

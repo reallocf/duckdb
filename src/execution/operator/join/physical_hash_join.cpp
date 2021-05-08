@@ -232,6 +232,7 @@ void PhysicalHashJoin::ProbeHashTable(ExecutionContext &context, DataChunk &chun
 		// still have elements remaining from the previous probe (i.e. we got
 		// >1024 elements in the previous probe)
 		state->scan_structure->Next(state->join_keys, state->child_chunk, chunk);
+		// todo: get lineage from here
 		if (chunk.size() > 0) {
 			return;
 		}
