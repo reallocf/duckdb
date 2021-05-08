@@ -139,17 +139,17 @@ void PhysicalSimpleAggregate::Sink(ExecutionContext &context, GlobalOperatorStat
 			}
 		}
 
-        context.lineage->RegisterDataPerOp(
-            (void *)this,
-            make_unique<LineageOpUnary>(make_unique<LineageReduce>())
-        );
-
 		// perform the actual aggregation
 		aggregate.function.simple_update(payload_cnt == 0 ? nullptr : &payload_chunk.data[payload_idx],
 		                                 aggregate.bind_info.get(), payload_cnt, sink.state.aggregates[aggr_idx].get(),
 		                                 payload_chunk.size());
 		payload_idx += payload_cnt;
 	}
+
+    context.lineage->RegisterDataPerOp(
+        (void *)this,
+        make_unique<LineageOpUnary>(make_unique<LineageReduce>())
+    );
 }
 
 //===--------------------------------------------------------------------===//
