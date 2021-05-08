@@ -1,4 +1,4 @@
-# name: test/sql/lineage/filter_lineage/test_projection_lineage.test
+# name: test/sql/lineage/projection_lineage/test_projection_lineage.test
 # description: Test Projection Lineage
 # group: [projection_lineage]
 

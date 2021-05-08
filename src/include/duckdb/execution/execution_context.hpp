@@ -60,14 +60,28 @@ public:
     vector<unique_ptr<LineageData>> data;
 };
 
-// A PassThrough to indicate
+// A PassThrough to indicate that the operator doesn't affect lineage at all
+// for example in the case of a Projection
 class LineagePassThrough : public LineageData {
 public:
 
 	LineagePassThrough() {
-		std::cout << "PassThrough Lineage" << std::endl;
+		std::cout << "LineagePassThrough" << std::endl;
 	}
 
+};
+
+// A Range of values where each successive number in the range indicates the lineage
+// used to quickly capture Limits
+class LineageRange : public LineageData {
+public:
+
+	LineageRange(idx_t start, idx_t end) : start(start), end(end) {
+		std::cout << "LineageRange - Start: " << start << " End: " << end << std::endl;
+	}
+
+	idx_t start;
+	idx_t end;
 };
 
 // base operator for Unary and Binary
