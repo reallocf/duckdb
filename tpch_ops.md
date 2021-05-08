@@ -40,3 +40,10 @@ Limit: 3
 Piecewise Merge Join: 2
 Chunk Scan: 2
 Perfect Hash Group By: 1
+
+Operators by Query for SMOKE Queries, without ORDER BYs:
+--------------------------------------------------------
+1. Seq Scan, Projection, Hash Group By
+3. Seq Scan, Hash Join, Projection, Hash Group By, Limit
+10. Seq Scan, Hash Join, Projection, Hash Group By, Limit
+12. Seq Scan, Filter, Projection, Hash Join, Hash Group By
