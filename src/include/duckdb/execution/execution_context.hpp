@@ -25,7 +25,7 @@ public:
 class LineageDataVector : public LineageData {
 public:
     LineageDataVector(Vector vec_p, idx_t count) : vec(move(vec_p)), count(count) {
-        std::cout << "LineageDataVector " << vec.ToString(count) << std::endl;
+        //std::cout << "LineageDataVector " << vec.ToString(count) << std::endl;
     }
 
     Vector vec;
@@ -37,12 +37,12 @@ class LineageDataArray : public LineageData {
 public:
 
     LineageDataArray (T *vec_p, idx_t count) : vec(move(vec_p)), count(count) {
-        std::cout << "LineageDataArray " << " " << typeid(vec_p).name() << std::endl;
+      /*  std::cout << "LineageDataArray " << " " << typeid(vec_p).name() << std::endl;
 
         for (idx_t i = 0; i < count; i++) {
             std::cout << " (" << i << " -> " << vec_p[i] << ") ";
         }
-        std::cout << std::endl;
+        std::cout << std::endl;*/
     }
 
     T *vec;

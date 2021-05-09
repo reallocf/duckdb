@@ -244,16 +244,18 @@ bool Executor::GetPipelinesProgress(int &current_progress) {
 
 void Executor::AddOutputLineage(PhysicalOperator* opKey, unique_ptr<LineageContext> lineage) {
 	if (lineage) {
-        std::cout <<"\noutput lineage: " << opKey->ToString() << std::endl;
+    //    std::cout <<"\noutput lineage: " << opKey->ToString() << std::endl;
         chunks_lineage[opKey].push_back(move(lineage));
     }
 }
 
 void Executor::AddLocalSinkLineage(PhysicalOperator* sink,  unique_ptr<LineageContext> lineage) {
     if (lineage) {
-        std::cout <<"\nlocal sink operator: " << sink->ToString() << std::endl;
+   //     std::cout <<"\n1 local sink operator: " << sink->ToString() << std::endl;
+        lock_guard<mutex> elock(executor_lock);
         sink_lineage[sink].push_back(move(lineage));
-	}
+    }
+ //   std::cout <<"\n2 local sink operator: " << sink->ToString() << std::endl;
 }
 
 unique_ptr<DataChunk> Executor::FetchChunk() {

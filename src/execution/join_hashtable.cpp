@@ -341,7 +341,7 @@ void JoinHashTable::Build(DataChunk &keys, DataChunk &payload) {
 		for (; append_idx < next; append_idx++) {
 			key_locations[append_idx] = append_entry.baseptr;
             key_locations_lineage[append_idx] = append_entry.baseptr;
-            std::cout << "key_locations[" << append_idx << "]" << " = " << (uintptr_t)(key_locations[append_idx]) << std::endl;
+       //     std::cout << "key_locations[" << append_idx << "]" << " = " << (uintptr_t)(key_locations[append_idx]) << std::endl;
 			append_entry.baseptr += entry_size;
 		}
 	}
@@ -425,7 +425,7 @@ void JoinHashTable::Finalize() {
 	for (auto &block : blocks) {
 		auto handle = buffer_manager.Pin(block.block);
 		data_ptr_t dataptr = handle->node->buffer;
-		std::cout << "dataptr -> " << static_cast<void*>(dataptr) << std::endl;
+	//	std::cout << "dataptr -> " << static_cast<void*>(dataptr) << std::endl;
 		idx_t entry = 0;
 		while (entry < block.count) {
 			// fetch the next vector of entries from the blocks
@@ -435,8 +435,8 @@ void JoinHashTable::Finalize() {
 				key_locations[i] = dataptr;
 
 				// using entry size & dataptr for index 0, I can infer the location a pointer maps to
-				std::cout << "final: key_locations[" << i << "]" << " = " << (uintptr_t)(key_locations[i])
-				          << " entry size: " << entry_size <<  std::endl;
+			//	std::cout << "final: key_locations[" << i << "]" << " = " << (uintptr_t)(key_locations[i])
+			//	          << " entry size: " << entry_size <<  std::endl;
 				dataptr += entry_size;
 			}
 			// now insert into the hash table
@@ -812,13 +812,13 @@ void ScanStructure::NextInnerJoin(DataChunk &keys, DataChunk &left, DataChunk &r
 		// construct the result
 		// on the LHS, we create a slice using the result vector
 		result.Slice(left, result_vector, result_count);
-		std::cout << " NextInnerJoin: " << result_vector.ToString(result_count) << std::endl;
+	//	std::cout << " NextInnerJoin: " << result_vector.ToString(result_count) << std::endl;
 		auto ptrs = FlatVector::GetData<uintptr_t>(pointers);
 		uintptr_t key_locations_lineage[STANDARD_VECTOR_SIZE];
 		for (idx_t i = 0; i < result_count; i++) {
 			auto idx = result_vector.get_index(i);
 			key_locations_lineage[i] = ptrs[idx];
-			std::cout << i <<  " match sel: " <<    ptrs[idx]   << std::endl;
+			//std::cout << i <<  " match sel: " <<    ptrs[idx]   << std::endl;
 		}
 
 
