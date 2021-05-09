@@ -94,9 +94,9 @@ void Pipeline::Execute(TaskContext &task) {
 		// incrementally process the pipeline
 		DataChunk intermediate;
 		child->InitializeChunkEmpty(intermediate);
-		if (!context.lineage)   context.lineage = make_unique<LineageContext>();
 		while (true) {
-			child->GetChunk(context, intermediate, state.get());
+            if (!context.lineage)   context.lineage = make_unique<LineageContext>();
+            child->GetChunk(context, intermediate, state.get());
 			thread.profiler.StartOperator(sink);
 			if (intermediate.size() == 0) {
 				sink->Combine(context, *sink_state, *lstate);

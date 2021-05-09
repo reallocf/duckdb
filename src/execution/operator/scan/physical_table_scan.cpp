@@ -36,6 +36,7 @@ void PhysicalTableScan::GetChunkInternal(ExecutionContext &context, DataChunk &c
 	if (column_ids.empty()) {
 		return;
 	}
+	context.setCurrent((void*)this);
 	if (!state.initialized) {
 		state.parallel_state = nullptr;
 		if (function.init) {

@@ -419,9 +419,8 @@ bool DataTable::ScanBaseTable(ExecutionContext &context, Transaction &transactio
 		}
 
 		// We need lineage here because we have pushed down filters and such
-        context.lineage->RegisterDataPerOp(
-            (void *)this,
-            make_unique<LineageOpUnary>(make_unique<LineageDataArray<sel_t>>(sel.data(), approved_tuple_count))
+       context.lineage->RegisterDataPerOp(context.getCurrent(),
+            make_unique<LineageOpUnary>(make_unique<LineageDataArray<sel_t>>(move(sel.data()), approved_tuple_count))
         );
 	}
 

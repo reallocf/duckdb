@@ -111,6 +111,14 @@ public:
         lineage = make_unique<LineageContext>();
     }
 
+	void setCurrent(void * op) {
+		current_op = op;
+	}
+
+	void *getCurrent() {
+		return current_op;
+	};
+
     //! The client-global context; caution needs to be taken when used in parallel situations
     ClientContext &client;
     //! The thread-local context for this execution
@@ -119,6 +127,7 @@ public:
     TaskContext &task;
     //! The lineage context for this execution
     unique_ptr<LineageContext> lineage;
+	void * current_op;
 };
 
 
