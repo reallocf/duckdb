@@ -1,0 +1,20 @@
+# name: test/sql/lineage/limit_lineage/test_limit_lineage.test
+# description: Test Limit Lineage
+# group: [limit_lineage]
+
+
+statement ok
+PRAGMA explain_output = PHYSICAL_ONLY;
+
+statement ok
+CREATE TABLE t1(i INTEGER);
+
+statement ok
+INSERT INTO t1 SELECT i FROM range(0,5) tbl(i);
+
+query I
+select * from t1 limit 3 offset 1
+----
+1
+2
+3
