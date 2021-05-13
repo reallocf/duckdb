@@ -195,10 +195,10 @@ option(BUILD_RDTSC "Enable the rdtsc instruction." FALSE)
 
 if(${USE_LINEAGE})
   message(STATUS "Enable Lineage collection")
-  set(LINEAGE TRUE)
+  add_definitions(-DLINEAGE=1)
   if (${USE_LINEAGE_DEBUG})
     message(STATUS "Enable Lineage debug")
-    set(LINEAGE_DEBUG TRUE)
+    add_definitions(-DLINEAGE_DEBUG=1)
   endif()
 endif()
 

@@ -923,7 +923,7 @@ idx_t GroupedAggregateHashTable::Scan(ExecutionContext &context, idx_t &scan_pos
 #endif
 		data_pointers[i] = read_ptr + chunk_offset + HASH_WIDTH;
 #ifdef LIENAGE_DEBUG
-        std::cout <<   i " << i << " -> " << " data ptr " << static_cast<void*>(data_pointers[i]) << std::endl;
+        std::cout <<   "i " << i << " -> " << " data ptr " << static_cast<void*>(data_pointers[i]) << std::endl;
 #endif
 		chunk_offset += tuple_size;
 		if (chunk_offset >= tuples_per_block * tuple_size) {
