@@ -300,7 +300,9 @@ void JoinHashTable::Build(DataChunk &keys, DataChunk &payload) {
 	vector<unique_ptr<BufferHandle>> handles;
 	vector<BlockAppendEntry> append_entries;
 	data_ptr_t key_locations[STANDARD_VECTOR_SIZE];
-	data_ptr_t key_locations_lineage[STANDARD_VECTOR_SIZE];
+#ifdef LINEAGE
+    data_ptr_t key_locations_lineage[STANDARD_VECTOR_SIZE];
+#endif
 	// first allocate space of where to serialize the keys and payload columns
 	idx_t remaining = added_count;
 	{
@@ -340,8 +342,13 @@ void JoinHashTable::Build(DataChunk &keys, DataChunk &payload) {
 		idx_t next = append_idx + append_entry.count;
 		for (; append_idx < next; append_idx++) {
 			key_locations[append_idx] = append_entry.baseptr;
+#ifdef LINEAGE
             key_locations_lineage[append_idx] = append_entry.baseptr;
-       //     std::cout << "key_locations[" << append_idx << "]" << " = " << (uintptr_t)(key_locations[append_idx]) << std::endl;
+#endif
+
+#ifdef LINEAGE_DEBUG
+            std::cout << "key_locations[" << append_idx << "]" << " = " << (uintptr_t)(key_locations[append_idx]) << std::endl;
+#endif
 			append_entry.baseptr += entry_size;
 		}
 	}
@@ -370,7 +377,7 @@ void JoinHashTable::Build(DataChunk &keys, DataChunk &payload) {
 		InitializeOuterJoin(added_count, key_locations);
 	}
 	SerializeVector(hash_values, payload.size(), *current_sel, added_count, key_locations);
-
+#ifdef LINEAGE
 	// log lineage data that maps input to output ht payload entries
 	auto lineage_data_1 = make_unique<LineageDataArray<uintptr_t>>(move((uintptr_t *)key_locations_lineage), added_count);
 	auto lineage_data_2 = make_unique<LineageDataArray<sel_t>>(current_sel->data(), added_count);
@@ -378,6 +385,7 @@ void JoinHashTable::Build(DataChunk &keys, DataChunk &payload) {
 	lineage->add(move(lineage_data_1));
 	lineage->add(move(lineage_data_2));
 	sink_per_chunk_lineage =  make_unique<LineageOpUnary>(move(lineage));
+#endif
 }
 
 void JoinHashTable::InsertHashes(Vector &hashes, idx_t count, data_ptr_t key_locations[]) {
@@ -812,7 +820,8 @@ void ScanStructure::NextInnerJoin(DataChunk &keys, DataChunk &left, DataChunk &r
 		// construct the result
 		// on the LHS, we create a slice using the result vector
 		result.Slice(left, result_vector, result_count);
-	//	std::cout << " NextInnerJoin: " << result_vector.ToString(result_count) << std::endl;
+#ifdef LINEAGE
+        //	std::cout << " NextInnerJoin: " << result_vector.ToString(result_count) << std::endl;
 		auto ptrs = FlatVector::GetData<uintptr_t>(pointers);
 		uintptr_t key_locations_lineage[STANDARD_VECTOR_SIZE];
 		for (idx_t i = 0; i < result_count; i++) {
@@ -820,8 +829,7 @@ void ScanStructure::NextInnerJoin(DataChunk &keys, DataChunk &left, DataChunk &r
 			key_locations_lineage[i] = ptrs[idx];
 			//std::cout << i <<  " match sel: " <<    ptrs[idx]   << std::endl;
 		}
-
-
+#endif
 		// on the RHS, we need to fetch the data from the hash table
 		idx_t offset = ht.condition_size;
 		for (idx_t i = 0; i < ht.build_types.size(); i++) {
@@ -829,13 +837,14 @@ void ScanStructure::NextInnerJoin(DataChunk &keys, DataChunk &left, DataChunk &r
 			D_ASSERT(vector.GetType() == ht.build_types[i]);
 			GatherResult(vector, result_vector, result_count, offset);
 		}
-		// copy from ptrs and used it later with result vector
+#ifdef LINEAGE
+        // copy from ptrs and used it later with result vector
 		lop = make_unique<LineageOpBinary>();
 		auto lineage_probe = make_unique<LineageDataArray<sel_t>>(result_vector.data(), result_count);
 		auto lineage_build = make_unique<LineageDataArray<uintptr_t>>(move(key_locations_lineage), result_count);
 		lop->setRHS(move(lineage_probe));
 		lop->setLHS(move(lineage_build));
-
+#endif
 		AdvancePointers();
 	}
 }

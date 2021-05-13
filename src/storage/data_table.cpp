@@ -417,11 +417,12 @@ bool DataTable::ScanBaseTable(ExecutionContext &context, Transaction &transactio
 			state.adaptive_filter->AdaptRuntimeStatistics(
 			    duration_cast<duration<double>>(end_time - start_time).count());
 		}
-
+#ifdef LINEAGE
 		// We need lineage here because we have pushed down filters and such
        context.lineage->RegisterDataPerOp(context.getCurrent(),
             make_unique<LineageOpUnary>(make_unique<LineageDataArray<sel_t>>(move(sel.data()), approved_tuple_count))
         );
+#endif
 	}
 
 	result.SetCardinality(approved_tuple_count);

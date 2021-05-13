@@ -632,8 +632,9 @@ idx_t GroupedAggregateHashTable::FindOrCreateGroupsInternal(DataChunk &groups, V
 
 	// we start out with all entries [0, 1, 2, ..., groups.size()]
 	const SelectionVector *sel_vector = &FlatVector::INCREMENTAL_SELECTION_VECTOR;
+#ifdef LINEAGE
     SelectionVector sel_lineage(groups.size());
-
+#endif
     idx_t remaining_entries = groups.size();
 
 	// orrify all the groups
@@ -680,8 +681,9 @@ idx_t GroupedAggregateHashTable::FindOrCreateGroupsInternal(DataChunk &groups, V
 				// GetPtr undoes this
 				ht_entry_ptr->page_nr = payload_hds.size();
 				ht_entry_ptr->page_offset = payload_page_offset++;
+#ifdef LINEAGE
                 sel_lineage.set_index(index, ht_entry_ptr->page_offset);
-
+#endif
 				// update selection lists for outer loops
 				empty_vector.set_index(new_entry_count++, index);
 				// create new groups, and map the input index to that group
@@ -690,10 +692,11 @@ idx_t GroupedAggregateHashTable::FindOrCreateGroupsInternal(DataChunk &groups, V
 				entries++;
 
 				addresses_ptr[index] = entry_payload_ptr + HASH_WIDTH;
-              //  std::cout << index << " -> " << static_cast<void*>(addresses_ptr[index]) <<
-				//    " -> ht_entry_ptr -> " << static_cast<void*>(ht_entry_ptr) << " " <<
-				//    ht_offsets_ptr[index] << " page_nr: " << ht_entry_ptr->page_nr <<  " page_offset: " << ht_entry_ptr->page_offset << std::endl;
-
+#ifdef LINEAGE_DEBUG
+                std::cout << index << " -> " << static_cast<void*>(addresses_ptr[index]) <<
+				    " -> ht_entry_ptr -> " << static_cast<void*>(ht_entry_ptr) << " " <<
+				    ht_offsets_ptr[index] << " page_nr: " << ht_entry_ptr->page_nr <<  " page_offset: " << ht_entry_ptr->page_offset << std::endl;
+#endif
             } else {
 				// cell is occupied: add to check list
 				// only need to check if hash salt in ptr == prefix of hash in payload
@@ -703,11 +706,13 @@ idx_t GroupedAggregateHashTable::FindOrCreateGroupsInternal(DataChunk &groups, V
 					auto page_ptr = payload_hds_ptrs[ht_entry_ptr->page_nr - 1];
 					auto page_offset = ht_entry_ptr->page_offset * tuple_size;
 					addresses_ptr[index] = page_ptr + page_offset + HASH_WIDTH;
+#ifdef LINEAGE
                     sel_lineage.set_index(index, ht_entry_ptr->page_offset);
+#endif
 
-                //    std::cout << " dup " << index << " -> " << static_cast<void*>(addresses_ptr[index])  << " -> ht_entry_ptr -> " << static_cast<void*>(ht_entry_ptr) << " " <<  ht_offsets_ptr[index] << " page_nr: " << ht_entry_ptr->page_nr <<  " page_offset: " << ht_entry_ptr->page_offset << std::endl;
-
-
+#ifdef LINEAGE_DEBUG
+                    std::cout << " dup " << index << " -> " << static_cast<void*>(addresses_ptr[index])  << " -> ht_entry_ptr -> " << static_cast<void*>(ht_entry_ptr) << " " <<  ht_offsets_ptr[index] << " page_nr: " << ht_entry_ptr->page_nr <<  " page_offset: " << ht_entry_ptr->page_offset << std::endl;
+#endif
                 } else {
 					no_match_vector.set_index(no_match_count++, index);
 				}
@@ -737,9 +742,11 @@ idx_t GroupedAggregateHashTable::FindOrCreateGroupsInternal(DataChunk &groups, V
 		remaining_entries = no_match_count;
 	}
 
+#ifdef LINEAGE
 	// this maps input to groups, we can use it later to map output to input
-    auto lop = make_unique<LineageOpUnary>(make_unique<LineageDataArray<sel_t>>(move(sel_lineage.data()), groups.size()));
-    //context.lineage->RegisterDataPerOp((void *)this,  move(lop));
+    // the sink op do call RegisterDataPerO
+    lineage_data = make_unique<LineageDataArray<sel_t>>(move(sel_lineage.data()), groups.size());
+#endif
 
     // pointers in addresses now were moved behind the grousp by CompareGroups/ScatterGroups but we may have to add
 	// padding still to point at the payload.
@@ -902,27 +909,33 @@ idx_t GroupedAggregateHashTable::Scan(ExecutionContext &context, idx_t &scan_pos
 	auto chunk_idx = scan_position / tuples_per_block;
 	auto chunk_offset = (scan_position % tuples_per_block) * tuple_size;
 	D_ASSERT(chunk_offset + tuple_size <= Storage::BLOCK_ALLOC_SIZE);
+#ifdef LINEAGE
     SelectionVector sel_lineage(this_n);
-
+#endif
 	auto read_ptr = payload_hds_ptrs[chunk_idx++];
-  //  std::cout << "read_ptr -> " << static_cast<void*>(read_ptr) << " chunk_idx: " << chunk_idx-1
-	   //       << "scan_position: " << scan_position << " tuples per block: " << tuples_per_block << std::endl;
-
+#ifdef LINEAGE_DEBUG
+    std::cout << "read_ptr -> " << static_cast<void*>(read_ptr) << " chunk_idx: " << chunk_idx-1
+	          << "scan_position: " << scan_position << " tuples per block: " << tuples_per_block << std::endl;
+#endif
 	for (idx_t i = 0; i < this_n; i++) {
+#ifdef LINEAGE
         sel_lineage.set_index(i, chunk_offset/tuple_size);
+#endif
 		data_pointers[i] = read_ptr + chunk_offset + HASH_WIDTH;
-        //std::cout <<   i " << i << " -> " << " data ptr " << static_cast<void*>(data_pointers[i]) << std::endl;
+#ifdef LIENAGE_DEBUG
+        std::cout <<   i " << i << " -> " << " data ptr " << static_cast<void*>(data_pointers[i]) << std::endl;
+#endif
 		chunk_offset += tuple_size;
 		if (chunk_offset >= tuples_per_block * tuple_size) {
 			read_ptr = payload_hds_ptrs[chunk_idx++];
 			chunk_offset = 0;
 		}
 	}
-
+#ifdef LINEAGE
 	// this tells us, which group an output index map to
     auto lop = make_unique<LineageOpUnary>(make_unique<LineageDataArray<sel_t>>(move(sel_lineage.data()), this_n));
     context.lineage->RegisterDataPerOp((void *)this,  move(lop));
-
+#endif
 	result.SetCardinality(this_n);
 	// fetch the group columns
 	for (idx_t i = 0; i < group_types.size(); i++) {

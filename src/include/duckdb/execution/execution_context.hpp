@@ -25,7 +25,9 @@ public:
 class LineageDataVector : public LineageData {
 public:
     LineageDataVector(Vector vec_p, idx_t count) : vec(move(vec_p)), count(count) {
-        //std::cout << "LineageDataVector " << vec.ToString(count) << std::endl;
+#ifdef LINEAGE_DEBUG
+        std::cout << "LineageDataVector " << vec.ToString(count) << std::endl;
+#endif
     }
 
     Vector vec;
@@ -37,12 +39,13 @@ class LineageDataArray : public LineageData {
 public:
 
     LineageDataArray (T *vec_p, idx_t count) : vec(move(vec_p)), count(count) {
-      /*  std::cout << "LineageDataArray " << " " << typeid(vec_p).name() << std::endl;
-
+#ifdef LINEAGE_DEBUG
+        std::cout << "LineageDataArray " << " " << typeid(vec_p).name() << std::endl;
         for (idx_t i = 0; i < count; i++) {
             std::cout << " (" << i << " -> " << vec_p[i] << ") ";
         }
-        std::cout << std::endl;*/
+        std::cout << std::endl;
+#endif
     }
 
     T *vec;
@@ -65,9 +68,7 @@ public:
 class LineagePassThrough : public LineageData {
 public:
 
-	LineagePassThrough() {
-		std::cout << "LineagePassThrough" << std::endl;
-	}
+	LineagePassThrough() {}
 
 };
 
@@ -77,7 +78,9 @@ class LineageRange : public LineageData {
 public:
 
 	LineageRange(idx_t start, idx_t end) : start(start), end(end) {
-		std::cout << "LineageRange - Start: " << start << " End: " << end << std::endl;
+#ifdef LINEAGE_DEBUG
+        std::cout << "LineageRange - Start: " << start << " End: " << end << std::endl;
+#endif
 	}
 
 	idx_t start;
@@ -89,10 +92,7 @@ public:
 class LineageReduce : public LineageData {
 public:
 
-    LineageReduce() {
-        std::cout << "LineageReduce" << std::endl;
-    }
-
+    LineageReduce() {}
 };
 
 // base operator for Unary and Binary

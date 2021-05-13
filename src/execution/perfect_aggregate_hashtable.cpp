@@ -115,9 +115,11 @@ void PerfectAggregateHashTable::AddChunk(ExecutionContext &context, DataChunk &g
 		address_data[i] = uintptr_t(data) + address_data[i] * tuple_size;
 	}
 
-	// todo: to handle parallel execution, we need to assign unique id per chunk to be able to reference it later
+#ifdef LINEAGE
+    // todo: to handle parallel execution, we need to assign unique id per chunk to be able to reference it later
 	// log lineage data that maps input to output groups
 	sink_per_chunk_lineage = make_unique<LineageOpUnary>(make_unique<LineageDataArray<sel_t>>(move(sel.data()), groups.size()));
+#endif
 
 	// after finding the group location we update the aggregates
 	idx_t payload_idx = 0;
@@ -262,9 +264,10 @@ void PerfectAggregateHashTable::Scan(ExecutionContext &context, idx_t &scan_posi
 		ReconstructGroupVector(group_values, group_minima[i], required_bits[i], shift, entry_count, result.data[i]);
 	}
 
-	// log group_values & count for this chunk
+#ifdef LINEAGE
+    // log group_values & count for this chunk
 	this->per_chunk_lineage = make_unique<LineageDataArray<uint32_t>>(move(group_values), entry_count);
-
+#endif
 	// then construct the payloads
 	for (idx_t i = 0; i < aggregates.size(); i++) {
 		auto &target = result.data[group_types.size() + i];

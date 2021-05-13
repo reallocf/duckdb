@@ -95,7 +95,9 @@ void Pipeline::Execute(TaskContext &task) {
 		DataChunk intermediate;
 		child->InitializeChunkEmpty(intermediate);
 		while (true) {
+#ifdef LINEAGE
             if (!context.lineage)   context.lineage = make_unique<LineageContext>();
+#endif
             child->GetChunk(context, intermediate, state.get());
 			thread.profiler.StartOperator(sink);
 			if (intermediate.size() == 0) {
@@ -104,8 +106,9 @@ void Pipeline::Execute(TaskContext &task) {
 			}
 			sink->Sink(context, *sink_state, *lstate, intermediate);
 
-			// todo: collect this lineage context
+#ifdef LINEAGE
 			executor.AddLocalSinkLineage(sink, move(context.lineage));
+#endif
 			thread.profiler.EndOperator(nullptr);
 		}
 		child->FinalizeOperatorState(*state, context);

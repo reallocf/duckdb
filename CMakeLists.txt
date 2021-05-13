@@ -165,6 +165,8 @@ option(AMALGAMATION_BUILD
        "Build from the amalgamation files, rather than from the normal sources."
        FALSE)
 
+option(USE_LINEAGE_DEBUG "Build LINEAGE DEBUG" FALSE)
+option(USE_LINEAGE "Build LINEAGE." FALSE)
 option(BUILD_ICU_EXTENSION "Build the ICU extension." FALSE)
 option(BUILD_PARQUET_EXTENSION "Build the Parquet extension." FALSE)
 option(BUILD_TPCH_EXTENSION "Build the TPC-H extension." FALSE)
@@ -189,6 +191,16 @@ option(FORCE_ASSERT "Enable checking of assertions, even in release mode" FALSE)
 option(TREAT_WARNINGS_AS_ERRORS "Treat warnings as errors" FALSE)
 option(EXPORT_DLL_SYMBOLS "Export dll symbols on Windows, else import" TRUE)
 option(BUILD_RDTSC "Enable the rdtsc instruction." FALSE)
+
+
+if(${USE_LINEAGE})
+  message(STATUS "Enable Lineage collection")
+  set(LINEAGE TRUE)
+  if (${USE_LINEAGE_DEBUG})
+    message(STATUS "Enable Lineage debug")
+    set(LINEAGE_DEBUG TRUE)
+  endif()
+endif()
 
 if(${BUILD_RDTSC})
   add_compile_definitions(RDTSC)

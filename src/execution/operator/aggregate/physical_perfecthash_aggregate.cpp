@@ -98,7 +98,6 @@ unique_ptr<LocalSinkState> PhysicalPerfectHashAggregate::GetLocalSinkState(Execu
 void PhysicalPerfectHashAggregate::Sink(ExecutionContext &context, GlobalOperatorState &state, LocalSinkState &lstate_p,
                                         DataChunk &input) {
 
-	//std::cout << this->ParamsToString() << std::endl;
 	auto &lstate = (PerfectHashAggregateLocalState &)lstate_p;
 	DataChunk &group_chunk = lstate.group_chunk;
 	DataChunk &aggregate_input_chunk = lstate.aggregate_input_chunk;
@@ -142,7 +141,9 @@ void PhysicalPerfectHashAggregate::Sink(ExecutionContext &context, GlobalOperato
 	D_ASSERT(aggregate_input_chunk.ColumnCount() == 0 || group_chunk.size() == aggregate_input_chunk.size());
 
 	lstate.ht->AddChunk(context, group_chunk, aggregate_input_chunk);
-	context.lineage->RegisterDataPerOp(this, move(lstate.ht->sink_per_chunk_lineage));
+#ifdef LINEAGE
+    context.lineage->RegisterDataPerOp(this, move(lstate.ht->sink_per_chunk_lineage));
+#endif
 }
 
 //===--------------------------------------------------------------------===//
@@ -175,8 +176,10 @@ void PhysicalPerfectHashAggregate::GetChunkInternal(ExecutionContext &context, D
 	auto &gstate = (PerfectHashAggregateGlobalState &)*sink_state;
 
 	gstate.ht->Scan(context, state.ht_scan_position, chunk);
-	auto lop = make_unique<LineageOpUnary>(move(gstate.ht->per_chunk_lineage));
+#ifdef LINEAGE
+    auto lop = make_unique<LineageOpUnary>(move(gstate.ht->per_chunk_lineage));
 	context.lineage->RegisterDataPerOp((void *)this,  move(lop));
+#endif
 }
 
 unique_ptr<PhysicalOperatorState> PhysicalPerfectHashAggregate::GetOperatorState() {

@@ -181,7 +181,11 @@ void PhysicalHashAggregate::Sink(ExecutionContext &context, GlobalOperatorState 
 		}
 		D_ASSERT(gstate.finalized_hts.size() == 1);
 		gstate.lossy_total_groups += gstate.finalized_hts[0]->AddChunk(group_chunk, aggregate_input_chunk);
-		return;
+#ifdef LINEAGE
+        context.lineage->RegisterDataPerOp((void *)this,
+		                                   make_unique<LineageOpUnary>(move(gstate.finalized_hts[0]->lineage_data)));
+#endif
+        return;
 	}
 
 	D_ASSERT(all_combinable);
@@ -322,7 +326,7 @@ void PhysicalHashAggregate::FinalizeInternal(ClientContext &context, unique_ptr<
 			break;
 		}
 	}
-
+    // todo: check how lineage would change if this tack was taken
 	if (any_partitioned) {
 		// if one is partitioned, all have to be
 		// this should mostly have already happened in Combine, but if not we do it here

@@ -244,18 +244,15 @@ bool Executor::GetPipelinesProgress(int &current_progress) {
 
 void Executor::AddOutputLineage(PhysicalOperator* opKey, unique_ptr<LineageContext> lineage) {
 	if (lineage) {
-    //    std::cout <<"\noutput lineage: " << opKey->ToString() << std::endl;
         chunks_lineage[opKey].push_back(move(lineage));
     }
 }
 
 void Executor::AddLocalSinkLineage(PhysicalOperator* sink,  unique_ptr<LineageContext> lineage) {
     if (lineage) {
-   //     std::cout <<"\n1 local sink operator: " << sink->ToString() << std::endl;
         lock_guard<mutex> elock(executor_lock);
         sink_lineage[sink].push_back(move(lineage));
     }
- //   std::cout <<"\n2 local sink operator: " << sink->ToString() << std::endl;
 }
 
 unique_ptr<DataChunk> Executor::FetchChunk() {
@@ -265,14 +262,19 @@ unique_ptr<DataChunk> Executor::FetchChunk() {
     TaskContext task;
     ExecutionContext econtext(context, thread, task);
 
+	std::cout << physical_plan->ToString() << std::endl;
     auto chunk = make_unique<DataChunk>();
     // run the plan to get the next chunks
     physical_plan->InitializeChunkEmpty(*chunk);
     physical_plan->GetChunk(econtext, *chunk, physical_state.get());
     physical_plan->FinalizeOperatorState(*physical_state, econtext);
 
-	// Flush the lineage to global storage location
-	this->AddOutputLineage(physical_plan, move(econtext.lineage));
+#ifdef LINEAGE
+    // Flush the lineage to global storage location
+    if (econtext.lineage)
+		this->AddOutputLineage(physical_plan, move(econtext.lineage));
+#endif
+
     context.profiler.Flush(thread.profiler);
 
     return chunk;

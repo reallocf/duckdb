@@ -190,12 +190,12 @@ void PhysicalSimpleAggregate::GetChunkInternal(ExecutionContext &context, DataCh
 		Vector state_vector(Value::POINTER((uintptr_t)gstate.state.aggregates[aggr_idx].get()));
 		aggregate.function.finalize(state_vector, aggregate.bind_info.get(), chunk.data[aggr_idx], 1);
 	}
-
+#ifdef LINEAGE
     context.lineage->RegisterDataPerOp(
         (void *)this,
         make_unique<LineageOpUnary>(make_unique<LineageReduce>())
     );
-
+#endif
 	state->finished = true;
 }
 

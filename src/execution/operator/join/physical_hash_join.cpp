@@ -136,9 +136,9 @@ void PhysicalHashJoin::Sink(ExecutionContext &context, GlobalOperatorState &stat
 		// there is not a projected map: place the entire right chunk in the HT
 		sink.hash_table->Build(lstate.join_keys, input);
 	}
-
-	// log lineage
+#ifdef LINEAGE
 	context.lineage->RegisterDataPerOp(this, move(sink.hash_table->sink_per_chunk_lineage));
+#endif
 }
 
 //===--------------------------------------------------------------------===//
@@ -256,7 +256,9 @@ void PhysicalHashJoin::ProbeHashTable(ExecutionContext &context, DataChunk &chun
 		// perform the actual probe
 		state->scan_structure = sink.hash_table->Probe(state->join_keys);
 		state->scan_structure->Next(state->join_keys, state->child_chunk, chunk);
-		context.lineage->RegisterDataPerOp((void *)this,  move(state->scan_structure->lop));
+#ifdef LINEAGE
+        context.lineage->RegisterDataPerOp((void *)this,  move(state->scan_structure->lop));
+#endif
 	} while (chunk.size() == 0);
 }
 
