@@ -922,7 +922,7 @@ idx_t GroupedAggregateHashTable::Scan(ExecutionContext &context, idx_t &scan_pos
         sel_lineage.set_index(i, chunk_offset/tuple_size);
 #endif
 		data_pointers[i] = read_ptr + chunk_offset + HASH_WIDTH;
-#ifdef LIENAGE_DEBUG
+#ifdef LINEAGE_DEBUG
         std::cout <<   "i " << i << " -> " << " data ptr " << static_cast<void*>(data_pointers[i]) << std::endl;
 #endif
 		chunk_offset += tuple_size;
