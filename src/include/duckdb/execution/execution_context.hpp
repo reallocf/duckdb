@@ -135,6 +135,10 @@ public:
         ht[key] = move(op);
     }
 
+	bool isEmpty() {
+		return ht.empty();
+	}
+
     std::unordered_map<void*, unique_ptr<LineageOp>> ht;
 };
 

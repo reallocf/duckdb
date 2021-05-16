@@ -107,7 +107,8 @@ void Pipeline::Execute(TaskContext &task) {
 			sink->Sink(context, *sink_state, *lstate, intermediate);
 
 #ifdef LINEAGE
-			executor.AddLocalSinkLineage(sink, move(context.lineage));
+            if (context.lineage && !context.lineage->isEmpty())
+			    executor.AddLocalSinkLineage(sink, move(context.lineage));
 #endif
 			thread.profiler.EndOperator(nullptr);
 		}

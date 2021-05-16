@@ -271,7 +271,7 @@ unique_ptr<DataChunk> Executor::FetchChunk() {
 
 #ifdef LINEAGE
     // Flush the lineage to global storage location
-    if (econtext.lineage)
+    if (econtext.lineage && !econtext.lineage->isEmpty())
 		this->AddOutputLineage(physical_plan, move(econtext.lineage));
 #endif
 
