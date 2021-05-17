@@ -823,8 +823,9 @@ void ScanStructure::NextInnerJoin(DataChunk &keys, DataChunk &left, DataChunk &r
 #ifdef LINEAGE
         //	std::cout << " NextInnerJoin: " << result_vector.ToString(result_count) << std::endl;
 		auto ptrs = FlatVector::GetData<uintptr_t>(pointers);
-		uintptr_t key_locations_lineage[STANDARD_VECTOR_SIZE];
-		for (idx_t i = 0; i < result_count; i++) {
+		vector<uintptr_t> key_locations_lineage(result_count);
+
+        for (idx_t i = 0; i < result_count; i++) {
 			auto idx = result_vector.get_index(i);
 			key_locations_lineage[i] = ptrs[idx];
 			//std::cout << i <<  " match sel: " <<    ptrs[idx]   << std::endl;
@@ -841,7 +842,7 @@ void ScanStructure::NextInnerJoin(DataChunk &keys, DataChunk &left, DataChunk &r
         // copy from ptrs and used it later with result vector
 		lop = make_unique<LineageOpBinary>();
 		auto lineage_probe = make_unique<LineageDataArray<sel_t>>(result_vector.data(), result_count);
-		auto lineage_build = make_unique<LineageDataArray<uintptr_t>>(move(key_locations_lineage), result_count);
+		auto lineage_build = make_unique<LineageDataArray<uintptr_t>>(move(key_locations_lineage.data()), result_count);
 		lop->setRHS(move(lineage_probe));
 		lop->setLHS(move(lineage_build));
 #endif
