@@ -121,6 +121,7 @@ void PhysicalHashJoin::Sink(ExecutionContext &context, GlobalOperatorState &stat
                             DataChunk &input) {
 	auto &sink = (HashJoinGlobalState &)state;
 	auto &lstate = (HashJoinLocalState &)lstate_p;
+	context.setCurrent(this);
 	// resolve the join keys for the right chunk
 	lstate.build_executor.Execute(input, lstate.join_keys);
 	// build the HT
@@ -131,14 +132,12 @@ void PhysicalHashJoin::Sink(ExecutionContext &context, GlobalOperatorState &stat
 		for (idx_t i = 0; i < right_projection_map.size(); i++) {
 			lstate.build_chunk.data[i].Reference(input.data[right_projection_map[i]]);
 		}
-		sink.hash_table->Build(lstate.join_keys, lstate.build_chunk);
+		sink.hash_table->Build(context, lstate.join_keys, lstate.build_chunk);
 	} else {
 		// there is not a projected map: place the entire right chunk in the HT
-		sink.hash_table->Build(lstate.join_keys, input);
+		sink.hash_table->Build(context, lstate.join_keys, input);
 	}
-#ifdef LINEAGE
-	context.lineage->RegisterDataPerOp(this, move(sink.hash_table->sink_per_chunk_lineage));
-#endif
+
 }
 
 //===--------------------------------------------------------------------===//

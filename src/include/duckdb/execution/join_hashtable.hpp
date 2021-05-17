@@ -127,7 +127,7 @@ public:
 	~JoinHashTable();
 
 	//! Add the given data to the HT
-	void Build(DataChunk &keys, DataChunk &input);
+	void Build(ExecutionContext &context, DataChunk &keys, DataChunk &input);
 	//! Finalize the build of the HT, constructing the actual hash table and making the HT ready for probing. Finalize
 	//! must be called before any call to Probe, and after Finalize is called Build should no longer be ever called.
 	void Finalize();
@@ -174,8 +174,6 @@ public:
 	uint64_t bitmask;
 	//! The amount of entries stored per block
 	idx_t block_capacity;
-
-	unique_ptr<LineageOpUnary> sink_per_chunk_lineage;
 
 	struct {
 		std::mutex mj_lock;

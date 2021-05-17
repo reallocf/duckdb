@@ -261,7 +261,7 @@ idx_t JoinHashTable::PrepareKeys(DataChunk &keys, unique_ptr<VectorData[]> &key_
 	return added_count;
 }
 
-void JoinHashTable::Build(DataChunk &keys, DataChunk &payload) {
+void JoinHashTable::Build(ExecutionContext &context, DataChunk &keys, DataChunk &payload) {
 	D_ASSERT(!finalized);
 	D_ASSERT(keys.size() == payload.size());
 	if (keys.size() == 0) {
@@ -384,7 +384,7 @@ void JoinHashTable::Build(DataChunk &keys, DataChunk &payload) {
 	auto lineage = make_unique<LineageCollection>();
 	lineage->add(move(lineage_data_1));
 	lineage->add(move(lineage_data_2));
-	sink_per_chunk_lineage =  make_unique<LineageOpUnary>(move(lineage));
+    context.lineage->RegisterDataPerOp(context.getCurrent(),  make_unique<LineageOpUnary>(move(lineage)));
 #endif
 }
 
