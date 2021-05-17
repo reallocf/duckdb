@@ -67,6 +67,8 @@ void Executor::Reset() {
 	total_pipelines = 0;
 	exceptions.clear();
 	pipelines.clear();
+    chunks_lineage.clear();
+    sink_lineage.clear();
 }
 
 void Executor::BuildPipelines(PhysicalOperator *op, Pipeline *parent) {
