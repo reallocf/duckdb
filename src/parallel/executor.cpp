@@ -245,13 +245,13 @@ bool Executor::GetPipelinesProgress(int &current_progress) {
 }
 
 void Executor::AddOutputLineage(PhysicalOperator* opKey, unique_ptr<LineageContext> lineage) {
-	if (lineage) {
+	if (lineage->isEmpty() == false) {
         chunks_lineage[opKey].push_back(move(lineage));
     }
 }
 
 void Executor::AddLocalSinkLineage(PhysicalOperator* sink,  unique_ptr<LineageContext> lineage) {
-    if (lineage) {
+    if (lineage->isEmpty() == false) {
         lock_guard<mutex> elock(executor_lock);
         sink_lineage[sink].push_back(move(lineage));
     }
