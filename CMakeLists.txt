@@ -167,6 +167,7 @@ option(AMALGAMATION_BUILD
 
 option(USE_LINEAGE_DEBUG "Build LINEAGE DEBUG" FALSE)
 option(USE_LINEAGE "Build LINEAGE." FALSE)
+option(USE_LINEAGE_SIZE "Build LINEAGE_SIZE." FALSE)
 option(BUILD_ICU_EXTENSION "Build the ICU extension." FALSE)
 option(BUILD_PARQUET_EXTENSION "Build the Parquet extension." FALSE)
 option(BUILD_TPCH_EXTENSION "Build the TPC-H extension." FALSE)
@@ -199,6 +200,10 @@ if(${USE_LINEAGE})
   if (${USE_LINEAGE_DEBUG})
     message(STATUS "Enable Lineage debug")
     add_definitions(-DLINEAGE_DEBUG=1)
+  endif()
+  if (${USE_LINEAGE_SIZE})
+    message(STATUS "Enable Lineage size")
+    add_definitions(-DLINEAGE_SIZE=1)
   endif()
 endif()
 
