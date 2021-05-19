@@ -67,6 +67,25 @@ void Executor::Reset() {
 	total_pipelines = 0;
 	exceptions.clear();
 	pipelines.clear();
+
+#ifdef LINEAGE_SIZE
+    unsigned long size = 0;
+    for (const auto& elm : chunks_lineage) {
+		for (int i=0; i < elm.second.size(); ++i)
+			if (elm.second[i])
+                size += elm.second[i]->size_bytes();
+    }
+
+    std::cout << "chunks_lineage: " << chunks_lineage.size() << " " << size << std::endl;
+    size = 0;
+    for (const auto& elm : sink_lineage) {
+        for (int i=0; i < elm.second.size(); ++i) {
+            if (elm.second[i])
+				size += elm.second[i]->size_bytes();
+		}
+    }
+    std::cout << "since_lineage: " << sink_lineage.size() << " " << size << std::endl;
+#endif
     chunks_lineage.clear();
     sink_lineage.clear();
 }
