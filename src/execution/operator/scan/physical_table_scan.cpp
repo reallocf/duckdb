@@ -37,7 +37,7 @@ void PhysicalTableScan::GetChunkInternal(ExecutionContext &context, DataChunk &c
 		return;
 	}
 #ifdef LINEAGE
-    context.setCurrent((void*)this);
+    context.setCurrent(this);
 #endif
 	if (!state.initialized) {
 		state.parallel_state = nullptr;

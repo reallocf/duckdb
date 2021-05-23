@@ -934,7 +934,7 @@ idx_t GroupedAggregateHashTable::Scan(ExecutionContext &context, idx_t &scan_pos
 #ifdef LINEAGE
 	// this tells us, which group an output index map to
     auto lop = make_unique<LineageOpUnary>(make_unique<LineageDataArray<sel_t>>(move(sel_lineage.data()), this_n));
-    context.lineage->RegisterDataPerOp((void *)this,  move(lop));
+    context.lineage->RegisterDataPerOp(context.getCurrent(),  move(lop));
 #endif
 	result.SetCardinality(this_n);
 	// fetch the group columns

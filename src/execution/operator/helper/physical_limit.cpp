@@ -90,7 +90,7 @@ void PhysicalLimit::GetChunkInternal(ExecutionContext &context, DataChunk &chunk
 	} while (chunk.size() == 0);
 
     context.lineage->RegisterDataPerOp(
-        (void *)this,
+        this,
         make_unique<LineageOpUnary>(make_unique<LineageRange>(offset, limit))
     );
 }

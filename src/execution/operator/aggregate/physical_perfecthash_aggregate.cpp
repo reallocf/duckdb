@@ -177,8 +177,9 @@ void PhysicalPerfectHashAggregate::GetChunkInternal(ExecutionContext &context, D
 
 	gstate.ht->Scan(context, state.ht_scan_position, chunk);
 #ifdef LINEAGE
+	// todo: don't use gstate
     auto lop = make_unique<LineageOpUnary>(move(gstate.ht->per_chunk_lineage));
-	context.lineage->RegisterDataPerOp((void *)this,  move(lop));
+	context.lineage->RegisterDataPerOp(this,  move(lop));
 #endif
 }
 

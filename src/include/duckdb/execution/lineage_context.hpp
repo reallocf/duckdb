@@ -13,6 +13,7 @@
 #include <iostream>
 
 namespace duckdb {
+class PhysicalOperator;
 
 class LineageData {
 public:
@@ -171,7 +172,7 @@ public:
     LineageContext() {
 
     }
-    void RegisterDataPerOp(void* key, unique_ptr<LineageOp> op) {
+    void RegisterDataPerOp(PhysicalOperator* key, unique_ptr<LineageOp> op) {
         ht[key] = move(op);
     }
 
@@ -188,7 +189,7 @@ public:
 		return size;
 	}
 
-    std::unordered_map<void*, unique_ptr<LineageOp>> ht;
+    std::unordered_map<PhysicalOperator*, unique_ptr<LineageOp>> ht;
 };
 
 } // namespace duckdb

@@ -24,7 +24,7 @@ void PhysicalProjection::GetChunkInternal(ExecutionContext &context, DataChunk &
 	}
 
     context.lineage->RegisterDataPerOp(
-        (void *)this,
+        this,
         make_unique<LineageOpUnary>(make_unique<LineagePassThrough>())
     );
 

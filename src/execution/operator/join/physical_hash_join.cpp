@@ -256,7 +256,8 @@ void PhysicalHashJoin::ProbeHashTable(ExecutionContext &context, DataChunk &chun
 		state->scan_structure = sink.hash_table->Probe(state->join_keys);
 		state->scan_structure->Next(state->join_keys, state->child_chunk, chunk);
 #ifdef LINEAGE
-        context.lineage->RegisterDataPerOp((void *)this,  move(state->scan_structure->lop));
+
+        context.lineage->RegisterDataPerOp(this,  move(state->scan_structure->lop));
 #endif
 	} while (chunk.size() == 0);
 }

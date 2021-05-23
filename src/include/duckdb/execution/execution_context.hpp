@@ -16,6 +16,7 @@ class ClientContext;
 class ThreadContext;
 class TaskContext;
 class LineageContext;
+class PhysicalOperator;
 
 class ExecutionContext {
 public:
@@ -25,11 +26,11 @@ public:
         lineage = make_unique<LineageContext>();
     }
 
-	void setCurrent(void * op) {
+	void setCurrent(PhysicalOperator * op) {
 		current_op = op;
 	}
 
-	void *getCurrent() {
+    PhysicalOperator *getCurrent() {
 		return current_op;
 	};
 
@@ -41,7 +42,7 @@ public:
     TaskContext &task;
     //! The lineage context for this execution
     unique_ptr<LineageContext> lineage;
-	void * current_op;
+    PhysicalOperator* current_op;
 };
 
 } // namespace duckdb

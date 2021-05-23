@@ -46,7 +46,7 @@ void PhysicalFilter::GetChunkInternal(ExecutionContext &context, DataChunk &chun
 	} while (result_count == 0);
 
     context.lineage->RegisterDataPerOp(
-	    (void *)this,
+	    this,
 	    make_unique<LineageOpUnary>(make_unique<LineageDataArray<sel_t>>(sel.data(), result_count))
 	);
 	if (result_count == initial_count) {

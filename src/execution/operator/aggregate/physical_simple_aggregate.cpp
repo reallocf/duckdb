@@ -192,7 +192,7 @@ void PhysicalSimpleAggregate::GetChunkInternal(ExecutionContext &context, DataCh
 	}
 #ifdef LINEAGE
     context.lineage->RegisterDataPerOp(
-        (void *)this,
+        this,
         make_unique<LineageOpUnary>(make_unique<LineageReduce>())
     );
 #endif
