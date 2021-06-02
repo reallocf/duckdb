@@ -380,7 +380,9 @@ void PhysicalHashAggregate::GetChunkInternal(ExecutionContext &context, DataChun
 	auto &state = (PhysicalHashAggregateState &)*state_p;
 
 	state.scan_chunk.Reset();
-
+#ifdef LINEAGE
+    context.setCurrent(this);
+#endif
 	// special case hack to sort out aggregating from empty intermediates
 	// for aggregations without groups
 	if (gstate.is_empty && is_implicit_aggr) {
