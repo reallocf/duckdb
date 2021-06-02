@@ -301,7 +301,7 @@ void JoinHashTable::Build(ExecutionContext &context, DataChunk &keys, DataChunk 
 	vector<BlockAppendEntry> append_entries;
 	data_ptr_t key_locations[STANDARD_VECTOR_SIZE];
 #ifdef LINEAGE
-    data_ptr_t key_locations_lineage[STANDARD_VECTOR_SIZE];
+    data_ptr_t key_locations_lineage[added_count];
 #endif
 	// first allocate space of where to serialize the keys and payload columns
 	idx_t remaining = added_count;
