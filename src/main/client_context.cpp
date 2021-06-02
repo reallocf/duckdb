@@ -251,9 +251,14 @@ unique_ptr<QueryResult> ClientContext::ExecutePreparedStatement(ClientContextLoc
 #endif
 		result->collection.Append(*chunk);
 	}
-	if (progress_bar) {
+#ifdef LINEAGE_SIZE
+    executor.LineageSize();
+#endif
+
+    if (progress_bar) {
 		progress_bar->Stop();
 	}
+
 	return move(result);
 }
 

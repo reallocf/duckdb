@@ -189,6 +189,20 @@ public:
 		return size;
 	}
 
+    unsigned long  size_per_op(std::unordered_map<PhysicalOperator*, unsigned long> &ht_size) {
+        unsigned long size = 0;
+        for (const auto& elm : ht) {
+			if (!elm.second || !elm.first) continue;
+            size += elm.second->size_bytes();
+			if (ht_size.find(elm.first) == ht_size.end())
+                ht_size[elm.first] = elm.second->size_bytes();
+			else
+                ht_size[elm.first] += elm.second->size_bytes();
+        }
+
+		return size;
+    }
+
     std::unordered_map<PhysicalOperator*, unique_ptr<LineageOp>> ht;
 };
 

@@ -58,7 +58,42 @@ void Executor::Initialize(PhysicalOperator *plan) {
 	}
 }
 
+void Executor::LineageSize() {
+    unsigned long size = 0;
+    for (const auto& elm : chunks_lineage) {
+        std::unordered_map<PhysicalOperator*, unsigned long> size_per_op;
+        for (int i=0; i < elm.second.size(); ++i) {
+            if (elm.second[i]) {
+                size += elm.second[i]->size_per_op(size_per_op);
+            }
+        }
+        std::cout << "iterate over chunk pipeline: " << std::endl;
+        for (const auto& elm_sink: size_per_op) {
+            std::cout << elm_sink.first->ToString() << "\n size of: " << elm_sink.second << std::endl;
+        }
+    }
+
+    std::cout << "chunks_lineage: " << chunks_lineage.size() << " " << size << std::endl;
+    size = 0;
+    for (const auto& elm : sink_lineage) {
+        std::unordered_map<PhysicalOperator*, unsigned long> size_per_op;
+        for (int i=0; i < elm.second.size(); ++i) {
+            if (elm.second[i]) {
+                size += elm.second[i]->size_per_op(size_per_op);
+            }
+        }
+        std::cout << "iterate over sink pipeline: " << std::endl;
+        for (const auto& elm_sink: size_per_op) {
+            std::cout << elm_sink.first->ToString()  << "\n size of: " << elm_sink.second << std::endl;
+        }
+    }
+
+    std::cout << "since_lineage: " << sink_lineage.size() << " " << size << std::endl;
+}
+
 void Executor::Reset() {
+    chunks_lineage.clear();
+    sink_lineage.clear();
 	delim_join_dependencies.clear();
 	recursive_cte = nullptr;
 	physical_plan = nullptr;
@@ -67,27 +102,6 @@ void Executor::Reset() {
 	total_pipelines = 0;
 	exceptions.clear();
 	pipelines.clear();
-
-#ifdef LINEAGE_SIZE
-    unsigned long size = 0;
-    for (const auto& elm : chunks_lineage) {
-		for (int i=0; i < elm.second.size(); ++i)
-			if (elm.second[i])
-                size += elm.second[i]->size_bytes();
-    }
-
-    std::cout << "chunks_lineage: " << chunks_lineage.size() << " " << size << std::endl;
-    size = 0;
-    for (const auto& elm : sink_lineage) {
-        for (int i=0; i < elm.second.size(); ++i) {
-            if (elm.second[i])
-				size += elm.second[i]->size_bytes();
-		}
-    }
-    std::cout << "since_lineage: " << sink_lineage.size() << " " << size << std::endl;
-#endif
-    chunks_lineage.clear();
-    sink_lineage.clear();
 }
 
 void Executor::BuildPipelines(PhysicalOperator *op, Pipeline *parent) {

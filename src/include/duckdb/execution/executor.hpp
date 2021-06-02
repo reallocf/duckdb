@@ -47,6 +47,7 @@ public:
 	void BuildPipelines(PhysicalOperator *op, Pipeline *parent);
 
 	void Reset();
+    void LineageSize();
 
 	vector<LogicalType> GetTypes();
 
