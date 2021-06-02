@@ -695,7 +695,7 @@ idx_t GroupedAggregateHashTable::FindOrCreateGroupsInternal(DataChunk &groups, V
 #ifdef LINEAGE_DEBUG
                 std::cout << index << " -> " << static_cast<void*>(addresses_ptr[index]) <<
 				    " -> ht_entry_ptr -> " << static_cast<void*>(ht_entry_ptr) << " " <<
-				    ht_offsets_ptr[index] << " page_nr: " << ht_entry_ptr->page_nr <<  " page_offset: " << ht_entry_ptr->page_offset << std::endl;
+				    ht_offsets_ptr[index] << " page_offset: " << ht_entry_ptr->page_offset << std::endl;
 #endif
             } else {
 				// cell is occupied: add to check list
@@ -915,7 +915,7 @@ idx_t GroupedAggregateHashTable::Scan(ExecutionContext &context, idx_t &scan_pos
 	auto read_ptr = payload_hds_ptrs[chunk_idx++];
 #ifdef LINEAGE_DEBUG
     std::cout << "read_ptr -> " << static_cast<void*>(read_ptr) << " chunk_idx: " << chunk_idx-1
-	          << "scan_position: " << scan_position << " tuples per block: " << tuples_per_block << std::endl;
+	          << "scan_position: " << scan_position << " tuples per block: " << tuples_per_block << " this_n " << this_n << std::endl;
 #endif
 	for (idx_t i = 0; i < this_n; i++) {
 #ifdef LINEAGE

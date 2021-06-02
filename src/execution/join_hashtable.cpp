@@ -820,15 +820,13 @@ void ScanStructure::NextInnerJoin(DataChunk &keys, DataChunk &left, DataChunk &r
 		// construct the result
 		// on the LHS, we create a slice using the result vector
 		result.Slice(left, result_vector, result_count);
-#ifdef LINEAGE
         //	std::cout << " NextInnerJoin: " << result_vector.ToString(result_count) << std::endl;
+#ifdef LINEAGE
 		auto ptrs = FlatVector::GetData<uintptr_t>(pointers);
 		vector<uintptr_t> key_locations_lineage(result_count);
-
         for (idx_t i = 0; i < result_count; i++) {
 			auto idx = result_vector.get_index(i);
 			key_locations_lineage[i] = ptrs[idx];
-			//std::cout << i <<  " match sel: " <<    ptrs[idx]   << std::endl;
 		}
 #endif
 		// on the RHS, we need to fetch the data from the hash table
