@@ -682,7 +682,7 @@ idx_t GroupedAggregateHashTable::FindOrCreateGroupsInternal(DataChunk &groups, V
 				ht_entry_ptr->page_nr = payload_hds.size();
 				ht_entry_ptr->page_offset = payload_page_offset++;
 #ifdef LINEAGE
-                sel_lineage.set_index(index, ht_entry_ptr->page_offset);
+                sel_lineage.set_index(ht_entry_ptr->page_offset, index);
 #endif
 				// update selection lists for outer loops
 				empty_vector.set_index(new_entry_count++, index);
