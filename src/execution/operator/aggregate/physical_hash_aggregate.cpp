@@ -183,9 +183,11 @@ void PhysicalHashAggregate::Sink(ExecutionContext &context, GlobalOperatorState 
 		}
 		D_ASSERT(gstate.finalized_hts.size() == 1);
 		gstate.lossy_total_groups += gstate.finalized_hts[0]->AddChunk(group_chunk, aggregate_input_chunk);
+
 #ifdef LINEAGE
+		// todo: don't use gstate
 		context.lineage->RegisterDataPerOp(this,
-		                                   make_unique<LineageOpUnary>(move(gstate.finalized_hts[0]->lineage_data)));
+		                                   make_unique<LineageOpUnary>(move(gstate.finalized_hts[0]->lineage_data)), 1);
 #endif
         return;
 	}

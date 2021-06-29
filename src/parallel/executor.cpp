@@ -59,8 +59,8 @@ void Executor::Initialize(PhysicalOperator *plan) {
 }
 
 void Executor::LineageSize() {
-    unsigned long size = 0;
-    for (const auto& elm : chunks_lineage) {
+   /* unsigned long size = 0;
+    for (const auto& elm : pipelines_lineage[0]) {
         std::unordered_map<PhysicalOperator*, unsigned long> size_per_op;
         for (int i=0; i < elm.second.size(); ++i) {
             if (elm.second[i]) {
@@ -73,9 +73,9 @@ void Executor::LineageSize() {
         }
     }
 
-    std::cout << "chunks_lineage: " << chunks_lineage.size() << " " << size << std::endl;
+    std::cout << "pipelines_lineage: " << pipelines_lineage[0].size() << " " << size << std::endl;
     size = 0;
-    for (const auto& elm : sink_lineage) {
+    for (const auto& elm : pipelines_lineage[1]) {
         std::unordered_map<PhysicalOperator*, unsigned long> size_per_op;
         for (int i=0; i < elm.second.size(); ++i) {
             if (elm.second[i]) {
@@ -88,13 +88,12 @@ void Executor::LineageSize() {
         }
     }
 
-    std::cout << "since_lineage: " << sink_lineage.size() << " " << size << std::endl;
+    std::cout << "since_lineage: " << pipelines_lineage[1].size() << " " << size << std::endl;*/
 }
 
 void Executor::Reset() {
-    chunks_lineage.clear();
-    sink_lineage.clear();
-	delim_join_dependencies.clear();
+	pipelines_lineage.clear();
+    delim_join_dependencies.clear();
 	recursive_cte = nullptr;
 	physical_plan = nullptr;
 	physical_state = nullptr;
@@ -277,16 +276,241 @@ bool Executor::GetPipelinesProgress(int &current_progress) {
 	}
 }
 
-void Executor::AddOutputLineage(PhysicalOperator* opKey, unique_ptr<LineageContext> lineage) {
-	if (lineage->isEmpty() == false) {
-        chunks_lineage[opKey].push_back(move(lineage));
+void Executor::ForwardLineage(PhysicalOperator *op, shared_ptr<LineageContext> lineage, int idx) {
+
+    // operator is a sink, build a pipeline
+    std::cout << "ForwardLineage: TraverseTree op " << op << " " << op->GetName() << std::endl;
+    switch (op->type) {
+    case PhysicalOperatorType::PROJECTION:
+    case PhysicalOperatorType::HASH_GROUP_BY: {
+        LineageOpUnary *lop = dynamic_cast<LineageOpUnary *>(lineage->GetLineageOp(op, 0).get());
+        if (!lop) {
+            std::cout << "something is wrong, lop not found for   aggregate" << std::endl;
+            return;
+        }
+
+		// map index -> group
+		idx_t group = 0;
+        if (pipelines_lineage[1].find(op) != pipelines_lineage[1].end()) {
+            vector<shared_ptr<LineageContext>> sink_lineage = pipelines_lineage[1][op];
+            for (idx_t i = 0; i < sink_lineage.size(); ++i) {
+                LineageOpUnary *sink_lop = dynamic_cast<LineageOpUnary *>(sink_lineage[i]->GetLineageOp(op, 1).get());
+                if (!sink_lop) {
+                    std::cout << "something is wrong, aggregate sink lop not found" << std::endl;
+                    return;
+                }
+                group = sink_lop->data->getAtIndex(idx);
+				break;
+
+            }
+        }
+		// now that I have the group, I can look for it in lop
+        idx_t oidx = lop->data->findIndexOf(group);
+        std::cout << "Group By " << idx << " belong to " << group << " maps to " << oidx << std::endl;
+
+
+        break;
+    }
+	case PhysicalOperatorType::PERFECT_HASH_GROUP_BY: {
+            LineageOpUnary *lop = dynamic_cast<LineageOpUnary *>(lineage->GetLineageOp(op, 0).get());
+            if (!lop) {
+                std::cout << "something is wrong, lop not found for   aggregate" << std::endl;
+                return;
+            }
+
+            // map index -> group
+            idx_t group = 0;
+		    bool found = false;
+            if (pipelines_lineage[1].find(op) != pipelines_lineage[1].end()) {
+                vector<shared_ptr<LineageContext>> sink_lineage = pipelines_lineage[1][op];
+                for (idx_t i = 0; i < sink_lineage.size(); ++i) {
+                    LineageOpUnary *sink_lop = dynamic_cast<LineageOpUnary *>(sink_lineage[i]->GetLineageOp(op, 1).get());
+                    if (!sink_lop) {
+                        std::cout << "something is wrong, aggregate sink lop not found" << std::endl;
+                        continue;
+                    }
+				    // found the group idx belongs to
+                    group = sink_lop->data->getAtIndex(idx);
+				    found = true;
+                    break;
+
+                }
+            }
+
+		    if (!found) return;
+            // now that I have the group, I can look for it in lop
+            idx_t oidx = lop->data->findIndexOf(group);
+            std::cout << "Group By " << idx << " belong to " << group << " maps to " << oidx << std::endl;
+            break;
+	}
+    case PhysicalOperatorType::INDEX_JOIN:
+    case PhysicalOperatorType::HASH_JOIN:
+    default:
+        std::cout << "Unimplemented op type!" << std::endl;
     }
 }
 
-void Executor::AddLocalSinkLineage(PhysicalOperator* sink,  unique_ptr<LineageContext> lineage) {
+void Executor::BackwardLineage(PhysicalOperator *op, shared_ptr<LineageContext> lineage, int oidx) {
+
+	// operator is a sink, build a pipeline
+	std::cout << "Backward Lineage: TraverseTree op " << op << " " << op->GetName() << std::endl;
+	switch (op->type) {
+    case PhysicalOperatorType::PROJECTION:
+        BackwardLineage(op->children[0].get(), move(lineage), oidx);
+		break;
+    case PhysicalOperatorType::HASH_GROUP_BY: {
+        LineageOpUnary *lop = dynamic_cast<LineageOpUnary *>(lineage->GetLineageOp(op, 0).get());
+        if (!lop) {
+            std::cout << "something is wrong, lop not found for   aggregate" << std::endl;
+            return;
+        }
+
+		// schema: [oidx idx_t, group idx_t]
+		//         maps a row in the output to a group
+        idx_t group = lop->data->getAtIndex(oidx);
+        std::cout << oidx << " belong to " << group << std::endl;
+
+		// Lookup the data on the build side
+        if (pipelines_lineage[1].find(op) != pipelines_lineage[1].end()) {
+            vector<shared_ptr<LineageContext>> sink_lineage = pipelines_lineage[1][op];
+            vector<idx_t> matches;
+            for (idx_t i = 0; i < sink_lineage.size(); ++i) {
+                LineageOpUnary *sink_lop = dynamic_cast<LineageOpUnary *>(sink_lineage[i]->GetLineageOp(op, 1).get());
+                if (!sink_lop) {
+                    std::cout << "something is wrong,   aggregate sink lop not found" << std::endl;
+                    continue;
+                }
+
+				// schema: [ridx idx_t, group idx_t]
+				//         maps input row to a specific group
+				// getAllMatches: get all ridx that belong to group, O(n)
+                sink_lop->data->getAllMatches(group, matches);
+                for (int j =0; j < matches.size(); ++j) {
+                    std::cout << " getAllMatches " << matches[j] << std::endl;
+                }
+            }
+        }
+		break;
+	}
+	case PhysicalOperatorType::SIMPLE_AGGREGATE:
+	case PhysicalOperatorType::PERFECT_HASH_GROUP_BY: {
+		LineageOpUnary *lop = dynamic_cast<LineageOpUnary *>(lineage->GetLineageOp(op, 0).get());
+		if (!lop) {
+			std::cout << "something is wrong, lop not found for perfect  aggregate" << std::endl;
+			return;
+		}
+
+        // schema: [oidx idx_t, group idx_t]
+        //         maps a row in the output to a group
+		idx_t group = lop->data->getAtIndex(oidx);
+        std::cout << oidx << " belong to " << group << std::endl;
+
+        // Lookup the data on the build side
+		if (pipelines_lineage[1].find(op) != pipelines_lineage[1].end()) {
+			vector<shared_ptr<LineageContext>> sink_lineage = pipelines_lineage[1][op];
+			vector<idx_t> matches;
+			for (idx_t i = 0; i < sink_lineage.size(); ++i) {
+				LineageOpUnary *sink_lop = dynamic_cast<LineageOpUnary *>(sink_lineage[i]->GetLineageOp(op, 1).get());
+				if (!sink_lop) {
+					std::cout << "something is wrong, perfect  aggregate sink lop not found" << std::endl;
+					continue;
+				}
+
+                // schema: [ridx idx_t, group idx_t]
+                //         maps input row to a specific group
+                // getAllMatches: get all ridx that belong to group, O(n)
+				sink_lop->data->getAllMatches(group, matches);
+                for (int j =0; j < matches.size(); ++j) {
+					std::cout << " getAllMatches " << matches[j] << std::endl;
+				}
+            }
+		}
+		break;
+	}
+	case PhysicalOperatorType::TOP_N:
+		// single operator, set as child
+		// pipeline->child = op->children[0].get();
+		break;
+    case PhysicalOperatorType::INDEX_JOIN: {
+		LineageOpBinary* lop =  dynamic_cast<LineageOpBinary*>(lineage->GetLineageOp(op, 0).get());
+		if (!lop) {
+			std::cout << "something is wrong, lop not found" << std::endl;
+			return;
+		}
+
+        auto lhs_idx = lop->data_lhs->getAtIndex(oidx);
+        std::cout << "-> Index Join LHS " <<  lhs_idx << std::endl;
+        auto rhs_idx = lop->data_rhs->getAtIndex(oidx);
+        std::cout << "-> Index Join RHS " <<  rhs_idx << std::endl;
+        BackwardLineage(op->children[0].get(), move(lineage), oidx);
+        BackwardLineage(op->children[1].get(), move(lineage), oidx);
+
+        break;
+	}
+	case PhysicalOperatorType::HASH_JOIN: {
+		LineageOpBinary* build_lop =  dynamic_cast<LineageOpBinary*>(lineage->GetLineageOp(op, 0).get());
+		if (!build_lop) {
+			std::cout << "something is wrong, hash join build lop not found" << std::endl;
+			return;
+		}
+
+		// schema: [oidx idx_t, lhs_idx idx_t]
+		//         maps output row to row from probe side (LHS)
+		auto lhs_idx = build_lop->data_lhs->getAtIndex(oidx);
+		std::cout << "-> Hash Join LHS " <<  lhs_idx << std::endl;
+
+		// schema: [oidx idx_t, rhs_ptr uintptr_t]
+		//         maps output row to row from the build side in the hash table payload
+		uintptr_t rhs_ptr = build_lop->data_rhs->getAtIndex(oidx);
+        std::cout << "-> Hash Join RHS ptr in HashJoin table " << rhs_ptr<< std::endl;
+
+		// We need to get the actual row id from the build side
+        if (pipelines_lineage[1].find(op) != pipelines_lineage[1].end()) {
+            vector<shared_ptr<LineageContext>> sink_lineage = pipelines_lineage[1][op];
+			for (idx_t i = 0; i < sink_lineage.size(); ++i) {
+                LineageOpUnary* sink_lop = dynamic_cast<LineageOpUnary*>(sink_lineage[i]->GetLineageOp(op, 1).get());
+                if (!sink_lop) {
+                    std::cout << "something is wrong, hash join sink lop not found" << std::endl;
+                    continue;
+                }
+
+				idx_t rhs_idx = sink_lop->data->findIndexOf((idx_t)rhs_ptr);
+                std::cout << "rhs_idx " << i << " " << rhs_idx << " " << rhs_ptr << std::endl;
+            }
+
+		}
+
+		BackwardLineage(op->children[0].get(), move(lineage), oidx);
+		break;
+	}
+	default:
+		std::cout << "Unimplemented op type!" << std::endl;
+	}
+}
+
+void Executor::QueryLineage(shared_ptr<LineageContext> lineage) {
+    PhysicalOperator* root = physical_plan;
+    // I have the physical plan -> use it to compute the lineage
+    // how would I know if I should access chunk_lineage or sink lineage?
+    if (!lineage) {
+        return;
+    }
+    int oidx = 0;
+    BackwardLineage(root, lineage, oidx);
+    ForwardLineage(root, lineage, 5);
+}
+
+void Executor::AddOutputLineage(PhysicalOperator* opKey, shared_ptr<LineageContext> lineage) {
+	if (lineage->isEmpty() == false) {
+		// need to associate output chunkid with this
+		pipelines_lineage[0][opKey].push_back(move(lineage));
+    }
+}
+
+void Executor::AddLocalSinkLineage(PhysicalOperator* sink,  shared_ptr<LineageContext> lineage) {
     if (lineage->isEmpty() == false) {
         lock_guard<mutex> elock(executor_lock);
-        sink_lineage[sink].push_back(move(lineage));
+		pipelines_lineage[1][sink].push_back(move(lineage));
     }
 }
 
@@ -297,7 +521,7 @@ unique_ptr<DataChunk> Executor::FetchChunk() {
     TaskContext task;
     ExecutionContext econtext(context, thread, task);
 
-	std::cout << physical_plan->ToString() << std::endl;
+	  std::cout << physical_plan->ToString() << std::endl;
     auto chunk = make_unique<DataChunk>();
     // run the plan to get the next chunks
     physical_plan->InitializeChunkEmpty(*chunk);
@@ -306,8 +530,11 @@ unique_ptr<DataChunk> Executor::FetchChunk() {
 
 #ifdef LINEAGE
     // Flush the lineage to global storage location
-    if (econtext.lineage && !econtext.lineage->isEmpty())
-		this->AddOutputLineage(physical_plan, move(econtext.lineage));
+    if (econtext.lineage && !econtext.lineage->isEmpty()) {
+		// todo: associate chunk with this lineage by an id
+        QueryLineage( econtext.lineage );
+		this->AddOutputLineage(physical_plan, move(econtext.lineage));}
+
 #endif
 
     context.profiler.Flush(thread.profiler);

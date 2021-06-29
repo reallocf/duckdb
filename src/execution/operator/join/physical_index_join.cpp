@@ -104,7 +104,7 @@ void PhysicalIndexJoin::Output(ExecutionContext &context, DataChunk &chunk, Phys
 		FlatVector::SetData(row_ids, (data_ptr_t)&fetch_rows[0]);
 		tbl->Fetch(transaction, rhs_chunk, fetch_ids, row_ids, output_sel_idx, fetch_state);
 #ifdef LINEAGE
-		lop->setRHS(make_unique<LineageDataVector>(move(row_ids), output_sel_idx));
+		lop->setRHS(make_unique<LineageDataVector<row_t>>(fetch_rows, output_sel_idx));
 #endif
 	}
 
@@ -124,8 +124,9 @@ void PhysicalIndexJoin::Output(ExecutionContext &context, DataChunk &chunk, Phys
 		chunk.data[left_offset + i].Reference(state->child_chunk.data[left_projection_map[i]]);
 		chunk.data[left_offset + i].Slice(sel, output_sel_idx);
 	}
+
 #ifdef LINEAGE
-	lop->setLHS(make_unique<LineageDataArray<sel_t>>(move(sel.data()), output_sel_idx));
+	lop->setLHS(make_unique<LineageDataArray<sel_t>>(move(sel.sel_data()->owned_data), output_sel_idx));
 	context.lineage->RegisterDataPerOp(this,  move(lop));
 #endif
 	state->result_size = output_sel_idx;

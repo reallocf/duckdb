@@ -420,7 +420,7 @@ bool DataTable::ScanBaseTable(ExecutionContext &context, Transaction &transactio
 #ifdef LINEAGE
 		// We need lineage here because we have pushed down filters and such
        context.lineage->RegisterDataPerOp(context.getCurrent(),
-            make_unique<LineageOpUnary>(make_unique<LineageDataArray<sel_t>>(move(sel.data()), approved_tuple_count))
+            make_unique<LineageOpUnary>(make_unique<LineageDataArray<sel_t>>(move(sel.sel_data()->owned_data), approved_tuple_count))
         );
 #endif
 	}

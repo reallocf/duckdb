@@ -41,7 +41,7 @@ public:
     //! The task context for this execution
     TaskContext &task;
     //! The lineage context for this execution
-    unique_ptr<LineageContext> lineage;
+    shared_ptr<LineageContext> lineage;
     PhysicalOperator* current_op;
 };
 

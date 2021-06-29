@@ -31,9 +31,6 @@ public:
 
 	// used to map input to groups
 	unique_ptr<LineageOpUnary> sink_per_chunk_lineage;
-	// used during scan to pass lineage from ht to operator
-	// maps output to groups
-	unique_ptr<LineageDataArray<uint32_t>> per_chunk_lineage;
 
 protected:
     Vector addresses;

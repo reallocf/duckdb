@@ -20,63 +20,95 @@ public:
     LineageData() {}
 
     virtual unsigned long size_bytes() = 0;
+    virtual idx_t getAtIndex(idx_t idx) = 0;
+	virtual void debug() = 0;
+	virtual idx_t findIndexOf(idx_t data) = 0;
+	virtual void getAllMatches(idx_t data, vector<idx_t> &matches)  = 0;
 };
 
+template <typename T>
 class LineageDataVector : public LineageData {
 public:
-    LineageDataVector(Vector vec_p, idx_t count) : vec(move(vec_p)), count(count) {
+
+    LineageDataVector (vector<T> vec_p, idx_t count) : vec(move(vec_p)), count(count) {
 #ifdef LINEAGE_DEBUG
-        std::cout << "LineageDataVector " << vec.ToString(count) << std::endl;
+        this->debug();
 #endif
+    }
+
+    void debug() {
+        std::cout << "LineageDataVector " << " " << typeid(vec).name() << std::endl;
+        for (idx_t i = 0; i < count; i++) {
+            std::cout << " (" << i << " -> " << vec[i] << ") ";
+        }
+        std::cout << std::endl;
+    }
+
+    idx_t findIndexOf(idx_t data) {
+        for (idx_t i = 0; i < count; i++) {
+            if (vec[i] == (T)data) return i;
+        }
+        return 0;
+    }
+    void getAllMatches(idx_t data, vector<idx_t> &matches) {
+		 for (idx_t i = 0; i < count; i++) {
+            if (vec[i] == (T)data) matches.push_back(i);
+        }
+	}
+
+    idx_t getAtIndex(idx_t idx) {
+        return (idx_t)vec[idx];
     }
 
     unsigned long size_bytes() {
-        return count * sizeof(vec.GetValue(0));
+        return count * sizeof(vec[0]);
     }
 
-    Vector vec;
+    vector<T> vec;
     idx_t count;
 };
 
-template <class T>
+template <typename T>
 class LineageDataArray : public LineageData {
 public:
 
-    LineageDataArray (T *vec_p, idx_t count) : vec(move(vec_p)), count(count) {
+    LineageDataArray (unique_ptr<T[]> vec_p, idx_t count) : vec(move(vec_p)), count(count) {
 #ifdef LINEAGE_DEBUG
-        std::cout << "LineageDataArray " << " " << typeid(vec_p).name() << std::endl;
-        for (idx_t i = 0; i < count; i++) {
-            std::cout << " (" << i << " -> " << vec_p[i] << ") ";
-        }
-        std::cout << std::endl;
+    this->debug();
 #endif
     }
+
+	void debug() {
+        std::cout << "LineageDataArray " << " " << typeid(vec).name() << std::endl;
+        for (idx_t i = 0; i < count; i++) {
+            std::cout << " (" << i << " -> " << vec[i] << ") ";
+        }
+        std::cout << std::endl;
+	}
+
+    void getAllMatches(idx_t data, vector<idx_t> &matches) {
+		 for (idx_t i = 0; i < count; i++) {
+            if (vec[i] == (T)data) matches.push_back(i);
+        }
+	}
+
+    idx_t findIndexOf(idx_t data) {
+        for (idx_t i = 0; i < count; i++) {
+			if (vec[i] == (T)data) return i;
+        }
+		return 0;
+	}
+
+	idx_t getAtIndex(idx_t idx) {
+        return (idx_t)vec[idx];
+	}
 
 	unsigned long size_bytes() {
 		return count * sizeof(vec[0]);
 	}
 
-    T *vec;
+    unique_ptr<T[]> vec;
     idx_t count;
-};
-
-
-class LineageCollection : public LineageData {
-public:
-
-	LineageCollection() : size(0) {}
-
-	void add(unique_ptr<LineageData> new_data) {
-		size += new_data->size_bytes();
-        data.push_back(move(new_data));
-	}
-
-    unsigned long size_bytes() {
-        return size;
-    }
-
-    vector<unique_ptr<LineageData>> data;
-	unsigned long size;
 };
 
 // A PassThrough to indicate that the operator doesn't affect lineage at all
@@ -86,9 +118,16 @@ public:
 
 	LineagePassThrough() {}
 
+	void debug() {}
+    idx_t findIndexOf(idx_t data) {return 5;}
+
     unsigned long size_bytes() {
         return 0;
     }
+
+    void getAllMatches(idx_t data, vector<idx_t> &matches) {}
+
+    idx_t getAtIndex(idx_t idx) { return 0; }
 };
 
 // A Range of values where each successive number in the range indicates the lineage
@@ -98,15 +137,23 @@ public:
 
 	LineageRange(idx_t start, idx_t end) : start(start), end(end) {
 #ifdef LINEAGE_DEBUG
-        std::cout << "LineageRange - Start: " << start << " End: " << end << std::endl;
+		this.debug();
 #endif
 	}
+
+    void debug() {
+        std::cout << "LineageRange - Start: " << start << " End: " << end << std::endl;
+    }
+    idx_t findIndexOf(idx_t data) {return 5;}
 
     unsigned long size_bytes() {
         return 2*sizeof(start);
     }
+    void getAllMatches(idx_t data, vector<idx_t> &matches) {}
 
-	idx_t start;
+    idx_t getAtIndex(idx_t idx) { return 0; }
+
+    idx_t start;
 	idx_t end;
 };
 
@@ -114,12 +161,16 @@ public:
 // such as for simple aggregations COUNT(*) FROM foo
 class LineageReduce : public LineageData {
 public:
-
-    LineageReduce() {}
-
+	LineageReduce() {
+	}
+    void debug() {}
     unsigned long size_bytes() {
         return 0;
     }
+    idx_t findIndexOf(idx_t data) {return 5;}
+    void getAllMatches(idx_t data, vector<idx_t> &matches) {}
+
+    idx_t getAtIndex(idx_t idx) { return 0; }
 };
 
 // base operator for Unary and Binary
@@ -172,15 +223,26 @@ public:
     LineageContext() {
 
     }
-    void RegisterDataPerOp(PhysicalOperator* key, unique_ptr<LineageOp> op) {
-        ht[key] = move(op);
+    void RegisterDataPerOp(PhysicalOperator* key, shared_ptr<LineageOp> op, int type = 0) {
+        ht[type][key] = move(op);
     }
 
 	bool isEmpty() {
 		return ht.empty();
 	}
 
-	unsigned long size_bytes() {
+	shared_ptr<LineageOp> GetLineageOp(PhysicalOperator* key, int type) {
+		if (ht.find(type) == ht.end()) {
+			std::cout << "GetLineageOp type not found for " << type << std::endl;
+			return NULL;
+		}
+		if (ht[type].find(key) == ht[type].end()) {
+            std::cout << "GetLineageOp key not found " << std::endl;
+            return NULL;
+		}
+		return ht[type][key];
+	}
+	/*unsigned long size_bytes() {
 		unsigned long size = 0;
         for (const auto& elm : ht) {
 			if (elm.second)
@@ -201,9 +263,9 @@ public:
         }
 
 		return size;
-    }
+    }*/
 
-    std::unordered_map<PhysicalOperator*, unique_ptr<LineageOp>> ht;
+    std::unordered_map<int, std::unordered_map<PhysicalOperator*, shared_ptr<LineageOp>>> ht;
 };
 
 } // namespace duckdb

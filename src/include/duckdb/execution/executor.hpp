@@ -37,17 +37,13 @@ public:
 	ClientContext &context;
 
     // lineage for tree starting from this operator
-    unordered_map<PhysicalOperator*, vector<unique_ptr<LineageContext>>> chunks_lineage;
-
-    // lineage for tree starting for sink operator
-    unordered_map<PhysicalOperator*, vector<unique_ptr<LineageContext>>> sink_lineage;
+	// 0: get chunk
+	// 1: sink
+    unordered_map<int, unordered_map<PhysicalOperator*, vector<shared_ptr<LineageContext>>>> pipelines_lineage;
 
 public:
 	void Initialize(PhysicalOperator *physical_plan);
 	void BuildPipelines(PhysicalOperator *op, Pipeline *parent);
-
-	void Reset();
-    void LineageSize();
 
 	vector<LogicalType> GetTypes();
 
@@ -59,8 +55,13 @@ public:
 	//! Flush a thread context into the client context
 	void Flush(ThreadContext &context);
 
-    void AddOutputLineage(PhysicalOperator* opKey, unique_ptr<LineageContext>  lineage);
-    void AddLocalSinkLineage(PhysicalOperator* opKey,  unique_ptr<LineageContext> lineage);
+    void AddOutputLineage(PhysicalOperator* opKey, shared_ptr<LineageContext>  lineage);
+    void AddLocalSinkLineage(PhysicalOperator* opKey,  shared_ptr<LineageContext> lineage);
+    void BackwardLineage(PhysicalOperator *op, shared_ptr<LineageContext> lineage, int oidx);
+    void ForwardLineage(PhysicalOperator *op, shared_ptr<LineageContext> lineage, int idx);
+    void Reset();
+    void LineageSize();
+    void QueryLineage(shared_ptr<LineageContext> lineage);
 
 	//! Returns the progress of the pipelines
 	bool GetPipelinesProgress(int &current_progress);

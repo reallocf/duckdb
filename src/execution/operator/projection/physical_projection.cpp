@@ -17,16 +17,18 @@ public:
 void PhysicalProjection::GetChunkInternal(ExecutionContext &context, DataChunk &chunk, PhysicalOperatorState *state_p) {
 	auto state = reinterpret_cast<PhysicalProjectionState *>(state_p);
 
+#ifdef LINEAGE
+    context.lineage->RegisterDataPerOp(
+        this,
+        make_unique<LineageOpUnary>(make_unique<LineagePassThrough>())
+    );
+#endif
+
 	// get the next chunk from the child
 	children[0]->GetChunk(context, state->child_chunk, state->child_state.get());
 	if (state->child_chunk.size() == 0) {
 		return;
 	}
-
-    context.lineage->RegisterDataPerOp(
-        this,
-        make_unique<LineageOpUnary>(make_unique<LineagePassThrough>())
-    );
 
 	state->executor.Execute(state->child_chunk, chunk);
 }

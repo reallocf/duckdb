@@ -682,7 +682,7 @@ idx_t GroupedAggregateHashTable::FindOrCreateGroupsInternal(DataChunk &groups, V
 				ht_entry_ptr->page_nr = payload_hds.size();
 				ht_entry_ptr->page_offset = payload_page_offset++;
 #ifdef LINEAGE
-                sel_lineage.set_index(ht_entry_ptr->page_offset, index);
+                sel_lineage.set_index(index, ht_entry_ptr->page_offset);
 #endif
 				// update selection lists for outer loops
 				empty_vector.set_index(new_entry_count++, index);
@@ -745,7 +745,7 @@ idx_t GroupedAggregateHashTable::FindOrCreateGroupsInternal(DataChunk &groups, V
 #ifdef LINEAGE
 	// this maps input to groups, we can use it later to map output to input
     // the sink op do call RegisterDataPerO
-    lineage_data = make_unique<LineageDataArray<sel_t>>(move(sel_lineage.data()), groups.size());
+    lineage_data = make_unique<LineageDataArray<sel_t>>(move(sel_lineage.sel_data()->owned_data), groups.size());
 #endif
 
     // pointers in addresses now were moved behind the grousp by CompareGroups/ScatterGroups but we may have to add
@@ -933,7 +933,7 @@ idx_t GroupedAggregateHashTable::Scan(ExecutionContext &context, idx_t &scan_pos
 	}
 #ifdef LINEAGE
 	// this tells us, which group an output index map to
-    auto lop = make_unique<LineageOpUnary>(make_unique<LineageDataArray<sel_t>>(move(sel_lineage.data()), this_n));
+    auto lop = make_unique<LineageOpUnary>(make_unique<LineageDataArray<sel_t>>(move(sel_lineage.sel_data()->owned_data), this_n));
     context.lineage->RegisterDataPerOp(context.getCurrent(),  move(lop));
 #endif
 	result.SetCardinality(this_n);

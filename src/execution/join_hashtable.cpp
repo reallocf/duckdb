@@ -301,7 +301,7 @@ void JoinHashTable::Build(ExecutionContext &context, DataChunk &keys, DataChunk 
 	vector<BlockAppendEntry> append_entries;
 	data_ptr_t key_locations[STANDARD_VECTOR_SIZE];
 #ifdef LINEAGE
-    data_ptr_t key_locations_lineage[added_count];
+    unique_ptr<uintptr_t[]> key_locations_lineage(new uintptr_t[added_count]);
 #endif
 	// first allocate space of where to serialize the keys and payload columns
 	idx_t remaining = added_count;
@@ -343,7 +343,7 @@ void JoinHashTable::Build(ExecutionContext &context, DataChunk &keys, DataChunk 
 		for (; append_idx < next; append_idx++) {
 			key_locations[append_idx] = append_entry.baseptr;
 #ifdef LINEAGE
-            key_locations_lineage[append_idx] = append_entry.baseptr;
+            key_locations_lineage[append_idx] = (uintptr_t)append_entry.baseptr;
 #endif
 
 #ifdef LINEAGE_DEBUG
@@ -379,12 +379,11 @@ void JoinHashTable::Build(ExecutionContext &context, DataChunk &keys, DataChunk 
 	SerializeVector(hash_values, payload.size(), *current_sel, added_count, key_locations);
 #ifdef LINEAGE
 	// log lineage data that maps input to output ht payload entries
-	auto lineage_data_1 = make_unique<LineageDataArray<uintptr_t>>(move((uintptr_t *)key_locations_lineage), added_count);
-	auto lineage_data_2 = make_unique<LineageDataArray<sel_t>>(current_sel->data(), added_count);
-	auto lineage = make_unique<LineageCollection>();
-	lineage->add(move(lineage_data_1));
-	lineage->add(move(lineage_data_2));
-    context.lineage->RegisterDataPerOp(context.getCurrent(),  make_unique<LineageOpUnary>(move(lineage)));
+	auto lineage_data_1 = make_unique<LineageDataArray<uintptr_t>>(move(key_locations_lineage), added_count);
+    // todo: handle the case when hash index key is null -> need to store current_sel
+	//       and store offset from address for hashtable payload instead of pointer value itself
+    context.lineage->RegisterDataPerOp(context.getCurrent(),  make_shared<LineageOpUnary>(move(lineage_data_1)), 1);
+
 #endif
 }
 
@@ -823,7 +822,8 @@ void ScanStructure::NextInnerJoin(DataChunk &keys, DataChunk &left, DataChunk &r
         //	std::cout << " NextInnerJoin: " << result_vector.ToString(result_count) << std::endl;
 #ifdef LINEAGE
 		auto ptrs = FlatVector::GetData<uintptr_t>(pointers);
-		vector<uintptr_t> key_locations_lineage(result_count);
+        unique_ptr<uintptr_t[]> key_locations_lineage(new uintptr_t[result_count]);
+
         for (idx_t i = 0; i < result_count; i++) {
 			auto idx = result_vector.get_index(i);
 			key_locations_lineage[i] = ptrs[idx];
@@ -839,10 +839,10 @@ void ScanStructure::NextInnerJoin(DataChunk &keys, DataChunk &left, DataChunk &r
 #ifdef LINEAGE
         // copy from ptrs and used it later with result vector
 		lop = make_unique<LineageOpBinary>();
-		auto lineage_probe = make_unique<LineageDataArray<sel_t>>(result_vector.data(), result_count);
-		auto lineage_build = make_unique<LineageDataArray<uintptr_t>>(move(key_locations_lineage.data()), result_count);
-		lop->setRHS(move(lineage_probe));
-		lop->setLHS(move(lineage_build));
+		auto lineage_probe = make_unique<LineageDataArray<sel_t>>(move(result_vector.sel_data()->owned_data), result_count);
+		auto lineage_build = make_unique<LineageDataArray<uintptr_t>>(move(key_locations_lineage), result_count);
+		lop->setLHS(move(lineage_probe));
+		lop->setRHS(move(lineage_build));
 #endif
 		AdvancePointers();
 	}
