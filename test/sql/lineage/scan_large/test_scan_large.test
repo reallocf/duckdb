@@ -1,0 +1,16 @@
+# name: test/sql/index/join_lineage/test_scan_large.test
+# description: Test Scan Large
+# group: [scan_large]
+
+
+statement ok
+CREATE TABLE t1(i INTEGER, j INTEGER);
+
+statement ok
+INSERT INTO t1 SELECT i+1, i FROM range(0,2024) tbl(i);
+
+# standalone limit
+query III
+select rowid, i, j from t1;
+----
+51	50	51

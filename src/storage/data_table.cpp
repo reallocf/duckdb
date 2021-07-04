@@ -291,6 +291,7 @@ bool DataTable::NextParallelScan(ClientContext &context, ParallelTableScanState 
 void DataTable::Scan(ExecutionContext &context, Transaction &transaction, DataChunk &result, TableScanState &state,
                      vector<column_t> &column_ids) {
 	// scan the persistent segments
+	std::cout << "Scan current_row " << state.current_row << std::endl;
 	while (ScanBaseTable(context, transaction, result, state, column_ids, state.current_row, state.max_row)) {
 		if (result.size() > 0) {
 			return;
@@ -338,6 +339,7 @@ bool DataTable::ScanBaseTable(ExecutionContext &context, Transaction &transactio
 		// exceeded the amount of rows to scan
 		return false;
 	}
+    auto lineage_data = make_unique<LineageCollection>();
 	auto max_count = MinValue<idx_t>(STANDARD_VECTOR_SIZE, max_row - current_row);
 	idx_t vector_offset = (current_row - state.base_row) / STANDARD_VECTOR_SIZE;
 	//! first check the zonemap if we have to scan this partition
@@ -419,13 +421,17 @@ bool DataTable::ScanBaseTable(ExecutionContext &context, Transaction &transactio
 		}
 #ifdef LINEAGE
 		// We need lineage here because we have pushed down filters and such
-       context.lineage->RegisterDataPerOp(context.getCurrent(),
-            make_unique<LineageOpUnary>(make_unique<LineageDataArray<sel_t>>(move(sel.sel_data()->owned_data), approved_tuple_count))
-        );
+		lineage_data->add("filter", make_unique<LineageDataArray<sel_t>>(move(sel.sel_data()->owned_data), approved_tuple_count));
 #endif
 	}
 
-	result.SetCardinality(approved_tuple_count);
+#ifdef LINEAGE
+	// range of rowids covered by this segment
+    lineage_data->add("rowid_range",make_unique<LineageRange>( current_row, current_row+approved_tuple_count) );
+    context.lineage->RegisterDataPerOp(context.getCurrent(), make_unique<LineageOpUnary>( move(lineage_data) )   );
+#endif
+
+    result.SetCardinality(approved_tuple_count);
 	current_row += STANDARD_VECTOR_SIZE;
 	return true;
 }

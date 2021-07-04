@@ -173,6 +173,24 @@ public:
     idx_t getAtIndex(idx_t idx) { return 0; }
 };
 
+class LineageCollection: public LineageData {
+public:
+    void add(string key, unique_ptr<LineageData> data) {
+		collection[key] = move(data);
+	}
+
+    void debug() {}
+    unsigned long size_bytes() {
+        return 0;
+    }
+    idx_t findIndexOf(idx_t data) {return 5;}
+    void getAllMatches(idx_t data, vector<idx_t> &matches) {}
+    idx_t getAtIndex(idx_t idx) { return 0; }
+
+    std::unordered_map<string, unique_ptr<LineageData>> collection;
+};
+
+
 // base operator for Unary and Binary
 class LineageOp {
 public:

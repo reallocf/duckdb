@@ -281,6 +281,33 @@ void Executor::ForwardLineage(PhysicalOperator *op, shared_ptr<LineageContext> l
     // operator is a sink, build a pipeline
     std::cout << "ForwardLineage: TraverseTree op " << op << " " << op->GetName() << std::endl;
     switch (op->type) {
+    case PhysicalOperatorType::TABLE_SCAN: {
+        LineageOpUnary *lop = dynamic_cast<LineageOpUnary *>(lineage->GetLineageOp(op, 0).get());
+        if (!lop) {
+            std::cout << "something is wrong, lop not found for  table scan" << std::endl;
+            return;
+        }
+        std::shared_ptr<LineageCollection> collection = std::dynamic_pointer_cast<LineageCollection>(lop->data);
+
+        auto start = dynamic_cast<LineageRange&>(*collection->collection["rowid_range"]).start;
+        auto end = dynamic_cast<LineageRange&>(*collection->collection["rowid_range"]).end;
+
+		// out of range
+		if (idx < start || idx > end) return;
+
+        std::cout << "Table scan chunk range " << start << " " << end << std::endl;
+        if (collection->collection.find("filter") != collection->collection.end()) {
+            // get selection vector
+            std::cout << "filter on scan" << std::endl;
+            auto fidx = dynamic_cast<LineageRange&>(*collection->collection["filter"]).getAtIndex(idx);
+            std::cout << idx << " maps to " << fidx << std::endl;
+
+        } else {
+			std::cout << idx << " maps to itself." << std::endl;
+		}
+
+        break;
+    }
     case PhysicalOperatorType::PROJECTION:
     case PhysicalOperatorType::HASH_GROUP_BY: {
         LineageOpUnary *lop = dynamic_cast<LineageOpUnary *>(lineage->GetLineageOp(op, 0).get());

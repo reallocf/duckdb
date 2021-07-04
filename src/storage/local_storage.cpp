@@ -136,6 +136,7 @@ void LocalStorage::Scan(LocalScanState &state, const vector<column_t> &column_id
 		}
 		idx_t approved_tuple_count = count;
 		if (state.table_filters) {
+			// todo: handle this filter case
 			auto column_filters = state.table_filters->filters.find(i);
 			if (column_filters != state.table_filters->filters.end()) {
 				//! We have filters to apply here
