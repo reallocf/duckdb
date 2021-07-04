@@ -90,7 +90,7 @@ void PhysicalIndexJoin::Output(ExecutionContext &context, DataChunk &chunk, Phys
 		}
 	}
 #ifdef LINEAGE
-	auto lop = make_unique<LineageOpBinary>();
+	auto lop = make_shared<LineageOpBinary>();
 #endif
 	//! Now we fetch the RHS data
 	if (!fetch_types.empty()) {
@@ -104,7 +104,7 @@ void PhysicalIndexJoin::Output(ExecutionContext &context, DataChunk &chunk, Phys
 		FlatVector::SetData(row_ids, (data_ptr_t)&fetch_rows[0]);
 		tbl->Fetch(transaction, rhs_chunk, fetch_ids, row_ids, output_sel_idx, fetch_state);
 #ifdef LINEAGE
-		lop->setRHS(make_unique<LineageDataVector<row_t>>(fetch_rows, output_sel_idx));
+		lop->setRHS(make_shared<LineageDataVector<row_t>>(fetch_rows, output_sel_idx));
 #endif
 	}
 

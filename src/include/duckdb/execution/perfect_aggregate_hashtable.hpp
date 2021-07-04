@@ -30,7 +30,7 @@ public:
 	void Scan(ExecutionContext &context, idx_t &scan_position, DataChunk &result);
 
 	// used to map input to groups
-	unique_ptr<LineageOpUnary> sink_per_chunk_lineage;
+	shared_ptr<LineageOpUnary> sink_per_chunk_lineage;
 
 protected:
     Vector addresses;

@@ -55,7 +55,7 @@ public:
 		unique_ptr<bool[]> found_match;
 		JoinHashTable &ht;
 		bool finished;
-		unique_ptr<LineageOpBinary> lop;
+		shared_ptr<LineageOpBinary> lop;
 
 		explicit ScanStructure(JoinHashTable &ht);
 		//! Get the next batch of data from the scan structure

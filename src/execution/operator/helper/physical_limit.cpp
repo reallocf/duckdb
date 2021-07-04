@@ -91,7 +91,7 @@ void PhysicalLimit::GetChunkInternal(ExecutionContext &context, DataChunk &chunk
 
     context.lineage->RegisterDataPerOp(
         this,
-        make_unique<LineageOpUnary>(make_unique<LineageRange>(offset, limit))
+        make_shared<LineageOpUnary>(make_shared<LineageRange>(offset, limit))
     );
 }
 

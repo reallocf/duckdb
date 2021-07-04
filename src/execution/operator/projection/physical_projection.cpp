@@ -20,7 +20,7 @@ void PhysicalProjection::GetChunkInternal(ExecutionContext &context, DataChunk &
 #ifdef LINEAGE
     context.lineage->RegisterDataPerOp(
         this,
-        make_unique<LineageOpUnary>(make_unique<LineagePassThrough>())
+        make_shared<LineageOpUnary>(make_shared<LineagePassThrough>())
     );
 #endif
 

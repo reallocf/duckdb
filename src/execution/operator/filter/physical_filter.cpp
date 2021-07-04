@@ -48,7 +48,7 @@ void PhysicalFilter::GetChunkInternal(ExecutionContext &context, DataChunk &chun
 #ifdef LINEAGE
     context.lineage->RegisterDataPerOp(
 	    this,
-	    make_unique<LineageOpUnary>(make_unique<LineageDataArray<sel_t>>(move(sel.sel_data()->owned_data), result_count))
+        make_shared<LineageOpUnary>(make_shared<LineageDataArray<sel_t>>(move(sel.sel_data()->owned_data), result_count))
 	);
 #endif
 

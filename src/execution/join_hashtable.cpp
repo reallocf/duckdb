@@ -379,7 +379,7 @@ void JoinHashTable::Build(ExecutionContext &context, DataChunk &keys, DataChunk 
 	SerializeVector(hash_values, payload.size(), *current_sel, added_count, key_locations);
 #ifdef LINEAGE
 	// log lineage data that maps input to output ht payload entries
-	auto lineage_data_1 = make_unique<LineageDataArray<uintptr_t>>(move(key_locations_lineage), added_count);
+	auto lineage_data_1 = make_shared<LineageDataArray<uintptr_t>>(move(key_locations_lineage), added_count);
     // todo: handle the case when hash index key is null -> need to store current_sel
 	//       and store offset from address for hashtable payload instead of pointer value itself
     context.lineage->RegisterDataPerOp(context.getCurrent(),  make_shared<LineageOpUnary>(move(lineage_data_1)), 1);
@@ -838,7 +838,7 @@ void ScanStructure::NextInnerJoin(DataChunk &keys, DataChunk &left, DataChunk &r
 		}
 #ifdef LINEAGE
         // copy from ptrs and used it later with result vector
-		lop = make_unique<LineageOpBinary>();
+		lop = make_shared<LineageOpBinary>();
 		auto lineage_probe = make_unique<LineageDataArray<sel_t>>(move(result_vector.sel_data()->owned_data), result_count);
 		auto lineage_build = make_unique<LineageDataArray<uintptr_t>>(move(key_locations_lineage), result_count);
 		lop->setLHS(move(lineage_probe));

@@ -355,11 +355,33 @@ void Executor::BackwardLineage(PhysicalOperator *op, shared_ptr<LineageContext> 
 	// operator is a sink, build a pipeline
 	std::cout << "Backward Lineage: TraverseTree op " << op << " " << op->GetName() << std::endl;
 	switch (op->type) {
-    case PhysicalOperatorType::PROJECTION:
+    case PhysicalOperatorType::TABLE_SCAN: {
+		LineageOpUnary *lop = dynamic_cast<LineageOpUnary *>(lineage->GetLineageOp(op, 0).get());
+		if (!lop) {
+			std::cout << "something is wrong, lop not found for  table scan" << std::endl;
+			return;
+		}
+        std::shared_ptr<LineageCollection> collection = std::dynamic_pointer_cast<LineageCollection>(lop->data);
+        // need to adjust the offset based on start
+        auto start = dynamic_cast<LineageRange&>(*collection->collection["rowid_range"]).start;
+        auto end = dynamic_cast<LineageRange&>(*collection->collection["rowid_range"]).end;
+        std::cout << "Table scan chunk range " << start << " " << end << std::endl;
+        if (collection->collection.find("filter") != collection->collection.end()) {
+            // get selection vector
+            std::cout << "filter on scan" << std::endl;
+            auto fidx = dynamic_cast<LineageRange&>(*collection->collection["filter"]).getAtIndex(oidx);
+            std::cout << oidx << " maps to " << fidx << std::endl;
+
+        } else {
+            std::cout << oidx << " maps to itself." << std::endl;
+        }
+        break;
+	}
+	case PhysicalOperatorType::PROJECTION:
         BackwardLineage(op->children[0].get(), move(lineage), oidx);
 		break;
     case PhysicalOperatorType::HASH_GROUP_BY: {
-        LineageOpUnary *lop = dynamic_cast<LineageOpUnary *>(lineage->GetLineageOp(op, 0).get());
+        std::shared_ptr<LineageOpUnary> lop = std::dynamic_pointer_cast<LineageOpUnary>(lineage->GetLineageOp(op, 0));
         if (!lop) {
             std::cout << "something is wrong, lop not found for   aggregate" << std::endl;
             return;
@@ -375,7 +397,8 @@ void Executor::BackwardLineage(PhysicalOperator *op, shared_ptr<LineageContext> 
             vector<shared_ptr<LineageContext>> sink_lineage = pipelines_lineage[1][op];
             vector<idx_t> matches;
             for (idx_t i = 0; i < sink_lineage.size(); ++i) {
-                LineageOpUnary *sink_lop = dynamic_cast<LineageOpUnary *>(sink_lineage[i]->GetLineageOp(op, 1).get());
+                std::shared_ptr<LineageOpUnary> sink_lop = std::dynamic_pointer_cast<LineageOpUnary>(sink_lineage[i]->GetLineageOp(op, 1));
+
                 if (!sink_lop) {
                     std::cout << "something is wrong,   aggregate sink lop not found" << std::endl;
                     continue;
@@ -394,8 +417,9 @@ void Executor::BackwardLineage(PhysicalOperator *op, shared_ptr<LineageContext> 
 	}
 	case PhysicalOperatorType::SIMPLE_AGGREGATE:
 	case PhysicalOperatorType::PERFECT_HASH_GROUP_BY: {
-		LineageOpUnary *lop = dynamic_cast<LineageOpUnary *>(lineage->GetLineageOp(op, 0).get());
-		if (!lop) {
+        std::shared_ptr<LineageOpUnary> lop = std::dynamic_pointer_cast<LineageOpUnary>(lineage->GetLineageOp(op, 0));
+
+        if (!lop) {
 			std::cout << "something is wrong, lop not found for perfect  aggregate" << std::endl;
 			return;
 		}
@@ -410,7 +434,7 @@ void Executor::BackwardLineage(PhysicalOperator *op, shared_ptr<LineageContext> 
 			vector<shared_ptr<LineageContext>> sink_lineage = pipelines_lineage[1][op];
 			vector<idx_t> matches;
 			for (idx_t i = 0; i < sink_lineage.size(); ++i) {
-				LineageOpUnary *sink_lop = dynamic_cast<LineageOpUnary *>(sink_lineage[i]->GetLineageOp(op, 1).get());
+                std::shared_ptr<LineageOpUnary> sink_lop = std::dynamic_pointer_cast<LineageOpUnary>(sink_lineage[i]->GetLineageOp(op, 1));
 				if (!sink_lop) {
 					std::cout << "something is wrong, perfect  aggregate sink lop not found" << std::endl;
 					continue;
@@ -432,8 +456,9 @@ void Executor::BackwardLineage(PhysicalOperator *op, shared_ptr<LineageContext> 
 		// pipeline->child = op->children[0].get();
 		break;
     case PhysicalOperatorType::INDEX_JOIN: {
-		LineageOpBinary* lop =  dynamic_cast<LineageOpBinary*>(lineage->GetLineageOp(op, 0).get());
-		if (!lop) {
+        std::shared_ptr<LineageOpBinary> lop = std::dynamic_pointer_cast<LineageOpBinary>(lineage->GetLineageOp(op, 0));
+
+        if (!lop) {
 			std::cout << "something is wrong, lop not found" << std::endl;
 			return;
 		}
@@ -448,8 +473,9 @@ void Executor::BackwardLineage(PhysicalOperator *op, shared_ptr<LineageContext> 
         break;
 	}
 	case PhysicalOperatorType::HASH_JOIN: {
-		LineageOpBinary* build_lop =  dynamic_cast<LineageOpBinary*>(lineage->GetLineageOp(op, 0).get());
-		if (!build_lop) {
+        std::shared_ptr<LineageOpBinary> build_lop = std::dynamic_pointer_cast<LineageOpBinary>(lineage->GetLineageOp(op, 0));
+
+        if (!build_lop) {
 			std::cout << "something is wrong, hash join build lop not found" << std::endl;
 			return;
 		}
@@ -468,7 +494,8 @@ void Executor::BackwardLineage(PhysicalOperator *op, shared_ptr<LineageContext> 
         if (pipelines_lineage[1].find(op) != pipelines_lineage[1].end()) {
             vector<shared_ptr<LineageContext>> sink_lineage = pipelines_lineage[1][op];
 			for (idx_t i = 0; i < sink_lineage.size(); ++i) {
-                LineageOpUnary* sink_lop = dynamic_cast<LineageOpUnary*>(sink_lineage[i]->GetLineageOp(op, 1).get());
+                std::shared_ptr<LineageOpUnary> sink_lop = std::dynamic_pointer_cast<LineageOpUnary>(sink_lineage[i]->GetLineageOp(op, 1));
+
                 if (!sink_lop) {
                     std::cout << "something is wrong, hash join sink lop not found" << std::endl;
                     continue;

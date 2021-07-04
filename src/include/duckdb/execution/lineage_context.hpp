@@ -183,20 +183,20 @@ public:
 
 class LineageOpUnary : public LineageOp {
 public:
-    LineageOpUnary(unique_ptr<LineageData> data_p) : data(move(data_p)){}
+    LineageOpUnary(shared_ptr<LineageData> data_p) : data(move(data_p)){}
 
     unsigned long size_bytes() {
 		if (data)  return data->size_bytes();
         return 0;
     }
 
-    unique_ptr<LineageData> data;
+    shared_ptr<LineageData> data;
 };
 
 class LineageOpBinary : public LineageOp {
 public:
     LineageOpBinary()  : data_lhs(nullptr), data_rhs(nullptr) {}
-    LineageOpBinary(unique_ptr<LineageData> data_lhs_p, unique_ptr<LineageData> data_rhs_p) : data_lhs(move(data_lhs_p)), data_rhs(move(data_rhs_p)) {}
+    LineageOpBinary(shared_ptr<LineageData> data_lhs_p, shared_ptr<LineageData> data_rhs_p) : data_lhs(move(data_lhs_p)), data_rhs(move(data_rhs_p)) {}
 
     unsigned long size_bytes() {
 		unsigned long size = 0;
@@ -205,16 +205,16 @@ public:
         return size;
     }
 
-    void setLHS(unique_ptr<LineageData> lhs) {
+    void setLHS(shared_ptr<LineageData> lhs) {
         data_lhs = move(lhs);
     }
 
-    void setRHS(unique_ptr<LineageData> rhs) {
+    void setRHS(shared_ptr<LineageData> rhs) {
         data_rhs = move(rhs);
     }
 
-    unique_ptr<LineageData> data_lhs;
-    unique_ptr<LineageData> data_rhs;
+    shared_ptr<LineageData> data_lhs;
+    shared_ptr<LineageData> data_rhs;
 };
 
 
