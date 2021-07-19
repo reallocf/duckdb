@@ -184,14 +184,23 @@ void PhysicalHashJoin::GetChunkInternal(ExecutionContext &context, DataChunk &ch
 		// empty hash table with INNER or SEMI join means empty result set
 		return;
 	}
+
+	vector<shared_ptr<LineageOp>> lop_per_chunk;
 	do {
 		ProbeHashTable(context, chunk, state);
+		if (state->scan_structure && state->scan_structure->lop)
+			lop_per_chunk.push_back(state->scan_structure->lop);
+
 		if (chunk.size() == 0) {
 #if STANDARD_VECTOR_SIZE >= 128
 			if (state->cached_chunk.size() > 0) {
 				// finished probing but cached data remains, return cached chunk
 				chunk.Reference(state->cached_chunk);
 				state->cached_chunk.Reset();
+#ifdef LINEAGE
+            auto lop = make_shared<LineageOpCollection>(lop_per_chunk);
+			context.lineage->RegisterDataPerOp(this, lop );
+#endif
 			} else
 #endif
 			    if (IsRightOuterJoin(join_type)) {
@@ -208,6 +217,10 @@ void PhysicalHashJoin::GetChunkInternal(ExecutionContext &context, DataChunk &ch
 					// chunk cache full: return it
 					chunk.Reference(state->cached_chunk);
 					state->cached_chunk.Reset();
+#ifdef LINEAGE
+                    auto lop = make_shared<LineageOpCollection>(lop_per_chunk);
+                    context.lineage->RegisterDataPerOp(this, lop );
+#endif
 					return;
 				} else {
 					// chunk cache not full: probe again
@@ -217,6 +230,10 @@ void PhysicalHashJoin::GetChunkInternal(ExecutionContext &context, DataChunk &ch
 				return;
 			}
 #else
+#ifdef LINEAGE
+                    auto lop = make_shared<LineageOpCollection>(lop_per_chunk);
+                    context.lineage->RegisterDataPerOp(this, lop );
+#endif
 			return;
 #endif
 		}
@@ -231,7 +248,6 @@ void PhysicalHashJoin::ProbeHashTable(ExecutionContext &context, DataChunk &chun
 		// still have elements remaining from the previous probe (i.e. we got
 		// >1024 elements in the previous probe)
 		state->scan_structure->Next(state->join_keys, state->child_chunk, chunk);
-		// todo: get lineage from here
 		if (chunk.size() > 0) {
 			return;
 		}
@@ -255,10 +271,6 @@ void PhysicalHashJoin::ProbeHashTable(ExecutionContext &context, DataChunk &chun
 		// perform the actual probe
 		state->scan_structure = sink.hash_table->Probe(state->join_keys);
 		state->scan_structure->Next(state->join_keys, state->child_chunk, chunk);
-#ifdef LINEAGE
-
-        context.lineage->RegisterDataPerOp(this,  move(state->scan_structure->lop));
-#endif
 	} while (chunk.size() == 0);
 }
 

@@ -199,6 +199,17 @@ public:
     virtual unsigned long size_bytes() = 0;
 };
 
+class LineageOpCollection: public LineageOp {
+public:
+    LineageOpCollection(vector<shared_ptr<LineageOp>> op_p) : op(move(op_p)){}
+
+    unsigned long size_bytes() {
+        return 0;
+    }
+
+    vector<shared_ptr<LineageOp>> op;
+};
+
 class LineageOpUnary : public LineageOp {
 public:
     LineageOpUnary(shared_ptr<LineageData> data_p) : data(move(data_p)){}
