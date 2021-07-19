@@ -1,15 +1,19 @@
 //===----------------------------------------------------------------------===//
 //                         DuckDB
 //
-// duckdb/execution/execution_context.hpp
+// duckdb/execution/lineage_context.hpp
 //
 //
 //===----------------------------------------------------------------------===//
 
 #pragma once
+#include "duckdb/common/types/value.hpp"
 
 #include "duckdb/common/common.hpp"
 #include "duckdb/common/unordered_map.hpp"
+#include "duckdb/catalog/catalog.hpp"
+#include "duckdb/common/types/chunk_collection.hpp"
+#include "duckdb/catalog/catalog_entry/table_catalog_entry.hpp"
 #include <iostream>
 
 namespace duckdb {
@@ -18,15 +22,15 @@ class PhysicalOperator;
 class LineageData {
 public:
     LineageData() {}
-
     virtual unsigned long size_bytes() = 0;
     virtual idx_t getAtIndex(idx_t idx) = 0;
 	virtual void debug() = 0;
 	virtual idx_t findIndexOf(idx_t data) = 0;
 	virtual void getAllMatches(idx_t data, vector<idx_t> &matches)  = 0;
+	virtual void persist(ClientContext &context, string tablename, int32_t chunk_id, int seq_offset = 0) = 0;
 };
 
-template <typename T>
+template <class T>
 class LineageDataVector : public LineageData {
 public:
 
@@ -42,6 +46,31 @@ public:
             std::cout << " (" << i << " -> " << vec[i] << ") ";
         }
         std::cout << std::endl;
+    }
+    void persist(ClientContext &context, string tablename, int32_t chunk_id, int seq_offset = 0) {
+		std::cout << "persist " << tablename << std::endl;
+        TableCatalogEntry * table = Catalog::GetCatalog(context).GetEntry<TableCatalogEntry>(context,  DEFAULT_SCHEMA, tablename);
+        this->debug();
+        insert_chunk.Reset();
+        insert_chunk.Initialize(table->GetTypes());
+        insert_chunk.SetCardinality(count);
+
+        // map payload to a vector
+        Vector payload;
+        payload.SetType(table->GetTypes()[0]);
+        FlatVector::SetData(payload, (data_ptr_t)&vec[0]);
+
+        // map segment id to a vector
+        Vector chunk_ids;
+        chunk_ids.SetType(table->GetTypes()[2]);
+        chunk_ids.Reference( Value::Value::INTEGER(chunk_id));
+
+        // populate chunk
+        insert_chunk.data[0].Reference(payload);
+        insert_chunk.data[1].Sequence(seq_offset, 1);
+        insert_chunk.data[2].Reference(chunk_ids);
+
+        table->Persist(*table, context, insert_chunk);
     }
 
     idx_t findIndexOf(idx_t data) {
@@ -66,17 +95,45 @@ public:
 
     vector<T> vec;
     idx_t count;
+    DataChunk insert_chunk;
 };
 
 template <typename T>
 class LineageDataArray : public LineageData {
 public:
 
-    LineageDataArray (unique_ptr<T[]> vec_p, idx_t count) : vec(move(vec_p)), count(count) {
+    LineageDataArray (unique_ptr<T[]> vec_p, idx_t count, LogicalType type = LogicalType::INTEGER) :
+	      vec(move(vec_p)), count(count), type(type) {
 #ifdef LINEAGE_DEBUG
     this->debug();
 #endif
     }
+
+	void persist(ClientContext &context, string tablename, int32_t chunk_id, int seq_offset = 0) {
+        std::cout << "persist " << tablename << std::endl;
+        TableCatalogEntry * table = Catalog::GetCatalog(context).GetEntry<TableCatalogEntry>(context,  DEFAULT_SCHEMA, tablename);
+        this->debug();
+        insert_chunk.Reset();
+        insert_chunk.Initialize(table->GetTypes());
+        insert_chunk.SetCardinality(count);
+
+		// map payload to a vector
+        Vector payload;
+        payload.SetType(table->GetTypes()[0]);
+        FlatVector::SetData(payload, (data_ptr_t)&vec[0]);
+
+        // map segment id to a vector
+		Vector chunk_ids;
+		chunk_ids.SetType(table->GetTypes()[2]);
+        chunk_ids.Reference( Value::Value::INTEGER(chunk_id));
+
+		// populate chunk
+        insert_chunk.data[0].Reference(payload);
+        insert_chunk.data[1].Sequence(seq_offset, 1);
+        insert_chunk.data[2].Reference(chunk_ids);
+
+        table->Persist(*table, context, insert_chunk);
+	}
 
 	void debug() {
         std::cout << "LineageDataArray " << " " << typeid(vec).name() << std::endl;
@@ -109,6 +166,8 @@ public:
 
     unique_ptr<T[]> vec;
     idx_t count;
+	LogicalType type;
+	DataChunk insert_chunk;
 };
 
 // A PassThrough to indicate that the operator doesn't affect lineage at all
@@ -120,11 +179,12 @@ public:
 
 	void debug() {}
     idx_t findIndexOf(idx_t data) {return 5;}
-
+    void persist(ClientContext &context, string tablename, int32_t chunk_id, int seq_offset = 0) {
+        std::cout << "persist " << tablename << std::endl;
+    }
     unsigned long size_bytes() {
         return 0;
     }
-
     void getAllMatches(idx_t data, vector<idx_t> &matches) {}
 
     idx_t getAtIndex(idx_t idx) { return 0; }
@@ -140,21 +200,55 @@ public:
 		this.debug();
 #endif
 	}
+    void persist(ClientContext &context, string tablename, int32_t chunk_id, int seq_offset = 0) {
+        std::cout << "persist " << tablename << std::endl;
+        TableCatalogEntry * table = Catalog::GetCatalog(context).GetEntry<TableCatalogEntry>(context,  DEFAULT_SCHEMA, tablename);
+        this->debug();
+        insert_chunk.Reset();
+        insert_chunk.Initialize(table->GetTypes());
+        insert_chunk.SetCardinality(1);
 
+        // map payload to a vector
+        Vector start_vec;
+        start_vec.SetType(table->GetTypes()[0]);
+        start_vec.Reference( Value::Value::INTEGER(start));
+
+        // map payload to a vector
+        Vector end_vec;
+        end_vec.SetType(table->GetTypes()[0]);
+        end_vec.Reference( Value::Value::INTEGER(end));
+
+
+        // map segment id to a vector
+        Vector chunk_ids;
+        chunk_ids.SetType(table->GetTypes()[2]);
+        chunk_ids.Reference( Value::Value::INTEGER(chunk_id));
+
+        // populate chunk
+        insert_chunk.data[0].Reference(start_vec);
+        insert_chunk.data[1].Reference(end_vec);
+        insert_chunk.data[2].Reference(chunk_ids);
+
+        table->Persist(*table, context, insert_chunk);
+    }
     void debug() {
         std::cout << "LineageRange - Start: " << start << " End: " << end << std::endl;
     }
-    idx_t findIndexOf(idx_t data) {return 5;}
+    idx_t findIndexOf(idx_t data) { return 5;}
 
     unsigned long size_bytes() {
         return 2*sizeof(start);
     }
     void getAllMatches(idx_t data, vector<idx_t> &matches) {}
 
-    idx_t getAtIndex(idx_t idx) { return 0; }
+    idx_t getAtIndex(idx_t idx) {
+		return 0;
+	}
 
     idx_t start;
 	idx_t end;
+    DataChunk insert_chunk;
+
 };
 
 // A Reduce indicates that all input values lead to a single output
@@ -166,6 +260,8 @@ public:
     void debug() {}
     unsigned long size_bytes() {
         return 0;
+    }
+    void persist(ClientContext &context, string tablename, int32_t chunk_id, int seq_offset = 0) {
     }
     idx_t findIndexOf(idx_t data) {return 5;}
     void getAllMatches(idx_t data, vector<idx_t> &matches) {}
@@ -182,6 +278,8 @@ public:
     void debug() {}
     unsigned long size_bytes() {
         return 0;
+    }
+    void persist(ClientContext &context, string tablename, int32_t chunk_id, int seq_offset = 0) {
     }
     idx_t findIndexOf(idx_t data) {return 5;}
     void getAllMatches(idx_t data, vector<idx_t> &matches) {}
@@ -250,8 +348,9 @@ public:
 class LineageContext {
 public:
     LineageContext() {
-
+        chunk_id = 0;
     }
+
     void RegisterDataPerOp(PhysicalOperator* key, shared_ptr<LineageOp> op, int type = 0) {
         ht[type][key] = move(op);
     }
@@ -295,6 +394,7 @@ public:
     }*/
 
     std::unordered_map<int, std::unordered_map<PhysicalOperator*, shared_ptr<LineageOp>>> ht;
+	int32_t chunk_id;
 };
 
 } // namespace duckdb
