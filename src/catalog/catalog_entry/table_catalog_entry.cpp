@@ -97,6 +97,10 @@ bool TableCatalogEntry::ColumnExists(const string &name) {
 	return name_map.find(name) != name_map.end();
 }
 
+void  TableCatalogEntry::Persist(TableCatalogEntry &table, ClientContext &context, DataChunk &chunk) {
+    storage->Append(table, context, chunk);
+}
+
 unique_ptr<CatalogEntry> TableCatalogEntry::AlterEntry(ClientContext &context, AlterInfo *info) {
 	D_ASSERT(!internal);
 	if (info->type != AlterType::ALTER_TABLE) {
