@@ -11,6 +11,23 @@ INSERT INTO t1 SELECT i+1, i FROM range(0,2024) tbl(i);
 
 # standalone limit
 query III
-select rowid, i, j from t1;
+select rowid, i, j from t1 where i < 5 or j > 2020;
 ----
-51	50	51
+0	1	0
+1	2	1
+2	3	2
+3	4	3
+2021	2022	2021
+2022	2023	2022
+2023	2024	2023
+---
+query IIII
+select rowid, chunk_id, index, value from FILTER;
+----
+0	0	0	0
+1	0	1	1
+2	0	2	2
+3	0	3	3
+4	1	0	997
+5	1	1	998
+6	1	2	999

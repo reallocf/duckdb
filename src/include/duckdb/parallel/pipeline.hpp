@@ -28,6 +28,7 @@ public:
 
 	Executor &executor;
 	ProducerToken &token;
+    int chunk_id = 0;
 
 public:
 	//! Execute a task within the pipeline on a single thread

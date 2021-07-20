@@ -21,18 +21,56 @@ INSERT INTO t2 VALUES (3, 'A'),   (2, 'B'), (3, 'C'), (1, 'D')
 #INSERT INTO t2 VALUES ('A', 9),   ('A', 0), ('B', 9), ('C', 9)
 
 
+statement ok
+PRAGMA trace_lineage = "ON";
+
 # standalone limit
 query II
 select t1.j, t2.k from t1 inner join t2 on (t1.i = t2.i)
 ----
-4	A
-12	B
-4	C
-10	D
-1	A
-6	B
 1	C
-8	D
 3	B
-7	D
-5	D
+4	C
+1	A
+4	A
+
+
+statement ok
+PRAGMA trace_lineage = "OFF";
+
+query IIII
+select rowid, chunk_id, index as output, value as input from HASH_JOIN_0_LHS;
+----
+0	0	0	0
+1	0	1	2
+2	0	2	3
+3	0	3	0
+4	0	4	3
+
+
+query III
+select rowid, chunk_id, index as output from HASH_JOIN_0_RHS;
+----
+0	0	0
+1	0	1
+2	0	2
+3	0	3
+4	0	4
+
+
+query III
+select rowid, chunk_id, index as output from HASH_JOIN_0_SINK;
+----
+0	0	0
+1	0	1
+2	0	2
+3	0	3
+
+query IIII
+select r.rowid, r.chunk_id, r.index as output, s.index as input  from HASH_JOIN_0_SINK as s, HASH_JOIN_0_RHS as r where s.value=r.value ;
+----
+0	0	0	2
+1	0	1	1
+2	0	2	2
+3	0	3	0
+4	0	4	0

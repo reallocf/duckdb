@@ -14,6 +14,7 @@
 #include "duckdb/parser/constraint.hpp"
 #include "duckdb/planner/bound_constraint.hpp"
 #include "duckdb/planner/expression.hpp"
+#include "duckdb/common/types/chunk_collection.hpp"
 
 namespace duckdb {
 
@@ -47,6 +48,7 @@ public:
 	unordered_map<string, column_t> name_map;
 
 public:
+	void Persist(TableCatalogEntry &table, ClientContext &context, DataChunk &chunk);
 	unique_ptr<CatalogEntry> AlterEntry(ClientContext &context, AlterInfo *info) override;
 	//! Returns whether or not a column with the given name exists
 	bool ColumnExists(const string &name);

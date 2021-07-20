@@ -224,6 +224,16 @@ static void PragmaAutoCheckpointThreshold(ClientContext &context, const Function
 	DBConfig::GetConfig(context).checkpoint_wal_size = new_limit;
 }
 
+static void PragmaTraceLineage(ClientContext &context, const FunctionParameters &parameters) {
+    auto trace_lineage = parameters.values[0].ToString();
+    if (trace_lineage == "ON") {
+		context.trace_lineage = true;
+	} else {
+		context.trace_lineage = false;
+	}
+
+	std::cout << "PragmaTraceLineage " << context.trace_lineage << std::endl;
+}
 static void PragmaDebugCheckpointAbort(ClientContext &context, const FunctionParameters &parameters) {
 	auto checkpoint_abort = StringUtil::Lower(parameters.values[0].ToString());
 	auto &config = DBConfig::GetConfig(context);
@@ -282,7 +292,9 @@ void PragmaFunctions::RegisterFunction(BuiltinFunctions &set) {
 	set.AddFunction(PragmaFunction::PragmaAssignment("log_query_path", PragmaLogQueryPath, LogicalType::VARCHAR));
 	set.AddFunction(PragmaFunction::PragmaAssignment("explain_output", PragmaExplainOutput, LogicalType::VARCHAR));
 
-	set.AddFunction(PragmaFunction::PragmaStatement("force_index_join", PragmaEnableForceIndexJoin));
+    set.AddFunction(PragmaFunction::PragmaAssignment("trace_lineage", PragmaTraceLineage, LogicalType::VARCHAR));
+
+    set.AddFunction(PragmaFunction::PragmaStatement("force_index_join", PragmaEnableForceIndexJoin));
 	set.AddFunction(PragmaFunction::PragmaStatement("force_checkpoint", PragmaForceCheckpoint));
 
 	set.AddFunction(PragmaFunction::PragmaStatement("enable_progress_bar", PragmaEnableProgressBar));

@@ -15,3 +15,23 @@ select t1.i, avg(t1.j) from t1 GROUP BY t1.i
 Haneen	3.000000
 Omar	1.333333
 Mohammed	1.500000
+
+query IIII
+select rowid, chunk_id, index, input from HASH_GROUP_BY_OUT;
+----
+0	0	0	0
+1	0	1	1
+2	0	2	2
+
+
+query IIII
+select rowid, chunk_id, index, value from HASH_GROUP_BY_SINK;
+----
+0	0	0	0
+1	0	1	1
+2	0	2	0
+3	0	3	2
+4	0	4	1
+5	0	5	0
+6	0	6	2
+7	0	7	1

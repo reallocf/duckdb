@@ -67,7 +67,7 @@ public:
 	vector<LogicalType> types;
 	//! The extimated cardinality of this physical operator
 	idx_t estimated_cardinality;
-
+    idx_t id;
 public:
 	virtual string GetName() const;
 	virtual string ParamsToString() const {

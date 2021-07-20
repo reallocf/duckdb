@@ -184,7 +184,14 @@ shared_ptr<PreparedStatementData> ClientContext::CreatePreparedStatement(ClientC
 	auto physical_plan = physical_planner.CreatePlan(move(plan));
 	profiler.EndPhase();
 
-	result->plan = move(physical_plan);
+	// annotate the physical plan with lineage related information
+	if (trace_lineage) {
+		executor.op_metadata.clear();
+		executor.AnnotatePlan(physical_plan.get());
+		executor.CreateLineageTables(physical_plan.get());
+	}
+
+    result->plan = move(physical_plan);
 	return result;
 }
 
