@@ -87,7 +87,7 @@ void Pipeline::Execute(TaskContext &task) {
 	}
 
 	ThreadContext thread(client);
-	ExecutionContext context(client, thread, task);
+	ExecutionContext context(client, thread, task, client.trace_lineage);
 	try {
 		auto state = child->GetOperatorState();
 		auto lstate = sink->GetLocalSinkState(context);
@@ -109,9 +109,9 @@ void Pipeline::Execute(TaskContext &task) {
 #ifdef LINEAGE
             if (client.trace_lineage  && context.lineage && !context.lineage->isEmpty()) {
                 context.lineage->chunk_id = chunk_id++;
-                executor.Persist( child, context.lineage );
-                executor.Persist( sink, context.lineage, true);
-                executor.AddLocalSinkLineage(sink, move(context.lineage));
+                executor.lineage_manager->Persist( child, context.lineage, context.client, false );
+                executor.lineage_manager->Persist( sink, context.lineage, context.client, true);
+                executor.lineage_manager->AddLocalSinkLineage(sink, move(context.lineage));
 			}
 #endif
 			thread.profiler.EndOperator(nullptr);

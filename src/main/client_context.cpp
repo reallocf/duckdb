@@ -183,14 +183,6 @@ shared_ptr<PreparedStatementData> ClientContext::CreatePreparedStatement(ClientC
 	PhysicalPlanGenerator physical_planner(*this);
 	auto physical_plan = physical_planner.CreatePlan(move(plan));
 	profiler.EndPhase();
-
-	// annotate the physical plan with lineage related information
-	if (trace_lineage) {
-		executor.op_metadata.clear();
-		executor.AnnotatePlan(physical_plan.get());
-		executor.CreateLineageTables(physical_plan.get());
-	}
-
     result->plan = move(physical_plan);
 	return result;
 }
@@ -205,7 +197,7 @@ int ClientContext::GetProgress() {
 unique_ptr<QueryResult> ClientContext::ExecutePreparedStatement(ClientContextLock &lock, const string &query,
                                                                 shared_ptr<PreparedStatementData> statement_p,
                                                                 vector<Value> bound_values, bool allow_stream_result) {
-	auto &statement = *statement_p;
+    auto &statement = *statement_p;
 	if (ActiveTransaction().IsInvalidated() && statement.requires_valid_transaction) {
 		throw Exception("Current transaction is aborted (please ROLLBACK)");
 	}
@@ -229,7 +221,7 @@ unique_ptr<QueryResult> ClientContext::ExecutePreparedStatement(ClientContextLoc
 	// store the physical plan in the context for calls to Fetch()
 	executor.Initialize(statement.plan.get());
 
-	auto types = executor.GetTypes();
+    auto types = executor.GetTypes();
 
 	D_ASSERT(types == statement.types);
 
@@ -266,7 +258,10 @@ unique_ptr<QueryResult> ClientContext::ExecutePreparedStatement(ClientContextLoc
 		progress_bar->Stop();
 	}
 
-	return move(result);
+    if (trace_lineage)
+        executor.lineage_manager->setQuery(query);
+
+    return move(result);
 }
 
 void ClientContext::InitialCleanup(ClientContextLock &lock) {

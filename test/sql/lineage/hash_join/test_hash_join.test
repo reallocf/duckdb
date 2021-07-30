@@ -4,6 +4,9 @@
 
 
 statement ok
+PRAGMA trace_lineage = "OFF";
+
+statement ok
 CREATE TABLE t1(i INTEGER, j INTEGER);
 
 statement ok

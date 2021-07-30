@@ -3,10 +3,16 @@
 # group: [groupby_hash_aggregate_lineage]
 
 statement ok
+PRAGMA trace_lineage = "OFF";
+
+statement ok
 CREATE TABLE t1(i VARCHAR(10), j INTEGER);
 
 statement ok
 INSERT INTO t1 VALUES ('Haneen', 2),  ('Omar', 2), ('Haneen', 4), ('Mohammed', 1), ('Omar', 1), ('Haneen', 3), ('Mohammed', 2), ('Omar', 1)
+
+statement ok
+PRAGMA trace_lineage = "ON";
 
 # standalone limit
 query II
@@ -16,8 +22,11 @@ Haneen	3.000000
 Omar	1.333333
 Mohammed	1.500000
 
+statement ok
+PRAGMA trace_lineage = "OFF";
+
 query IIII
-select rowid, chunk_id, index, input from HASH_GROUP_BY_OUT;
+select rowid, chunk_id, index, value from HASH_GROUP_BY_0_OUT;
 ----
 0	0	0	0
 1	0	1	1
@@ -25,7 +34,7 @@ select rowid, chunk_id, index, input from HASH_GROUP_BY_OUT;
 
 
 query IIII
-select rowid, chunk_id, index, value from HASH_GROUP_BY_SINK;
+select rowid, chunk_id, index, value from HASH_GROUP_BY_0_SINK;
 ----
 0	0	0	0
 1	0	1	1

@@ -45,18 +45,26 @@ void PhysicalFilter::GetChunkInternal(ExecutionContext &context, DataChunk &chun
 		result_count = state->executor.SelectExpression(chunk, sel);
 	} while (result_count == 0);
 
-#ifdef LINEAGE
-    context.lineage->RegisterDataPerOp(
-	    this,
-        make_shared<LineageOpUnary>(make_shared<LineageDataArray<sel_t>>(move(sel.sel_data()->owned_data), result_count))
-	);
-#endif
-
     if (result_count == initial_count) {
 		// nothing was filtered: skip adding any selection vectors
 		return;
 	}
+
+
+#ifdef LINEAGE
+//	if (context.trace_lineage)
+    unique_ptr<sel_t[]> filter_sel(new sel_t(result_count));
+    std::copy(sel.sel_data()->owned_data.get(), sel.sel_data()->owned_data.get() + result_count, filter_sel.get());
+    context.lineage->RegisterDataPerOp(
+        this,
+        make_shared<LineageOpUnary>(make_shared<LineageDataArray<sel_t>>(move(filter_sel), result_count))
+    );
+#endif
+
 	chunk.Slice(sel, result_count);
+
+
+
 }
 
 unique_ptr<PhysicalOperatorState> PhysicalFilter::GetOperatorState() {

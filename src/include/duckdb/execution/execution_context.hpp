@@ -21,18 +21,19 @@ class PhysicalOperator;
 class ExecutionContext {
 public:
 
-    ExecutionContext(ClientContext &client_p, ThreadContext &thread_p, TaskContext &task_p)
-        : client(client_p), thread(thread_p), task(task_p) {
+    ExecutionContext(ClientContext &client_p, ThreadContext &thread_p, TaskContext &task_p, bool trace_lineage)
+        : client(client_p), thread(thread_p), task(task_p), trace_lineage(trace_lineage) {
         lineage = make_unique<LineageContext>();
+		//trace_lineage = client.trace_lineage;
     }
 
-	void setCurrent(PhysicalOperator * op) {
-		current_op = op;
-	}
+    void setCurrent(PhysicalOperator * op) {
+      current_op = op;
+    }
 
     PhysicalOperator *getCurrent() {
 		return current_op;
-	};
+    };
 
     //! The client-global context; caution needs to be taken when used in parallel situations
     ClientContext &client;
@@ -43,6 +44,7 @@ public:
     //! The lineage context for this execution
     shared_ptr<LineageContext> lineage;
     PhysicalOperator* current_op;
+	bool trace_lineage;
 };
 
 } // namespace duckdb

@@ -23,6 +23,7 @@ class PhysicalOperatorState;
 class ThreadContext;
 class Task;
 class LineageContext;
+class ManageLineage;
 
 struct ProducerToken;
 
@@ -36,11 +37,7 @@ public:
 
 	ClientContext &context;
 
-    // lineage for tree starting from this operator
-	// 0: get chunk
-	// 1: sink
-    unordered_map<int, unordered_map<PhysicalOperator*, vector<shared_ptr<LineageContext>>>> pipelines_lineage;
-    std::unordered_map<string, int> op_metadata;
+    unique_ptr<ManageLineage> lineage_manager;
 
 public:
 	void Initialize(PhysicalOperator *physical_plan);
@@ -56,17 +53,7 @@ public:
 	//! Flush a thread context into the client context
 	void Flush(ThreadContext &context);
 
-	void Persist(PhysicalOperator* op, shared_ptr<LineageContext> lineage, bool is_sink);
-    void AddOutputLineage(PhysicalOperator* opKey, shared_ptr<LineageContext>  lineage);
-    void AddLocalSinkLineage(PhysicalOperator* opKey,  shared_ptr<LineageContext> lineage);
-    void BackwardLineage(PhysicalOperator *op, shared_ptr<LineageContext> lineage, int oidx);
-    void ForwardLineage(PhysicalOperator *op, shared_ptr<LineageContext> lineage, int idx);
-	void CreateLineageTables(PhysicalOperator *op);
-	void AnnotatePlan(PhysicalOperator *op);
     void Reset();
-    void LineageSize();
-    void QueryLineage(shared_ptr<LineageContext> lineage);
-
 	//! Returns the progress of the pipelines
 	bool GetPipelinesProgress(int &current_progress);
 

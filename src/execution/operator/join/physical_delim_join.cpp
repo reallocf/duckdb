@@ -5,6 +5,7 @@
 #include "duckdb/execution/operator/aggregate/physical_hash_aggregate.hpp"
 #include "duckdb/parallel/thread_context.hpp"
 #include "duckdb/parallel/task_context.hpp"
+#include "duckdb/main/client_context.hpp"
 
 namespace duckdb {
 
@@ -80,7 +81,7 @@ void PhysicalDelimJoin::Finalize(Pipeline &pipeline, ClientContext &client, uniq
 	auto distinct_state = distinct->GetOperatorState();
 	ThreadContext thread(client);
 	TaskContext task;
-	ExecutionContext context(client, thread, task);
+	ExecutionContext context(client, thread, task, client.trace_lineage);
 	while (true) {
 		distinct->GetChunk(context, delim_chunk, distinct_state.get());
 		if (delim_chunk.size() == 0) {

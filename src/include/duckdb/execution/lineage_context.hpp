@@ -18,15 +18,48 @@
 
 namespace duckdb {
 class PhysicalOperator;
+class LineageContext;
+
+
+class ManageLineage {
+public:
+	ManageLineage(ClientContext &context) : context(context)  {
+	    query_id  = 0;
+		query_table = "queries_list";
+        create_table_exists = false;
+    };
+
+	void setQuery(string input_query);
+    void CreateQueryTable(ClientContext &context);
+    void CreateLineageTables(PhysicalOperator *op, ClientContext &context);
+	void AnnotatePlan(PhysicalOperator *op);
+    void Persist(PhysicalOperator* op, shared_ptr<LineageContext> lineage, ClientContext &context, bool is_sink);
+    void BackwardLineage(PhysicalOperator *op, shared_ptr<LineageContext> lineage, int oidx, ClientContext &context);
+    void ForwardLineage(PhysicalOperator *op, shared_ptr<LineageContext> lineage, int idx, ClientContext &context);
+	void Reset();
+    void LineageSize();
+
+    void AddOutputLineage(PhysicalOperator* opKey, shared_ptr<LineageContext>  lineage);
+    void AddLocalSinkLineage(PhysicalOperator* opKey,  shared_ptr<LineageContext> lineage);
+
+	std::unordered_map<string, int> op_metadata;
+
+    // lineage for tree starting from this operator
+    // 0: get chunk
+    // 1: sink
+    unordered_map<int, unordered_map<PhysicalOperator*, vector<shared_ptr<LineageContext>>>> pipelines_lineage;
+    idx_t query_id;
+	string query_table;
+    DataChunk insert_chunk;
+    ClientContext &context;
+    bool create_table_exists;
+};
 
 class LineageData {
 public:
     LineageData() {}
     virtual unsigned long size_bytes() = 0;
-    virtual idx_t getAtIndex(idx_t idx) = 0;
 	virtual void debug() = 0;
-	virtual idx_t findIndexOf(idx_t data) = 0;
-	virtual void getAllMatches(idx_t data, vector<idx_t> &matches)  = 0;
 	virtual void persist(ClientContext &context, string tablename, int32_t chunk_id, int seq_offset = 0) = 0;
 };
 
@@ -48,10 +81,9 @@ public:
         std::cout << std::endl;
     }
     void persist(ClientContext &context, string tablename, int32_t chunk_id, int seq_offset = 0) {
-		std::cout << "persist " << tablename << std::endl;
+		//std::cout << "persist " << tablename << std::endl;
         TableCatalogEntry * table = Catalog::GetCatalog(context).GetEntry<TableCatalogEntry>(context,  DEFAULT_SCHEMA, tablename);
-        this->debug();
-        insert_chunk.Reset();
+        DataChunk insert_chunk;
         insert_chunk.Initialize(table->GetTypes());
         insert_chunk.SetCardinality(count);
 
@@ -73,11 +105,11 @@ public:
         table->Persist(*table, context, insert_chunk);
     }
 
-    idx_t findIndexOf(idx_t data) {
+    int findIndexOf(idx_t data) {
         for (idx_t i = 0; i < count; i++) {
-            if (vec[i] == (T)data) return i;
+            if (vec[i] == (T)data) return (int)i;
         }
-        return 0;
+        return -1;
     }
     void getAllMatches(idx_t data, vector<idx_t> &matches) {
 		 for (idx_t i = 0; i < count; i++) {
@@ -95,7 +127,6 @@ public:
 
     vector<T> vec;
     idx_t count;
-    DataChunk insert_chunk;
 };
 
 template <typename T>
@@ -110,10 +141,9 @@ public:
     }
 
 	void persist(ClientContext &context, string tablename, int32_t chunk_id, int seq_offset = 0) {
-        std::cout << "persist " << tablename << std::endl;
+        //std::cout << "persist " << tablename << std::endl;
         TableCatalogEntry * table = Catalog::GetCatalog(context).GetEntry<TableCatalogEntry>(context,  DEFAULT_SCHEMA, tablename);
-        this->debug();
-        insert_chunk.Reset();
+        DataChunk insert_chunk;
         insert_chunk.Initialize(table->GetTypes());
         insert_chunk.SetCardinality(count);
 
@@ -167,7 +197,6 @@ public:
     unique_ptr<T[]> vec;
     idx_t count;
 	LogicalType type;
-	DataChunk insert_chunk;
 };
 
 // A PassThrough to indicate that the operator doesn't affect lineage at all
@@ -176,18 +205,13 @@ class LineagePassThrough : public LineageData {
 public:
 
 	LineagePassThrough() {}
-
 	void debug() {}
-    idx_t findIndexOf(idx_t data) {return 5;}
     void persist(ClientContext &context, string tablename, int32_t chunk_id, int seq_offset = 0) {
         std::cout << "persist " << tablename << std::endl;
     }
     unsigned long size_bytes() {
         return 0;
     }
-    void getAllMatches(idx_t data, vector<idx_t> &matches) {}
-
-    idx_t getAtIndex(idx_t idx) { return 0; }
 };
 
 // A Range of values where each successive number in the range indicates the lineage
@@ -201,10 +225,9 @@ public:
 #endif
 	}
     void persist(ClientContext &context, string tablename, int32_t chunk_id, int seq_offset = 0) {
-        std::cout << "persist " << tablename << std::endl;
+        //std::cout << "persist " << tablename << std::endl;
         TableCatalogEntry * table = Catalog::GetCatalog(context).GetEntry<TableCatalogEntry>(context,  DEFAULT_SCHEMA, tablename);
-        this->debug();
-        insert_chunk.Reset();
+        DataChunk insert_chunk;
         insert_chunk.Initialize(table->GetTypes());
         insert_chunk.SetCardinality(1);
 
@@ -234,21 +257,13 @@ public:
     void debug() {
         std::cout << "LineageRange - Start: " << start << " End: " << end << std::endl;
     }
-    idx_t findIndexOf(idx_t data) { return 5;}
 
     unsigned long size_bytes() {
         return 2*sizeof(start);
     }
-    void getAllMatches(idx_t data, vector<idx_t> &matches) {}
-
-    idx_t getAtIndex(idx_t idx) {
-		return 0;
-	}
 
     idx_t start;
 	idx_t end;
-    DataChunk insert_chunk;
-
 };
 
 // A Reduce indicates that all input values lead to a single output
@@ -263,10 +278,6 @@ public:
     }
     void persist(ClientContext &context, string tablename, int32_t chunk_id, int seq_offset = 0) {
     }
-    idx_t findIndexOf(idx_t data) {return 5;}
-    void getAllMatches(idx_t data, vector<idx_t> &matches) {}
-
-    idx_t getAtIndex(idx_t idx) { return 0; }
 };
 
 class LineageCollection: public LineageData {
@@ -281,9 +292,6 @@ public:
     }
     void persist(ClientContext &context, string tablename, int32_t chunk_id, int seq_offset = 0) {
     }
-    idx_t findIndexOf(idx_t data) {return 5;}
-    void getAllMatches(idx_t data, vector<idx_t> &matches) {}
-    idx_t getAtIndex(idx_t idx) { return 0; }
 
     std::unordered_map<string, unique_ptr<LineageData>> collection;
 };
