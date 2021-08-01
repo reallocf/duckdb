@@ -39,7 +39,6 @@ void ManageLineage::AnnotatePlan(PhysicalOperator *op) {
     else
         op_metadata[op->GetName()]++;
     op->id = op_metadata[op->GetName()];
-    std::cout << op->GetName() << " " << op->id << std::endl;
 
     for (int i = 0; i < op->children.size(); ++i)
         AnnotatePlan(op->children[i].get());
@@ -52,15 +51,12 @@ void ManageLineage::setQuery(string input_query) {
         create_table_exists = true;
     }
 
-    std::cout << "setQuery: " << input_query << " " << query_id << std::endl;
-
     string tablename = query_table;
     idx_t count = 1;
     TableCatalogEntry * table = Catalog::GetCatalog(context).GetEntry<TableCatalogEntry>(context,  DEFAULT_SCHEMA, tablename);
     DataChunk insert_chunk;
     insert_chunk.Initialize(table->GetTypes());
     insert_chunk.SetCardinality(count);
-    std::cout << "persist  query_table" << insert_chunk.ColumnCount() << std::endl;
 
     // query id
     Vector query_ids;
@@ -78,7 +74,6 @@ void ManageLineage::setQuery(string input_query) {
     insert_chunk.data[0].Reference(query_ids);
     insert_chunk.data[1].Reference(payload);
 
-    std::cout << "insert_chunk size: " << insert_chunk.ColumnCount() << " " << insert_chunk.ToString() << std::endl;
     table->Persist(*table, context, insert_chunk);
 }
 
@@ -100,10 +95,9 @@ void ManageLineage::CreateQueryTable(ClientContext &context) {
 
 void ManageLineage::CreateLineageTables(PhysicalOperator *op, ClientContext &context) {
 	string base = op->GetName() + "_" + to_string(query_id) + "_" + to_string( op->id );
-	std::cout << "CreateLineageTable " << base;
     switch (op->type) {
     case PhysicalOperatorType::FILTER: {
-        // CREATE TABLE  op->GetName() (input INTEGER, output INTEGER, chunk_id INTEGER)
+        // CREATE TABLE base (value INTEGER, index INTEGER, chunk_id INTEGER)
         auto info = make_unique<CreateTableInfo>();
         info->schema = DEFAULT_SCHEMA;
         info->table = base;
@@ -121,7 +115,7 @@ void ManageLineage::CreateLineageTables(PhysicalOperator *op, ClientContext &con
         break;
     }
     case PhysicalOperatorType::TABLE_SCAN: {
-        // CREATE TABLE  op->GetName() (input INTEGER, output INTEGER, chunk_id INTEGER)
+        // CREATE TABLE base_range (range_start INTEGER, range_end INTEGER, chunk_id INTEGER)
         auto info = make_unique<CreateTableInfo>();
         info->schema = DEFAULT_SCHEMA;
         info->table = base + "_range";
@@ -135,7 +129,7 @@ void ManageLineage::CreateLineageTables(PhysicalOperator *op, ClientContext &con
         auto &catalog = Catalog::GetCatalog(context);
         catalog.CreateTable(context, bound_create_info.get());
 
-
+        // CREATE TABLE base_filter (value INTEGER, index INTEGER, chunk_id INTEGER)
         info = make_unique<CreateTableInfo>();
         info->schema = DEFAULT_SCHEMA;
         info->table = base + "_filter";
@@ -155,7 +149,7 @@ void ManageLineage::CreateLineageTables(PhysicalOperator *op, ClientContext &con
     }
     case PhysicalOperatorType::PERFECT_HASH_GROUP_BY:
     case PhysicalOperatorType::HASH_GROUP_BY: {
-        // CREATE TABLE  op->GetName() (input INTEGER, output INTEGER, chunk_id INTEGER)
+        // CREATE TABLE base_out (value INTEGER, index INTEGER, chunk_id INTEGER)
         auto info = make_unique<CreateTableInfo>();
         info->schema = DEFAULT_SCHEMA;
         info->table = base + "_OUT";
@@ -169,6 +163,7 @@ void ManageLineage::CreateLineageTables(PhysicalOperator *op, ClientContext &con
         auto &catalog = Catalog::GetCatalog(context);
         catalog.CreateTable(context, bound_create_info.get());
 
+        // CREATE TABLE base_sink (value INTEGER, index INTEGER, chunk_id INTEGER)
         info = make_unique<CreateTableInfo>();
         info->schema = DEFAULT_SCHEMA;
         info->table = base +  "_SINK";
@@ -186,7 +181,7 @@ void ManageLineage::CreateLineageTables(PhysicalOperator *op, ClientContext &con
     case PhysicalOperatorType::SIMPLE_AGGREGATE:
         break;
     case PhysicalOperatorType::INDEX_JOIN: {
-        // CREATE TABLE  op->GetName() (input INTEGER, output INTEGER, chunk_id INTEGER)
+        // CREATE TABLE base_LHS (value INTEGER, index INTEGER, chunk_id INTEGER)
         auto info = make_unique<CreateTableInfo>();
         info->schema = DEFAULT_SCHEMA;
         info->table = base +  "_LHS";
@@ -200,6 +195,7 @@ void ManageLineage::CreateLineageTables(PhysicalOperator *op, ClientContext &con
         auto &catalog = Catalog::GetCatalog(context);
         catalog.CreateTable(context, bound_create_info.get());
 
+        // CREATE TABLE base_RHS (value INTEGER, index INTEGER, chunk_id INTEGER)
         info = make_unique<CreateTableInfo>();
         info->schema = DEFAULT_SCHEMA;
         info->table = base +  "_RHS";
@@ -216,7 +212,7 @@ void ManageLineage::CreateLineageTables(PhysicalOperator *op, ClientContext &con
         break;
     }
     case PhysicalOperatorType::HASH_JOIN: {
-        // CREATE TABLE  op->GetName() (input INTEGER, output INTEGER, chunk_id INTEGER)
+        // CREATE TABLE base_LHS (value INTEGER, index INTEGER, chunk_id INTEGER)
         auto info = make_unique<CreateTableInfo>();
         info->schema = DEFAULT_SCHEMA;
         info->table = base +  "_LHS";
@@ -230,6 +226,7 @@ void ManageLineage::CreateLineageTables(PhysicalOperator *op, ClientContext &con
         auto &catalog = Catalog::GetCatalog(context);
         catalog.CreateTable(context, bound_create_info.get());
 
+        // CREATE TABLE base_RHS (value INTEGER, index INTEGER, chunk_id INTEGER)
         info = make_unique<CreateTableInfo>();
         info->schema = DEFAULT_SCHEMA;
         info->table = base +  "_RHS";
@@ -241,7 +238,7 @@ void ManageLineage::CreateLineageTables(PhysicalOperator *op, ClientContext &con
         bound_create_info = binder->BindCreateTableInfo(move(info));
         catalog.CreateTable(context, bound_create_info.get());
 
-
+        // CREATE TABLE base_sink (value INTEGER, index INTEGER, chunk_id INTEGER)
         info = make_unique<CreateTableInfo>();
         info->schema = DEFAULT_SCHEMA;
         info->table = base +  "_SINK";
@@ -509,7 +506,6 @@ void ManageLineage::BackwardLineage(PhysicalOperator *op, shared_ptr<LineageCont
 
 void ManageLineage::Persist(PhysicalOperator *op, shared_ptr<LineageContext> lineage, ClientContext &context, bool is_sink = false) {
     // operator is a sink, build a pipeline
-    //std::cout << "Persist: " << op << " " << op->GetName() << " is_sink " << is_sink << std::endl;
     string tablename = op->GetName() + "_" + to_string(query_id) + "_" + to_string( op->id );
 
     switch (op->type) {
@@ -598,7 +594,6 @@ void ManageLineage::Persist(PhysicalOperator *op, shared_ptr<LineageContext> lin
                 std::cout << "something is wrong, hash join build lop not found" << std::endl;
                 return;
             }
-            std::cout << "found for sink!" << std::endl;
             sink_lop->data->persist(context, tablename+ "_SINK", lineage->chunk_id);
         } else {
             std::shared_ptr<LineageOpCollection> probe_lop =

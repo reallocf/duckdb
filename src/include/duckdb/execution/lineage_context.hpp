@@ -81,7 +81,6 @@ public:
         std::cout << std::endl;
     }
     void persist(ClientContext &context, string tablename, int32_t chunk_id, int seq_offset = 0) {
-		//std::cout << "persist " << tablename << std::endl;
         TableCatalogEntry * table = Catalog::GetCatalog(context).GetEntry<TableCatalogEntry>(context,  DEFAULT_SCHEMA, tablename);
         DataChunk insert_chunk;
         insert_chunk.Initialize(table->GetTypes());
@@ -141,7 +140,6 @@ public:
     }
 
 	void persist(ClientContext &context, string tablename, int32_t chunk_id, int seq_offset = 0) {
-        //std::cout << "persist " << tablename << std::endl;
         TableCatalogEntry * table = Catalog::GetCatalog(context).GetEntry<TableCatalogEntry>(context,  DEFAULT_SCHEMA, tablename);
         DataChunk insert_chunk;
         insert_chunk.Initialize(table->GetTypes());
@@ -225,7 +223,6 @@ public:
 #endif
 	}
     void persist(ClientContext &context, string tablename, int32_t chunk_id, int seq_offset = 0) {
-        //std::cout << "persist " << tablename << std::endl;
         TableCatalogEntry * table = Catalog::GetCatalog(context).GetEntry<TableCatalogEntry>(context,  DEFAULT_SCHEMA, tablename);
         DataChunk insert_chunk;
         insert_chunk.Initialize(table->GetTypes());

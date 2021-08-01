@@ -30,11 +30,8 @@ void Executor::Initialize(PhysicalOperator *plan) {
 
 	physical_plan = plan;
 	physical_state = physical_plan->GetOperatorState();
-    std::cout << physical_plan->ToString() << std::endl;
-
     // annotate the physical plan with lineage related information
     if (context.trace_lineage) {
-        std::cout << "annotate and create tables .." << std::endl;
         lineage_manager->AnnotatePlan(physical_plan);
         lineage_manager->CreateLineageTables(physical_plan, context);
     }
@@ -267,7 +264,6 @@ unique_ptr<DataChunk> Executor::FetchChunk() {
     physical_plan->InitializeChunkEmpty(*chunk);
     physical_plan->GetChunk(econtext, *chunk, physical_state.get());
     physical_plan->FinalizeOperatorState(*physical_state, econtext);
-
 #ifdef LINEAGE
     // Flush the lineage to global storage location
     if (context.trace_lineage  && econtext.lineage && !econtext.lineage->isEmpty()) {
