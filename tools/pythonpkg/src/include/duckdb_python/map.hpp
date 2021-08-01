@@ -25,7 +25,7 @@ public:
 	                                                vector<string> &input_table_names,
 	                                                vector<LogicalType> &return_types, vector<string> &names);
 
-	static void MapFunctionExec(ClientContext &context, const FunctionData *bind_data,
+	static void MapFunctionExec(ExecutionContext &context, const FunctionData *bind_data,
 	                            FunctionOperatorData *operator_state, DataChunk *input, DataChunk &output);
 };
 

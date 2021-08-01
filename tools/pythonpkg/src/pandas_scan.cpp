@@ -128,7 +128,7 @@ int PandasScanFunction::PandasProgress(ClientContext &context, const FunctionDat
 
 //! The main pandas scan function: note that this can be called in parallel without the GIL
 //! hence this needs to be GIL-safe, i.e. no methods that create Python objects are allowed
-void PandasScanFunction::PandasScanFunc(ClientContext &context, const FunctionData *bind_data,
+void PandasScanFunction::PandasScanFunc(ExecutionContext &context, const FunctionData *bind_data,
                                         FunctionOperatorData *operator_state, DataChunk *input, DataChunk &output) {
 	auto &data = (PandasScanFunctionData &)*bind_data;
 	auto &state = (PandasScanState &)*operator_state;
