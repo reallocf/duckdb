@@ -220,6 +220,8 @@ unique_ptr<QueryResult> ClientContext::ExecutePreparedStatement(ClientContextLoc
 	}
 	// store the physical plan in the context for calls to Fetch()
 	executor.Initialize(statement.plan.get());
+    if (trace_lineage)
+        executor.lineage_manager->setQuery(query);
 
     auto types = executor.GetTypes();
 
@@ -257,9 +259,6 @@ unique_ptr<QueryResult> ClientContext::ExecutePreparedStatement(ClientContextLoc
     if (progress_bar) {
 		progress_bar->Stop();
 	}
-
-    if (trace_lineage)
-        executor.lineage_manager->setQuery(query);
 
     return move(result);
 }
