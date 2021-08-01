@@ -46,8 +46,13 @@ public:
 
 	//! The main pandas scan function: note that this can be called in parallel without the GIL
 	//! hence this needs to be GIL-safe, i.e. no methods that create Python objects are allowed
+#ifdef LINEAGE
+	static void PandasScanFunc(ExecutionContext &context, const FunctionData *bind_data,
+	                           FunctionOperatorData *operator_state, DataChunk *input, DataChunk &output);
+#else
 	static void PandasScanFunc(ClientContext &context, const FunctionData *bind_data,
 	                           FunctionOperatorData *operator_state, DataChunk *input, DataChunk &output);
+#endif
 
 	static void PandasScanFuncParallel(ClientContext &context, const FunctionData *bind_data,
 	                                   FunctionOperatorData *operator_state, DataChunk *input, DataChunk &output,

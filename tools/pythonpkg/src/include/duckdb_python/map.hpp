@@ -25,8 +25,13 @@ public:
 	                                                vector<string> &input_table_names,
 	                                                vector<LogicalType> &return_types, vector<string> &names);
 
+#ifdef LINEAGE
+	static void MapFunctionExec(ExecutionContext &context, const FunctionData *bind_data,
+	                            FunctionOperatorData *operator_state, DataChunk *input, DataChunk &output);
+#else
 	static void MapFunctionExec(ClientContext &context, const FunctionData *bind_data,
 	                            FunctionOperatorData *operator_state, DataChunk *input, DataChunk &output);
+#endif
 };
 
 } // namespace duckdb

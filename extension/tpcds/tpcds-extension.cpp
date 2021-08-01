@@ -45,13 +45,22 @@ static unique_ptr<FunctionData> DsdgenBind(ClientContext &context, vector<Value>
 	return move(result);
 }
 
+#ifdef LINEAGE
+static void DsdgenFunction(ExecutionContext &context, const FunctionData *bind_data, FunctionOperatorData *operator_state,
+                           DataChunk *input, DataChunk &output) {
+#else
 static void DsdgenFunction(ClientContext &context, const FunctionData *bind_data, FunctionOperatorData *operator_state,
                            DataChunk *input, DataChunk &output) {
+#endif
 	auto &data = (DSDGenFunctionData &)*bind_data;
 	if (data.finished) {
 		return;
 	}
+#ifdef LINEAGE
+	tpcds::DSDGenWrapper::DSDGen(data.sf, context.client, data.schema, data.suffix);
+#else
 	tpcds::DSDGenWrapper::DSDGen(data.sf, context, data.schema, data.suffix);
+#endif
 
 	data.finished = true;
 }
@@ -82,8 +91,13 @@ static unique_ptr<FunctionData> TPCDSQueryBind(ClientContext &context, vector<Va
 	return nullptr;
 }
 
+#ifdef LINEAGE
+static void TPCDSQueryFunction(ExecutionContext &context, const FunctionData *bind_data,
+                               FunctionOperatorData *operator_state, DataChunk *input, DataChunk &output) {
+#else
 static void TPCDSQueryFunction(ClientContext &context, const FunctionData *bind_data,
                                FunctionOperatorData *operator_state, DataChunk *input, DataChunk &output) {
+#endif
 	auto &data = (TPCDSData &)*operator_state;
 	idx_t tpcds_queries = tpcds::DSDGenWrapper::QueriesCount();
 	if (data.offset >= tpcds_queries) {
@@ -120,8 +134,13 @@ static unique_ptr<FunctionData> TPCDSQueryAnswerBind(ClientContext &context, vec
 	return nullptr;
 }
 
+#ifdef LINEAGE
+static void TPCDSQueryAnswerFunction(ExecutionContext &context, const FunctionData *bind_data,
+                                     FunctionOperatorData *operator_state, DataChunk *input, DataChunk &output) {
+#else
 static void TPCDSQueryAnswerFunction(ClientContext &context, const FunctionData *bind_data,
                                      FunctionOperatorData *operator_state, DataChunk *input, DataChunk &output) {
+#endif
 	auto &data = (TPCDSData &)*operator_state;
 	idx_t tpcds_queries = tpcds::DSDGenWrapper::QueriesCount();
 	vector<double> scale_factors {1, 10};
