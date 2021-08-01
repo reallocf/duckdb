@@ -4,6 +4,10 @@ import duckdb
 con = duckdb.connect(database=':memory:', read_only=False)
 con.execute("CREATE TABLE fires AS SELECT * FROM read_csv_auto('/tmp/fires_with_dropped_cols.csv')")
 
+con.execute("SELECT STAT_CAUSE_DESCR, COUNT(*) FROM fires GROUP BY STAT_CAUSE_DESCR").fetchall()
+con.execute("SELECT STATE, COUNT(*) FROM fires GROUP BY STATE").fetchall()
+con.execute("SELECT FIRE_YEAR, COUNT(*) FROM fires GROUP BY FIRE_YEAR").fetchall()
+
 ##### Query # 1
 con.execute("PRAGMA trace_lineage='ON'")
 arr = con.execute("SELECT STAT_CAUSE_DESCR, COUNT(*) FROM fires GROUP BY STAT_CAUSE_DESCR").fetchdf()
