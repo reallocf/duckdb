@@ -269,7 +269,7 @@ unique_ptr<DataChunk> Executor::FetchChunk() {
     if (context.trace_lineage  && econtext.lineage && !econtext.lineage->isEmpty()) {
         econtext.lineage->chunk_id = chunk_id++;
 		lineage_manager->Persist(physical_plan, econtext.lineage, context, false);
-        lineage_manager->AddOutputLineage(physical_plan, move(econtext.lineage));
+      //  lineage_manager->AddOutputLineage(physical_plan, move(econtext.lineage));
 	}
 #endif
 

@@ -111,7 +111,7 @@ void Pipeline::Execute(TaskContext &task) {
                 context.lineage->chunk_id = chunk_id++;
                 executor.lineage_manager->Persist( child, context.lineage, context.client, false );
                 executor.lineage_manager->Persist( sink, context.lineage, context.client, true);
-                executor.lineage_manager->AddLocalSinkLineage(sink, move(context.lineage));
+              //  executor.lineage_manager->AddLocalSinkLineage(sink, move(context.lineage));
 			}
 #endif
 			thread.profiler.EndOperator(nullptr);

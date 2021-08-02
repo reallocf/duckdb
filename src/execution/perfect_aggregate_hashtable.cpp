@@ -103,16 +103,20 @@ void PerfectAggregateHashTable::AddChunk(ExecutionContext &context, DataChunk &g
 		ComputeGroupLocation(groups.data[i], group_minima[i], address_data, current_shift, groups.size());
 	}
 
+#ifdef LINEAGE
     SelectionVector sel;
     sel.Initialize(STANDARD_VECTOR_SIZE);
+#endif
 
 	// now we have the HT entry number for every tuple
 	// compute the actual pointer to the data by adding it to the base HT pointer and multiplying by the tuple size
 	for (idx_t i = 0; i < groups.size(); i++) {
 		D_ASSERT(address_data[i] < total_groups);
 		group_is_set[address_data[i]] = true;
-		sel.set_index(i, address_data[i]);
-		address_data[i] = uintptr_t(data) + address_data[i] * tuple_size;
+#ifdef LINEAGE
+        sel.set_index(i, address_data[i]);
+#endif
+        address_data[i] = uintptr_t(data) + address_data[i] * tuple_size;
 	}
 
 #ifdef LINEAGE

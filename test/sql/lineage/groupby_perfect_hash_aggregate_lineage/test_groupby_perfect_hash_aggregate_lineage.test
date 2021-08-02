@@ -48,8 +48,8 @@ select t1.i, avg(t1.j) from t1 GROUP BY t1.i
 statement ok
 PRAGMA trace_lineage = "OFF";
 
-query II
-select sink.chunk_id, sink.index as input, out.chunk_id, out.index as output from PERFECT_HASH_GROUP_BY_0_OUT as out, PERFECT_HASH_GROUP_BY_0_SINK as sink where out.chunk_id=sink.chunk_id and out.value=sink.value;
+query IIII
+select sink.chunk_id, sink.index as input, out.chunk_id, out.index as output from PERFECT_HASH_GROUP_BY_9_0_OUT as out, PERFECT_HASH_GROUP_BY_9_0_SINK as sink where out.chunk_id=sink.chunk_id and out.value=sink.value;
 ----
 0	0	0	0
 0	1	0	3
@@ -61,7 +61,7 @@ select sink.chunk_id, sink.index as input, out.chunk_id, out.index as output fro
 0	7	0	3
 
 query IIII
-select rowid, chunk_id, index, value from PERFECT_HASH_GROUP_BY_0_OUT;
+select rowid, chunk_id, index, value from PERFECT_HASH_GROUP_BY_9_0_OUT;
 ----
 0	0	0	1
 1	0	1	2
@@ -70,7 +70,7 @@ select rowid, chunk_id, index, value from PERFECT_HASH_GROUP_BY_0_OUT;
 
 
 query IIII
-select rowid, chunk_id, index, value from PERFECT_HASH_GROUP_BY_0_SINK;
+select rowid, chunk_id, index, value from PERFECT_HASH_GROUP_BY_9_0_SINK;
 ----
 0	0	0	1
 1	0	1	5
@@ -83,6 +83,6 @@ select rowid, chunk_id, index, value from PERFECT_HASH_GROUP_BY_0_SINK;
 
 
 query IIII
-select rowid, chunk_id, range_start, range_end from SEQ_SCAN_0_range;
+select rowid, chunk_id, range_start, range_end from SEQ_SCAN_9_0_range;
 ----
 0	0	0	8
