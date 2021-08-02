@@ -275,8 +275,7 @@ void PerfectAggregateHashTable::Scan(ExecutionContext &context, idx_t &scan_posi
 #ifdef LINEAGE
     // log group_values & count for this chunk
     // maps output to groups
-
-    unique_ptr<uint32_t[]> group_values_ptr(new uint32_t(entry_count));
+    unique_ptr<uint32_t[]> group_values_ptr(new uint32_t[entry_count]);
     std::copy(group_values, group_values + entry_count, group_values_ptr.get());
     auto per_chunk_lineage = make_unique<LineageDataArray<uint32_t>>(move(group_values_ptr), entry_count);
     auto lop = make_shared<LineageOpUnary>(move(per_chunk_lineage));

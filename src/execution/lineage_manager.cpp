@@ -565,7 +565,6 @@ void ManageLineage::Persist(PhysicalOperator *op, shared_ptr<LineageContext> lin
             // schema: [oidx idx_t, group idx_t]
             //         maps a row in the output to a group
             lop->data->persist(context, tablename + "_OUT", lineage->chunk_id);
-            Persist(op->children[0].get(), move(lineage), context, is_sink);
         }
         break;
     }

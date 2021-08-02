@@ -53,7 +53,7 @@ void PhysicalFilter::GetChunkInternal(ExecutionContext &context, DataChunk &chun
 
 #ifdef LINEAGE
 //	if (context.trace_lineage)
-    unique_ptr<sel_t[]> filter_sel(new sel_t(result_count));
+    unique_ptr<sel_t[]> filter_sel(new sel_t[result_count]);
     std::copy(sel.sel_data()->owned_data.get(), sel.sel_data()->owned_data.get() + result_count, filter_sel.get());
     context.lineage->RegisterDataPerOp(
         this,
