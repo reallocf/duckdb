@@ -31,10 +31,17 @@ def executeSQL():
   # Execute one set of queries at a time so we can handle PRAGMA trace_lineage='ON'/'OFF'
   dbLock.acquire()
   try:
-    res = {"res": {sql['name']: jsonifyDuckData(con.execute(sql["value"]).fetchall()) for sql in sqls}}
+    res = {"res": dict()}
+    for sql in sqls:
+      thisRes = ''
+      if sql['nores'] is True:
+        con.execute(sql['value'])
+      else:
+        thisRes = jsonifyDuckData(con.execute(sql["value"]).fetchall())
+      res['res'][sql['name']] = thisRes
   finally:
     dbLock.release()
   return res
 
 if __name__ == "__main__":
-        app.run(host='0.0.0.0', debug=False, threaded=True)
+  app.run(host='0.0.0.0', debug=False, threaded=True)
