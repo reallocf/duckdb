@@ -227,6 +227,10 @@ void PhysicalHashJoin::GetChunkInternal(ExecutionContext &context, DataChunk &ch
 					chunk.Reset();
 				}
 			} else {
+#ifdef LINEAGE
+                auto lop = make_shared<LineageOpCollection>(lop_per_chunk);
+                context.lineage->RegisterDataPerOp(this, lop );
+#endif
 				return;
 			}
 #else
