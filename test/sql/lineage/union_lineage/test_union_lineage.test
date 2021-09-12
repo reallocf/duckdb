@@ -1,0 +1,29 @@
+# name: test/sql/lineage/union_lineage/test_union_lineage.test
+# description: Test Union Lineage
+# group: [union_lineage]
+
+
+statement ok
+CREATE TABLE t1(i INTEGER);
+
+statement ok
+CREATE TABLE t2(i INTEGER);
+
+statement ok
+INSERT INTO t1 SELECT i FROM range(0,2) tbl(i);
+
+statement ok
+INSERT INTO t2 SELECT i FROM range(0, 6) tbl(i);
+
+statement ok
+PRAGMA enable_profiling;
+
+query I
+select * from t1 union select * from t2
+----
+0
+1
+2
+3
+4
+5

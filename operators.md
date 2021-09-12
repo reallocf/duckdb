@@ -110,7 +110,7 @@ Operator list with related lineage info
     :white_check_mark: 
 
 ### UNION
-19. `Union` TODO
+19. `Union` DONE
 
     No selection vectors used, but lineage capture can be represented with number capture so should be straightforward.
     :white_check_mark:
