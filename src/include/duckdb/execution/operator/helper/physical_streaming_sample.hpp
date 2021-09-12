@@ -30,8 +30,8 @@ public:
 	string ParamsToString() const override;
 
 private:
-	void SystemSample(DataChunk &input, DataChunk &result, PhysicalOperatorState *state);
-	void BernoulliSample(DataChunk &input, DataChunk &result, PhysicalOperatorState *state);
+	void SystemSample(ExecutionContext &context, DataChunk &input, DataChunk &result, PhysicalOperatorState *state);
+	void BernoulliSample(ExecutionContext &context, DataChunk &input, DataChunk &result, PhysicalOperatorState *state);
 };
 
 } // namespace duckdb

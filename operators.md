@@ -40,7 +40,7 @@ Operator list with related lineage info
 
 `ReservoirSample` TODO
 
-`StreamingSample` TODO
+`StreamingSample` DONE
 
 ### JOIN
 7. `BlockwiseNLJoin` TODO - Arbitrary expression that doesn't compare between each side
