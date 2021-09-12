@@ -104,7 +104,7 @@ Operator list with related lineage info
 `Unnest` TODO
 
 ### SCAN
-17. `ChunkScan` TODO
+17. `ChunkScan` DONE
 
     No selection vectors used, should be able to capture lineage implicitly or with number capture.
     :white_check_mark: 
