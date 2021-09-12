@@ -36,6 +36,12 @@ Operator list with related lineage info
     But it should be easy to capture since lineage capture logic can be represented with just numbers here.
     :white_check_mark:
 
+### SAMPLE
+
+`ReservoirSample` TODO
+
+`StreamingSample` TODO
+
 ### JOIN
 7. `BlockwiseNLJoin` TODO - Arbitrary expression that doesn't compare between each side
 

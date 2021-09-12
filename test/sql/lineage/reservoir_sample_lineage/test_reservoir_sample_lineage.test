@@ -1,0 +1,22 @@
+# name: test/sql/lineage/reservoir_sample_lineage/test_reservoir_sample_lineage.test
+# description: Test Reservoir Sample Lineage
+# group: [reservoir_sample_lineage]
+
+# TODO - actually implement lineage for reservoir sample
+
+
+statement ok
+CREATE TABLE t1(i INTEGER);
+
+statement ok
+INSERT INTO t1 SELECT i FROM range(0, 6) tbl(i);
+
+statement ok
+PRAGMA enable_profiling;
+
+query I
+select * from t1 using sample 3 rows
+----
+0
+5
+2
