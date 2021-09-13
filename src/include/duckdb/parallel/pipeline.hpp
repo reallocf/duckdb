@@ -27,6 +27,7 @@ public:
 	Pipeline(Executor &execution_context, ProducerToken &token);
 
 	Executor &executor;
+    shared_ptr<ExecutionContext> execution_context; // This is a hack to thread through the LineageContext to Finalize for OrderBy
 	ProducerToken &token;
     int chunk_id = 0;
 

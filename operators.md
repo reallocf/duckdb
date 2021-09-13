@@ -83,7 +83,7 @@ Operator list with related lineage info
     :white_check_mark: 
 
 ### ORDER BY
-14. `Order` TODO
+14. `Order` DONE
 
     A selection vector is captured and passed around that looks promising. More exploration necessary to confirm.
     :white_check_mark: 
@@ -99,9 +99,9 @@ Operator list with related lineage info
     Pass-through for lineage.
     :white_check_mark:
     
-`TableInOut` TODO
+`TableInOut` TODO - what does this do? more exploration necessary
 
-`Unnest` TODO
+`Unnest` TODO - hard to do since nested structures can't be used in testing framework... hmmm...
 
 ### SCAN
 17. `ChunkScan` DONE
