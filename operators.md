@@ -78,7 +78,7 @@ Operator list with related lineage info
     Uses selection vectors throughout. Very promising.
     :white_check_mark: 
 
-13. `PiecewiseMergeJoin` TODO - Neither equality nor inequality
+13. `PiecewiseMergeJoin` DONE - Neither equality nor inequality
 
     Selection vectors used for ordering which should definitely be usable.
     Also capturing selection vectors as part of ScalarMergeInfo.
