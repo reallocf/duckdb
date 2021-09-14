@@ -59,6 +59,8 @@ Operator list with related lineage info
 
     No selection vectors used and data goes into a distinct aggregate hashtable. Seems hard.
     :x: 
+    Second look: this join is crazy. I left a test executing it, but it only seems to care about one side of the join?
+    Very weird, but unfortunately used fairly often in TPC-H (9/22 queries) so we'll need to figure something out.
 
 10. `HashJoin` DONE - Equality && not IndexJoin
 
