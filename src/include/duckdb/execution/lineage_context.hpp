@@ -197,6 +197,60 @@ public:
 	LogicalType type;
 };
 
+
+class LineageSelVec : public LineageData {
+public:
+
+    LineageSelVec (SelectionVector vec_p, idx_t count, idx_t offset = 0, LogicalType type = LogicalType::INTEGER) :
+        vec(move(vec_p)), count(count), type(type), offset(offset) {
+#ifdef LINEAGE_DEBUG
+        this->debug();
+#endif
+    }
+
+    void persist(ClientContext &context, string tablename, int32_t chunk_id, int seq_offset = 0) {
+        TableCatalogEntry * table = Catalog::GetCatalog(context).GetEntry<TableCatalogEntry>(context,  DEFAULT_SCHEMA, tablename);
+        DataChunk insert_chunk;
+        insert_chunk.Initialize(table->GetTypes());
+        insert_chunk.SetCardinality(count);
+
+        // map payload to a vector
+        Vector payload;
+        payload.SetType(table->GetTypes()[0]);
+        FlatVector::SetData(payload, (data_ptr_t)&vec.sel_data()->owned_data[0]);
+
+		// map segment id to a vector
+        Vector chunk_ids;
+        chunk_ids.SetType(table->GetTypes()[2]);
+        chunk_ids.Reference( Value::Value::INTEGER(chunk_id));
+
+        // populate chunk
+        insert_chunk.data[0].Reference(payload);
+        insert_chunk.data[1].Sequence(seq_offset, 1);
+        insert_chunk.data[2].Reference(chunk_ids);
+
+        table->Persist(*table, context, insert_chunk);
+
+    }
+
+    void debug() {
+        std::cout << "LineageSelVec " << " " << typeid(vec).name() << std::endl;
+        for (idx_t i = 0; i < count; i++) {
+            std::cout << " (" << i << " -> " << vec.sel_data()->owned_data[i] << ") ";
+        }
+        std::cout << std::endl;
+    }
+
+    unsigned long size_bytes() {
+        return count * sizeof(vec.get_index(0));
+    }
+
+    SelectionVector vec;
+    idx_t count;
+    LogicalType type;
+	idx_t offset;
+};
+
 // A PassThrough to indicate that the operator doesn't affect lineage at all
 // for example in the case of a Projection
 class LineagePassThrough : public LineageData {
