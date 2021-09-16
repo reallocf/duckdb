@@ -65,14 +65,12 @@ void PhysicalStreamingSample::BernoulliSample(ExecutionContext &context, DataChu
 	if (result_count > 0) {
 		result.Slice(input, sel, result_count);
 	}
-#ifdef LINEAGE
-    unique_ptr<sel_t[]> bernoulli_sel(new sel_t[result_count]);
-    std::copy(sel.sel_data()->owned_data.get(), sel.sel_data()->owned_data.get() + result_count, bernoulli_sel.get());
+//#ifdef LINEAGE
     context.lineage->RegisterDataPerOp(
         this,
-        make_shared<LineageOpUnary>(make_shared<LineageDataArray<sel_t>>(move(bernoulli_sel), result_count))
+        make_shared<LineageOpUnary>(make_shared<LineageSelVec>(move(sel), result_count))
     );
-#endif
+//#endif
 }
 
 void PhysicalStreamingSample::GetChunkInternal(ExecutionContext &context, DataChunk &chunk,

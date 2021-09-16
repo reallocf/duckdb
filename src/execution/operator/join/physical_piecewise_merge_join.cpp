@@ -275,23 +275,11 @@ void PhysicalPiecewiseMergeJoin::ResolveComplexJoin(ExecutionContext &context, D
 			chunk.Slice(state->child_chunk, left_info.result, result_count);
 			chunk.Slice(right_chunk, right_info.result, result_count, state->child_chunk.ColumnCount());
 #ifdef LINEAGE
-			unique_ptr<sel_t[]> left_sel(new sel_t[result_count]);
-			unique_ptr<sel_t[]> right_sel(new sel_t[result_count]);
-			std::copy(
-				left_info.result.sel_data()->owned_data.get(),
-				left_info.result.sel_data()->owned_data.get() + result_count,
-				left_sel.get()
-			);
-			std::copy(
-				right_info.result.sel_data()->owned_data.get(),
-				right_info.result.sel_data()->owned_data.get() + result_count,
-				right_sel.get()
-			);
 			context.lineage->RegisterDataPerOp(
 				this,
 				make_shared<LineageOpBinary>(
-					make_shared<LineageDataArray<sel_t>>(move(left_sel), result_count),
-			        make_shared<LineageDataArray<sel_t>>(move(right_sel), result_count)
+					make_shared<LineageSelVec>(move(left_info.result), result_count),
+					make_shared<LineageSelVec>(move(right_info.result), result_count)
 			    )
 			);
 #endif

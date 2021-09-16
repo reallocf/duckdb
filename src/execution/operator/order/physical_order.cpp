@@ -382,6 +382,7 @@ static void RadixSort(BufferManager &buffer_manager, data_ptr_t dataptr, const i
 			lineage_tmp.set_index(slot, lineage_sel.get_index(i - 1));
 		}
 		for (idx_t i = 0; i < count; i++) {
+			// TODO can we speed this up by using std::move() instead?
 			auto tmp = lineage_sel.get_index(i);
 			lineage_sel.set_index(i, lineage_tmp.get_index(i));
 			lineage_tmp.set_index(i, tmp);
@@ -793,15 +794,12 @@ void PhysicalOrder::Finalize(Pipeline &pipeline, ClientContext &context, unique_
 	// now perform the actual sort
 	SortInMemory(pipeline, context, state, lineage_sel);
 
-#ifdef LINEAGE
+//#ifdef LINEAGE
     pipeline.execution_context->lineage->RegisterDataPerOp(
         this,
-        make_shared<LineageOpUnary>(make_shared<LineageDataArray<sel_t>>(
-	        move(lineage_sel.sel_data()->owned_data),
-	        count
-	    ))
+        make_shared<LineageOpUnary>(make_shared<LineageSelVec>(move(lineage_sel), count))
     );
-#endif
+//#endif
 
 	// cleanup
 	auto &buffer_manager = BufferManager::GetBufferManager(context);
