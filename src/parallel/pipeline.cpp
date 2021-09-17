@@ -33,8 +33,8 @@ public:
 };
 
 Pipeline::Pipeline(Executor &executor_p, ProducerToken &token_p)
-    : executor(executor_p), token(token_p), finished_tasks(0), total_tasks(0), finished_dependencies(0),
-      finished(false), recursive_cte(nullptr) {
+    : executor(executor_p), execution_context(nullptr), token(token_p), finished_tasks(0), total_tasks(0),
+      finished_dependencies(0), finished(false), recursive_cte(nullptr) {
 }
 
 bool Pipeline::GetProgress(ClientContext &context, PhysicalOperator *op, int &current_percentage) {
@@ -123,6 +123,7 @@ void Pipeline::Execute(TaskContext &task) {
 		executor.PushError("Unknown exception in pipeline!");
 	}
 	executor.Flush(thread);
+    execution_context = std::make_shared<ExecutionContext>(context);
 }
 
 void Pipeline::FinishTask() {

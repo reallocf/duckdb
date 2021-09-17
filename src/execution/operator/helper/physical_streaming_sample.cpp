@@ -22,7 +22,8 @@ public:
 	RandomEngine random;
 };
 
-void PhysicalStreamingSample::SystemSample(DataChunk &input, DataChunk &result, PhysicalOperatorState *state_p) {
+void PhysicalStreamingSample::SystemSample(ExecutionContext &context, DataChunk &input, DataChunk &result,
+                                           PhysicalOperatorState *state_p) {
 	// system sampling: we throw one dice per chunk
 	auto &state = (StreamingSampleOperatorState &)*state_p;
 	double rand = state.random.NextRandom();
@@ -30,9 +31,26 @@ void PhysicalStreamingSample::SystemSample(DataChunk &input, DataChunk &result, 
 		// rand is smaller than sample_size: output chunk
 		result.Reference(input);
 	}
+#ifdef LINEAGE
+	if (rand <= percentage) {
+		// Pass through if this chunk is selected
+        context.lineage->RegisterDataPerOp(
+            this,
+            make_shared<LineageOpUnary>(make_shared<LineagePassThrough>())
+        );
+	} else {
+		// Nothing if this chunk isn't selected
+        unique_ptr<sel_t[]> none_sel(new sel_t[0]);
+		context.lineage->RegisterDataPerOp(
+		    this,
+		    make_shared<LineageOpUnary>(make_shared<LineageDataArray<sel_t>>(move(none_sel), 0))
+		);
+	}
+#endif
 }
 
-void PhysicalStreamingSample::BernoulliSample(DataChunk &input, DataChunk &result, PhysicalOperatorState *state_p) {
+void PhysicalStreamingSample::BernoulliSample(ExecutionContext &context, DataChunk &input, DataChunk &result,
+                                              PhysicalOperatorState *state_p) {
 	// bernoulli sampling: we throw one dice per tuple
 	// then slice the result chunk
 	auto &state = (StreamingSampleOperatorState &)*state_p;
@@ -47,6 +65,12 @@ void PhysicalStreamingSample::BernoulliSample(DataChunk &input, DataChunk &resul
 	if (result_count > 0) {
 		result.Slice(input, sel, result_count);
 	}
+//#ifdef LINEAGE
+    context.lineage->RegisterDataPerOp(
+        this,
+        make_shared<LineageOpUnary>(make_shared<LineageSelVec>(move(sel), result_count))
+    );
+//#endif
 }
 
 void PhysicalStreamingSample::GetChunkInternal(ExecutionContext &context, DataChunk &chunk,
@@ -61,10 +85,10 @@ void PhysicalStreamingSample::GetChunkInternal(ExecutionContext &context, DataCh
 
 		switch (method) {
 		case SampleMethod::BERNOULLI_SAMPLE:
-			BernoulliSample(state->child_chunk, chunk, state);
+			BernoulliSample(context, state->child_chunk, chunk, state);
 			break;
 		case SampleMethod::SYSTEM_SAMPLE:
-			SystemSample(state->child_chunk, chunk, state);
+			SystemSample(context, state->child_chunk, chunk, state);
 			break;
 		default:
 			throw InternalException("Unsupported sample method for streaming sample");

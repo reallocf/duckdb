@@ -22,8 +22,8 @@ class ExecutionContext {
 public:
 
     ExecutionContext(ClientContext &client_p, ThreadContext &thread_p, TaskContext &task_p, bool trace_lineage)
-        : client(client_p), thread(thread_p), task(task_p), trace_lineage(trace_lineage) {
-        lineage = make_unique<LineageContext>();
+        : client(client_p), thread(thread_p), task(task_p), lineage(make_shared<LineageContext>()),
+	      trace_lineage(trace_lineage) {
     }
 
     void setCurrent(PhysicalOperator * op) {

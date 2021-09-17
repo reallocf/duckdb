@@ -274,6 +274,15 @@ void PhysicalPiecewiseMergeJoin::ResolveComplexJoin(ExecutionContext &context, D
 			// found matches: output them
 			chunk.Slice(state->child_chunk, left_info.result, result_count);
 			chunk.Slice(right_chunk, right_info.result, result_count, state->child_chunk.ColumnCount());
+#ifdef LINEAGE
+			context.lineage->RegisterDataPerOp(
+				this,
+				make_shared<LineageOpBinary>(
+					make_shared<LineageSelVec>(move(left_info.result), result_count),
+					make_shared<LineageSelVec>(move(right_info.result), result_count)
+			    )
+			);
+#endif
 		}
 	} while (chunk.size() == 0);
 }

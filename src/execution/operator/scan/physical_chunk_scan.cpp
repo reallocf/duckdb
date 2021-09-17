@@ -23,6 +23,13 @@ void PhysicalChunkScan::GetChunkInternal(ExecutionContext &context, DataChunk &c
 	}
 	auto &collection_chunk = collection->GetChunk(state->chunk_index);
 	chunk.Reference(collection_chunk);
+#ifdef LINEAGE
+	// TODO - thread through chunk index?
+    context.lineage->RegisterDataPerOp(
+        this,
+        make_shared<LineageOpUnary>(make_shared<LineagePassThrough>())
+    );
+#endif
 	state->chunk_index++;
 }
 
