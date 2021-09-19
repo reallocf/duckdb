@@ -1,0 +1,24 @@
+# name: test/sql/lineage/delim_join_lineage/test_delim_join_lineage.test
+# description: Test Delim Join Lineage
+# group: [delim_join_lineage]
+
+
+statement ok
+CREATE TABLE t1(i INTEGER);
+CREATE TABLE t2(i INTEGER)
+
+statement ok
+INSERT INTO t1 VALUES (1), (2), (42), (2), (5), (8);
+INSERT INTO t2 VALUES (1), (2), (2), (3), (6)
+
+statement ok
+PRAGMA enable_profiling;
+
+query I
+SELECT (SELECT 42 FROM t2 WHERE t1.i = 2) FROM t2 t1
+----
+NULL
+42
+42
+NULL
+NULL

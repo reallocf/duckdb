@@ -1,0 +1,53 @@
+# name: test/sql/lineage/order_by_lineage/test_order_by_lineage.test
+# description: Test Order By Lineage
+# group: [order_by_lineage]
+
+
+statement ok
+CREATE TABLE t1(i INTEGER, j STRING);
+
+statement ok
+INSERT INTO t1 VALUES (30000, 'foo'), (2, 'bar'), (1, 'baz'), (8388608, 'e'), (2, 'abcdefghijkl');
+
+statement ok
+PRAGMA enable_profiling;
+
+# Expected lineage: [2, 1, 4, 0, 3]
+query II
+select * from t1 order by i ASC
+----
+1	baz
+2	bar
+2	abcdefghijkl
+30000	foo
+8388608	e
+
+# Expected lineage: [3, 0, 1, 4, 2]
+query II
+select * from t1 order by i DESC
+----
+8388608	e
+30000	foo
+2	bar
+2	abcdefghijkl
+1	baz
+
+# Expected lineage: [4, 1, 2, 3, 0]
+query II
+select * from t1 order by j
+----
+2	abcdefghijkl
+2	bar
+1	baz
+8388608	e
+30000	foo
+
+# Expected lineage: [2, 4, 1, 0, 3]
+query II
+select * from t1 order by i, j
+----
+1	baz
+2	abcdefghijkl
+2	bar
+30000	foo
+8388608	e

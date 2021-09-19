@@ -1,0 +1,21 @@
+# name: test/sql/lineage/streaming_sample_lineage/test_streaming_sample_lineage.test
+# description: Test Streaming Sample Lineage
+# group: [streaming_sample_lineage]
+
+
+statement ok
+CREATE TABLE t1(i INTEGER);
+
+statement ok
+INSERT INTO t1 SELECT i FROM range(0, 6) tbl(i);
+
+statement ok
+PRAGMA enable_profiling;
+
+query I nosort bernoulliseed
+select * from range(100) using sample 10% (bernoulli, 250)
+----
+
+query I nosort systemseed
+select * from range(100) using sample 10% (system, 250)
+----

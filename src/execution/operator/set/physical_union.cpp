@@ -34,6 +34,12 @@ void PhysicalUnion::GetChunkInternal(ExecutionContext &context, DataChunk &chunk
 	if (chunk.size() == 0) {
 		state->finished = true;
 	}
+#ifdef LINEAGE
+    context.lineage->RegisterDataPerOp(
+        this,
+        make_shared<LineageOpBinary>(make_shared<LineagePassThrough>(), make_shared<LineagePassThrough>())
+    );
+#endif
 }
 
 unique_ptr<PhysicalOperatorState> PhysicalUnion::GetOperatorState() {

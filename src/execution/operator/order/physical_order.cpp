@@ -347,11 +347,15 @@ void PhysicalOrder::Combine(ExecutionContext &context, GlobalOperatorState &gsta
 }
 
 static void RadixSort(BufferManager &buffer_manager, data_ptr_t dataptr, const idx_t &count, const idx_t &col_offset,
-                      const idx_t &sorting_size, const SortingState &sorting_state) {
+                      const idx_t &sorting_size, const SortingState &sorting_state, SelectionVector &lineage_sel) {
 	auto temp_block =
 	    buffer_manager.Allocate(MaxValue(count * sorting_state.ENTRY_SIZE, (idx_t)Storage::BLOCK_ALLOC_SIZE));
 	data_ptr_t temp = temp_block->node->buffer;
 	bool swap = false;
+	idx_t slot;
+#ifdef LINEAGE
+	SelectionVector lineage_tmp = SelectionVector(count);
+#endif
 
 	idx_t counts[256];
 	uint8_t byte;
@@ -370,9 +374,19 @@ static void RadixSort(BufferManager &buffer_manager, data_ptr_t dataptr, const i
 		// re-order the data in temporary array
 		for (idx_t i = count; i > 0; i--) {
 			byte = *(dataptr + (i - 1) * sorting_state.ENTRY_SIZE + offset);
-			memcpy(temp + (counts[byte] - 1) * sorting_state.ENTRY_SIZE, dataptr + (i - 1) * sorting_state.ENTRY_SIZE,
+			slot = counts[byte] - 1;
+			memcpy(temp + slot * sorting_state.ENTRY_SIZE, dataptr + (i - 1) * sorting_state.ENTRY_SIZE,
 			       sorting_state.ENTRY_SIZE);
 			counts[byte]--;
+#ifdef LINEAGE
+			lineage_tmp.set_index(slot, lineage_sel.get_index(i - 1));
+		}
+		for (idx_t i = 0; i < count; i++) {
+			// TODO can we speed this up by using std::move() instead?
+			auto tmp = lineage_sel.get_index(i);
+			lineage_sel.set_index(i, lineage_tmp.get_index(i));
+			lineage_tmp.set_index(i, tmp);
+#endif
 		}
 		std::swap(dataptr, temp);
 		swap = !swap;
@@ -380,12 +394,15 @@ static void RadixSort(BufferManager &buffer_manager, data_ptr_t dataptr, const i
 	// move data back to original buffer (if it was swapped)
 	if (swap) {
 		memcpy(temp, dataptr, count * sorting_state.ENTRY_SIZE);
+#ifdef LINEAGE
+		memcpy(lineage_sel.data(), lineage_tmp.data(), count);
+#endif
 	}
 }
 
 static void SubSortTiedTuples(BufferManager &buffer_manager, const data_ptr_t dataptr, const idx_t &count,
                               const idx_t &col_offset, const idx_t &sorting_size, bool ties[],
-                              const SortingState &sorting_state) {
+                              const SortingState &sorting_state, SelectionVector &lineage_sel) {
 	D_ASSERT(!ties[count - 1]);
 	for (idx_t i = 0; i < count; i++) {
 		if (!ties[i]) {
@@ -398,7 +415,7 @@ static void SubSortTiedTuples(BufferManager &buffer_manager, const data_ptr_t da
 			}
 		}
 		RadixSort(buffer_manager, dataptr + i * sorting_state.ENTRY_SIZE, j - i + 1, col_offset, sorting_size,
-		          sorting_state);
+		          sorting_state, lineage_sel);
 		i = j;
 	}
 }
@@ -577,7 +594,7 @@ static bool AnyTies(bool ties[], const idx_t &count) {
 	return any_ties;
 }
 
-static void SortInMemory(Pipeline &pipeline, ClientContext &context, OrderGlobalState &state) {
+static void SortInMemory(Pipeline &pipeline, ClientContext &context, OrderGlobalState &state, SelectionVector &lineage_sel) {
 	const auto &sorting_state = *state.sorting_state;
 	auto &buffer_manager = BufferManager::GetBufferManager(context);
 
@@ -600,7 +617,7 @@ static void SortInMemory(Pipeline &pipeline, ClientContext &context, OrderGlobal
 	}
 
 	if (all_constant) {
-		RadixSort(buffer_manager, dataptr, count, 0, sorting_size, sorting_state);
+		RadixSort(buffer_manager, dataptr, count, 0, sorting_size, sorting_state, lineage_sel);
 		return;
 	}
 
@@ -618,14 +635,14 @@ static void SortInMemory(Pipeline &pipeline, ClientContext &context, OrderGlobal
 
 		if (!ties) {
 			// this is the first sort
-			RadixSort(buffer_manager, dataptr, count, col_offset, sorting_size, sorting_state);
+			RadixSort(buffer_manager, dataptr, count, col_offset, sorting_size, sorting_state, lineage_sel);
 			ties_handle = buffer_manager.Allocate(MaxValue(count, (idx_t)Storage::BLOCK_ALLOC_SIZE));
 			ties = (bool *)ties_handle->node->buffer;
 			std::fill_n(ties, count - 1, true);
 			ties[count - 1] = false;
 		} else {
 			// for subsequent sorts, we subsort the tied tuples
-			SubSortTiedTuples(buffer_manager, dataptr, count, col_offset, sorting_size, ties, sorting_state);
+			SubSortTiedTuples(buffer_manager, dataptr, count, col_offset, sorting_size, ties, sorting_state, lineage_sel);
 		}
 
 		if (sorting_state.CONSTANT_SIZE[i] && i == num_cols - 1) {
@@ -766,8 +783,23 @@ void PhysicalOrder::Finalize(Pipeline &pipeline, ClientContext &context, unique_
 		SizesToOffsets(state.buffer_manager, *state.sizes_block, capacity);
 	}
 
+	auto count = state.sorting_block->blocks.back().count;
+	auto lineage_sel = SelectionVector(count);
+#ifdef LINEAGE
+    for (idx_t i = 0; i < count; i++) {
+        lineage_sel.set_index(i, i);
+    }
+#endif
+
 	// now perform the actual sort
-	SortInMemory(pipeline, context, state);
+	SortInMemory(pipeline, context, state, lineage_sel);
+
+//#ifdef LINEAGE
+    pipeline.execution_context->lineage->RegisterDataPerOp(
+        this,
+        make_shared<LineageOpUnary>(make_shared<LineageSelVec>(move(lineage_sel), count))
+    );
+//#endif
 
 	// cleanup
 	auto &buffer_manager = BufferManager::GetBufferManager(context);
