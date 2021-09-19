@@ -9,6 +9,10 @@ CREATE TABLE t1(i INTEGER, j INTEGER);
 statement ok
 INSERT INTO t1 SELECT i+1, i FROM range(0,2024) tbl(i);
 
+
+statement ok
+PRAGMA trace_lineage = "ON";
+
 # standalone limit
 query III
 select rowid, i, j from t1 where i < 5 or j > 2020;
@@ -20,9 +24,19 @@ select rowid, i, j from t1 where i < 5 or j > 2020;
 2021	2022	2021
 2022	2023	2022
 2023	2024	2023
----
+
+
+statement ok
+PRAGMA trace_lineage = "OFF";
+
+query II
+SELECT * FROM queries_list;
+----
+7	select rowid, i, j from t1 where i < 5 or j > 2020;
+9	PRAGMA trace_lineage = "OFF";
+
 query IIII
-select rowid, chunk_id, index, value from FILTER;
+select rowid, chunk_id, index, value from FILTER_7_0;
 ----
 0	0	0	0
 1	0	1	1

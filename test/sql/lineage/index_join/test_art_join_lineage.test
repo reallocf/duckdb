@@ -37,8 +37,14 @@ select t1.i, t1.j, t2.i from t1 inner join t2 on (t1.i = t2.i)
 statement ok
 PRAGMA trace_lineage = "OFF";
 
+query II
+SELECT * FROM queries_list;
+----
+17	select t1.i, t1.j, t2.i from t1 inner join t2 on (t1.i = t2.i)
+19	PRAGMA trace_lineage = "OFF";
+
 query IIII
-select rowid, chunk_id, index, value from INDEX_JOIN_0_LHS;
+select rowid, chunk_id, index, value from INDEX_JOIN_17_0_LHS;
 ----
 0	0	0	0
 1	0	1	1
@@ -52,7 +58,7 @@ select rowid, chunk_id, index, value from INDEX_JOIN_0_LHS;
 9	0	9	9
 
 query IIII
-select rowid, chunk_id, index, value from INDEX_JOIN_0_RHS;
+select rowid, chunk_id, index, value from INDEX_JOIN_17_0_RHS;
 ----
 0	0	0	50
 1	0	1	51

@@ -46,19 +46,25 @@ statement ok
 PRAGMA trace_lineage = "OFF";
 
 
+query II
+SELECT * FROM queries_list;
+----
+11	select * from t1 where i < 5 or i > 1075;
+13	PRAGMA trace_lineage = "OFF";
+
 query IIII
-select rowid, chunk_id, range_start, range_end from SEQ_SCAN_0_range;
+select rowid, chunk_id, range_start, range_end from SEQ_SCAN_11_0_range;
 ----
 0	0	0	1024
 1	1	1024	1080
 
 query IIII
-select rowid, chunk_id, index, value from SEQ_SCAN_0_filter;
+select rowid, chunk_id, index, value from SEQ_SCAN_11_0_filter;
 ----
 
 
 query IIII
-select rowid, chunk_id, index, value from FILTER_0;
+select rowid, chunk_id, index, value from FILTER_11_0;
 ----
 0	0	0	0
 1	0	1	1
@@ -72,7 +78,7 @@ select rowid, chunk_id, index, value from FILTER_0;
 
 # todo: how to map final rowid to (chunk_id, index) within lineage?
 query II
-select f.index as output, (f.value + r.range_start) as input from SEQ_SCAN_0_range as r, FILTER_0 as f where r.chunk_id=f.chunk_id;
+select f.index as output, (f.value + r.range_start) as input from SEQ_SCAN_11_0_range as r, FILTER_11_0 as f where r.chunk_id=f.chunk_id;
 ----
 0	0
 1	1

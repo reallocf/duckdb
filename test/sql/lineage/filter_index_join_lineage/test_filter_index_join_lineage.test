@@ -59,8 +59,14 @@ select t1.i, t1.j, t2.i from t1 inner join t2 on (t1.i = t2.i) where  t2.i < 70 
 statement ok
 PRAGMA trace_lineage = "OFF";
 
+query II
+SELECT * FROM queries_list;
+----
+19	select t1.i, t1.j, t2.i from t1 inner join t2 on (t1.i = t2.i) where  t2.i < 70 ;
+21	PRAGMA trace_lineage = "OFF";
+
 query IIII
-select rowid, chunk_id, index, value from INDEX_JOIN_0_LHS;
+select rowid, chunk_id, index, value from INDEX_JOIN_19_0_LHS;
 ----
 0	0	0	0
 1	0	1	1
@@ -74,7 +80,7 @@ select rowid, chunk_id, index, value from INDEX_JOIN_0_LHS;
 9	0	9	9
 
 query IIII
-select f.rowid, f.chunk_id, f.index, f.value + r.range_start from SEQ_SCAN_0_range as r, SEQ_SCAN_0_filter as f where  r.chunk_id == f.chunk_id;
+select f.rowid, f.chunk_id, f.index, f.value + r.range_start from SEQ_SCAN_19_0_range as r, SEQ_SCAN_19_0_filter as f where  r.chunk_id == f.chunk_id;
 ----
 0	0	0	0
 1	0	1	1
@@ -97,7 +103,7 @@ select f.rowid, f.chunk_id, f.index, f.value + r.range_start from SEQ_SCAN_0_ran
 18	0	18	18
 
 query II
-select s.value as input_id, j_lhs.value as output_id from INDEX_JOIN_0_LHS as j_lhs, (select  f.chunk_id as chunk_id, f.index as index, (f.value + r.range_start) as value from SEQ_SCAN_0_range as r, SEQ_SCAN_0_filter as f where  r.chunk_id == f.chunk_id) as s where s.chunk_id=j_lhs.chunk_id and s.index = j_lhs.value;
+select s.value as input_id, j_lhs.value as output_id from INDEX_JOIN_19_0_LHS as j_lhs, (select  f.chunk_id as chunk_id, f.index as index, (f.value + r.range_start) as value from SEQ_SCAN_19_0_range as r, SEQ_SCAN_19_0_filter as f where  r.chunk_id == f.chunk_id) as s where s.chunk_id=j_lhs.chunk_id and s.index = j_lhs.value;
 ----
 0	0
 1	1
@@ -112,7 +118,7 @@ select s.value as input_id, j_lhs.value as output_id from INDEX_JOIN_0_LHS as j_
 
 
 query II
-select index as output_id, value as input_id from INDEX_JOIN_0_RHS;
+select index as output_id, value as input_id from INDEX_JOIN_19_0_RHS;
 ----
 0	50
 1	51
@@ -127,7 +133,7 @@ select index as output_id, value as input_id from INDEX_JOIN_0_RHS;
 
 
 query IIII
-select rowid, chunk_id, index, value from INDEX_JOIN_0_RHS;
+select rowid, chunk_id, index, value from INDEX_JOIN_19_0_RHS;
 ----
 0	0	0	50
 1	0	1	51
@@ -142,13 +148,13 @@ select rowid, chunk_id, index, value from INDEX_JOIN_0_RHS;
 
 
 query IIII
-select rowid, chunk_id, range_start, range_end from SEQ_SCAN_0_range;
+select rowid, chunk_id, range_start, range_end from SEQ_SCAN_19_0_range;
 ----
 0	0	0	19
 
 
 query IIII
-select rowid, chunk_id, index, value from SEQ_SCAN_0_filter;
+select rowid, chunk_id, index, value from SEQ_SCAN_19_0_filter;
 ----
 0	0	0	0
 1	0	1	1

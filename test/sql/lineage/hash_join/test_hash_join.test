@@ -1,4 +1,4 @@
-# name: test/sql/index/join_lineage/test_hash_join.test
+# name: test/sql/lineage/hash_join/test_hash_join.test
 # description: Test Hash Joins
 # group: [hash_join]
 
@@ -41,8 +41,14 @@ select t1.j, t2.k from t1 inner join t2 on (t1.i = t2.i)
 statement ok
 PRAGMA trace_lineage = "OFF";
 
+query II
+SELECT * FROM queries_list;
+----
+13	select t1.j, t2.k from t1 inner join t2 on (t1.i = t2.i)
+15	PRAGMA trace_lineage = "OFF";
+
 query IIII
-select rowid, chunk_id, index as output, value as input from HASH_JOIN_0_LHS;
+select rowid, chunk_id, index as output, value as input from HASH_JOIN_13_0_LHS;
 ----
 0	0	0	0
 1	0	1	2
@@ -52,7 +58,7 @@ select rowid, chunk_id, index as output, value as input from HASH_JOIN_0_LHS;
 
 
 query III
-select rowid, chunk_id, index as output from HASH_JOIN_0_RHS;
+select rowid, chunk_id, index as output from HASH_JOIN_13_0_RHS;
 ----
 0	0	0
 1	0	1
@@ -62,7 +68,7 @@ select rowid, chunk_id, index as output from HASH_JOIN_0_RHS;
 
 
 query III
-select rowid, chunk_id, index as output from HASH_JOIN_0_SINK;
+select rowid, chunk_id, index as output from HASH_JOIN_13_0_SINK;
 ----
 0	0	0
 1	0	1
@@ -70,7 +76,7 @@ select rowid, chunk_id, index as output from HASH_JOIN_0_SINK;
 3	0	3
 
 query IIII
-select r.rowid, r.chunk_id, r.index as output, s.index as input  from HASH_JOIN_0_SINK as s, HASH_JOIN_0_RHS as r where s.value=r.value ;
+select r.rowid, r.chunk_id, r.index as output, s.index as input  from HASH_JOIN_13_0_SINK as s, HASH_JOIN_13_0_RHS as r where s.value=r.value ;
 ----
 0	0	0	2
 1	0	1	1
