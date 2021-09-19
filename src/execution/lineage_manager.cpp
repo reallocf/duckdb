@@ -551,6 +551,11 @@ void ManageLineage::Persist(PhysicalOperator *op, shared_ptr<LineageContext> lin
     string tablename = op->GetName() + "_" + to_string(query_id) + "_" + to_string( op->id );
 
     switch (op->type) {
+
+    case PhysicalOperatorType::LIMIT: { // O(1)
+        Persist(op->children[0].get(), move(lineage), context, is_sink);
+        break;
+	}
     case PhysicalOperatorType::FILTER: { // O(1)
         LineageOpUnary *lop = dynamic_cast<LineageOpUnary *>(lineage->GetLineageOp(op, 0).get());
         if (!lop) {
@@ -663,6 +668,49 @@ void ManageLineage::Persist(PhysicalOperator *op, shared_ptr<LineageContext> lin
 
             Persist(op->children[0].get(), lineage, context, is_sink);
             Persist(op->children[1].get(), lineage, context, is_sink);
+        }
+        break;
+    }
+    case PhysicalOperatorType::CROSS_PRODUCT: {
+        if (is_sink) {
+            // todo: how to persist right hand side lineage? do we need to?
+        } else {
+            std::shared_ptr<LineageOpUnary> lop =
+                std::dynamic_pointer_cast<LineageOpUnary>(lineage->GetLineageOp(op, 0));
+
+            if (!lop) {
+                std::cout << "something is wrong, hash join probe_lop lop not found" << std::endl;
+                return;
+            }
+
+            // schema: [oidx idx_t, lhs_idx idx_t]
+            //         maps output row to row from probe side (LHS)
+
+            lop->data->persist(context, tablename, lineage->chunk_id, 0);
+        }
+        break;
+    }
+    case PhysicalOperatorType::BLOCKWISE_NL_JOIN:
+    case PhysicalOperatorType::NESTED_LOOP_JOIN: {
+        if (is_sink) {
+            // todo: how to persist right hand side lineage? do we need to?
+        } else {
+            std::shared_ptr<LineageOpBinary> lop =
+                std::dynamic_pointer_cast<LineageOpBinary>(lineage->GetLineageOp(op, 0));
+
+            if (!lop) {
+                std::cout << "something is wrong, hash join probe_lop lop not found" << std::endl;
+                return;
+            }
+
+            // schema: [oidx idx_t, lhs_idx idx_t]
+            //         maps output row to row from probe side (LHS)
+
+            // schema: [oidx idx_t, rhs_ptr uintptr_t]
+            //         maps output row to row from the build side in the hash table payload
+            lop->data_lhs->persist(context, tablename + "_LHS", lineage->chunk_id, 0);
+            // add an offset for the right side?
+            lop->data_rhs->persist(context, tablename + "_RHS", lineage->chunk_id, 0);
         }
         break;
     }
