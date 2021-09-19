@@ -96,90 +96,91 @@ void ManageLineage::CreateQueryTable(ClientContext &context) {
 void ManageLineage::CreateLineageTables(PhysicalOperator *op, ClientContext &context) {
 	string base = op->GetName() + "_" + to_string(query_id) + "_" + to_string( op->id );
     switch (op->type) {
-    case PhysicalOperatorType::FILTER: {
-        // CREATE TABLE base (value INTEGER, index INTEGER, chunk_id INTEGER)
-        auto info = make_unique<CreateTableInfo>();
-        info->schema = DEFAULT_SCHEMA;
-        info->table = base;
-        info->on_conflict = OnCreateConflict::ERROR_ON_CONFLICT;
-        info->temporary = false;
-        info->columns.push_back(move(ColumnDefinition("value", LogicalType::INTEGER)));
-        info->columns.push_back(move(ColumnDefinition("index", LogicalType::INTEGER)));
-        info->columns.push_back(move(ColumnDefinition("chunk_id", LogicalType::INTEGER)));
-        auto binder = Binder::CreateBinder(context);
-        auto bound_create_info = binder->BindCreateTableInfo(move(info));
-        auto &catalog = Catalog::GetCatalog(context);
-        catalog.CreateTable(context, bound_create_info.get());
-        CreateLineageTables(op->children[0].get(), context);
+	case PhysicalOperatorType::FILTER: {
+		// CREATE TABLE base (value INTEGER, index INTEGER, chunk_id INTEGER)
+		auto info = make_unique<CreateTableInfo>();
+		info->schema = DEFAULT_SCHEMA;
+		info->table = base;
+		info->on_conflict = OnCreateConflict::ERROR_ON_CONFLICT;
+		info->temporary = false;
+		info->columns.push_back(move(ColumnDefinition("value", LogicalType::INTEGER)));
+		info->columns.push_back(move(ColumnDefinition("index", LogicalType::INTEGER)));
+		info->columns.push_back(move(ColumnDefinition("chunk_id", LogicalType::INTEGER)));
+		auto binder = Binder::CreateBinder(context);
+		auto bound_create_info = binder->BindCreateTableInfo(move(info));
+		auto &catalog = Catalog::GetCatalog(context);
+		catalog.CreateTable(context, bound_create_info.get());
+		CreateLineageTables(op->children[0].get(), context);
 
-        break;
-    }
-    case PhysicalOperatorType::TABLE_SCAN: {
-        // CREATE TABLE base_range (range_start INTEGER, range_end INTEGER, chunk_id INTEGER)
-        auto info = make_unique<CreateTableInfo>();
-        info->schema = DEFAULT_SCHEMA;
-        info->table = base + "_range";
-        info->on_conflict = OnCreateConflict::ERROR_ON_CONFLICT;
-        info->temporary = false;
-        info->columns.push_back(move(ColumnDefinition("range_start", LogicalType::INTEGER)));
-        info->columns.push_back(move(ColumnDefinition("range_end", LogicalType::INTEGER)));
-        info->columns.push_back(move(ColumnDefinition("chunk_id", LogicalType::INTEGER)));
-        auto binder = Binder::CreateBinder(context);
-        auto bound_create_info = binder->BindCreateTableInfo(move(info));
-        auto &catalog = Catalog::GetCatalog(context);
-        catalog.CreateTable(context, bound_create_info.get());
+		break;
+	}
+	case PhysicalOperatorType::TABLE_SCAN: {
+		// CREATE TABLE base_range (range_start INTEGER, range_end INTEGER, chunk_id INTEGER)
+		auto info = make_unique<CreateTableInfo>();
+		info->schema = DEFAULT_SCHEMA;
+		info->table = base + "_range";
+		info->on_conflict = OnCreateConflict::ERROR_ON_CONFLICT;
+		info->temporary = false;
+		info->columns.push_back(move(ColumnDefinition("range_start", LogicalType::INTEGER)));
+		info->columns.push_back(move(ColumnDefinition("range_end", LogicalType::INTEGER)));
+		info->columns.push_back(move(ColumnDefinition("chunk_id", LogicalType::INTEGER)));
+		auto binder = Binder::CreateBinder(context);
+		auto bound_create_info = binder->BindCreateTableInfo(move(info));
+		auto &catalog = Catalog::GetCatalog(context);
+		catalog.CreateTable(context, bound_create_info.get());
 
-        // CREATE TABLE base_filter (value INTEGER, index INTEGER, chunk_id INTEGER)
-        info = make_unique<CreateTableInfo>();
-        info->schema = DEFAULT_SCHEMA;
-        info->table = base + "_filter";
-        info->on_conflict = OnCreateConflict::ERROR_ON_CONFLICT;
-        info->temporary = false;
-        info->columns.push_back(move(ColumnDefinition("value", LogicalType::INTEGER)));
-        info->columns.push_back(move(ColumnDefinition("index", LogicalType::INTEGER)));
-        info->columns.push_back(move(ColumnDefinition("chunk_id", LogicalType::INTEGER)));
-        bound_create_info = binder->BindCreateTableInfo(move(info));
-        catalog.CreateTable(context, bound_create_info.get());
+		// CREATE TABLE base_filter (value INTEGER, index INTEGER, chunk_id INTEGER)
+		info = make_unique<CreateTableInfo>();
+		info->schema = DEFAULT_SCHEMA;
+		info->table = base + "_filter";
+		info->on_conflict = OnCreateConflict::ERROR_ON_CONFLICT;
+		info->temporary = false;
+		info->columns.push_back(move(ColumnDefinition("value", LogicalType::INTEGER)));
+		info->columns.push_back(move(ColumnDefinition("index", LogicalType::INTEGER)));
+		info->columns.push_back(move(ColumnDefinition("chunk_id", LogicalType::INTEGER)));
+		bound_create_info = binder->BindCreateTableInfo(move(info));
+		catalog.CreateTable(context, bound_create_info.get());
 
-        break;
-    }
-    case PhysicalOperatorType::PROJECTION: {
-        CreateLineageTables(op->children[0].get(), context);
-        break;
-    }
-    case PhysicalOperatorType::PERFECT_HASH_GROUP_BY:
-    case PhysicalOperatorType::HASH_GROUP_BY: {
-        // CREATE TABLE base_out (value INTEGER, index INTEGER, chunk_id INTEGER)
-        auto info = make_unique<CreateTableInfo>();
-        info->schema = DEFAULT_SCHEMA;
-        info->table = base + "_OUT";
-        info->on_conflict = OnCreateConflict::ERROR_ON_CONFLICT;
-        info->temporary = false;
-        info->columns.push_back(move(ColumnDefinition("value", LogicalType::INTEGER)));
-        info->columns.push_back(move(ColumnDefinition("index", LogicalType::INTEGER)));
-        info->columns.push_back(move(ColumnDefinition("chunk_id", LogicalType::INTEGER)));
-        auto binder = Binder::CreateBinder(context);
-        auto bound_create_info = binder->BindCreateTableInfo(move(info));
-        auto &catalog = Catalog::GetCatalog(context);
-        catalog.CreateTable(context, bound_create_info.get());
+		break;
+	}
+	case PhysicalOperatorType::PROJECTION: {
+		CreateLineageTables(op->children[0].get(), context);
+		break;
+	}
+	case PhysicalOperatorType::PERFECT_HASH_GROUP_BY:
+	case PhysicalOperatorType::HASH_GROUP_BY: {
+		// CREATE TABLE base_out (value INTEGER, index INTEGER, chunk_id INTEGER)
+		auto info = make_unique<CreateTableInfo>();
+		info->schema = DEFAULT_SCHEMA;
+		info->table = base + "_OUT";
+		info->on_conflict = OnCreateConflict::ERROR_ON_CONFLICT;
+		info->temporary = false;
+		info->columns.push_back(move(ColumnDefinition("value", LogicalType::INTEGER)));
+		info->columns.push_back(move(ColumnDefinition("index", LogicalType::INTEGER)));
+		info->columns.push_back(move(ColumnDefinition("chunk_id", LogicalType::INTEGER)));
+		auto binder = Binder::CreateBinder(context);
+		auto bound_create_info = binder->BindCreateTableInfo(move(info));
+		auto &catalog = Catalog::GetCatalog(context);
+		catalog.CreateTable(context, bound_create_info.get());
 
-        // CREATE TABLE base_sink (value INTEGER, index INTEGER, chunk_id INTEGER)
-        info = make_unique<CreateTableInfo>();
-        info->schema = DEFAULT_SCHEMA;
-        info->table = base +  "_SINK";
-        info->on_conflict = OnCreateConflict::ERROR_ON_CONFLICT;
-        info->temporary = false;
-        info->columns.push_back(move(ColumnDefinition("value", LogicalType::INTEGER)));
-        info->columns.push_back(move(ColumnDefinition("index", LogicalType::INTEGER)));
-        info->columns.push_back(move(ColumnDefinition("chunk_id", LogicalType::INTEGER)));
-        bound_create_info = binder->BindCreateTableInfo(move(info));
-        catalog.CreateTable(context, bound_create_info.get());
+		// CREATE TABLE base_sink (value INTEGER, index INTEGER, chunk_id INTEGER)
+		info = make_unique<CreateTableInfo>();
+		info->schema = DEFAULT_SCHEMA;
+		info->table = base + "_SINK";
+		info->on_conflict = OnCreateConflict::ERROR_ON_CONFLICT;
+		info->temporary = false;
+		info->columns.push_back(move(ColumnDefinition("value", LogicalType::INTEGER)));
+		info->columns.push_back(move(ColumnDefinition("index", LogicalType::INTEGER)));
+		info->columns.push_back(move(ColumnDefinition("chunk_id", LogicalType::INTEGER)));
+		bound_create_info = binder->BindCreateTableInfo(move(info));
+		catalog.CreateTable(context, bound_create_info.get());
 
-        CreateLineageTables(op->children[0].get(), context);
-        break;
-    }
-    case PhysicalOperatorType::SIMPLE_AGGREGATE:
-        break;
+		CreateLineageTables(op->children[0].get(), context);
+		break;
+	}
+	case PhysicalOperatorType::SIMPLE_AGGREGATE: {
+		break;
+	}
     case PhysicalOperatorType::INDEX_JOIN: {
         // CREATE TABLE base_LHS (value INTEGER, index INTEGER, chunk_id INTEGER)
         auto info = make_unique<CreateTableInfo>();
@@ -252,6 +253,62 @@ void ManageLineage::CreateLineageTables(PhysicalOperator *op, ClientContext &con
 
         CreateLineageTables(op->children[0].get(), context);
         CreateLineageTables(op->children[1].get(), context);
+        break;
+    }
+    case PhysicalOperatorType::CROSS_PRODUCT: {
+        auto info = make_unique<CreateTableInfo>();
+        info->schema = DEFAULT_SCHEMA;
+        info->table = base;
+        info->on_conflict = OnCreateConflict::ERROR_ON_CONFLICT;
+        info->temporary = false;
+        info->columns.push_back(move(ColumnDefinition("LHS_offset", LogicalType::INTEGER)));
+        info->columns.push_back(move(ColumnDefinition("RHS_offset", LogicalType::INTEGER)));
+        info->columns.push_back(move(ColumnDefinition("chunk_id", LogicalType::INTEGER)));
+        auto binder = Binder::CreateBinder(context);
+        auto bound_create_info = binder->BindCreateTableInfo(move(info));
+        auto &catalog = Catalog::GetCatalog(context);
+        catalog.CreateTable(context, bound_create_info.get());
+
+        CreateLineageTables(op->children[0].get(), context);
+        CreateLineageTables(op->children[1].get(), context);
+        break;
+    }
+    case PhysicalOperatorType::BLOCKWISE_NL_JOIN:
+    case PhysicalOperatorType::NESTED_LOOP_JOIN: {
+        // CREATE TABLE base_LHS (value INTEGER, index INTEGER, chunk_id INTEGER)
+        auto info = make_unique<CreateTableInfo>();
+        info->schema = DEFAULT_SCHEMA;
+        info->table = base +  "_LHS";
+        info->on_conflict = OnCreateConflict::ERROR_ON_CONFLICT;
+        info->temporary = false;
+        info->columns.push_back(move(ColumnDefinition("value", LogicalType::INTEGER)));
+        info->columns.push_back(move(ColumnDefinition("index", LogicalType::INTEGER)));
+        info->columns.push_back(move(ColumnDefinition("chunk_id", LogicalType::INTEGER)));
+        auto binder = Binder::CreateBinder(context);
+        auto bound_create_info = binder->BindCreateTableInfo(move(info));
+        auto &catalog = Catalog::GetCatalog(context);
+        catalog.CreateTable(context, bound_create_info.get());
+
+        // CREATE TABLE base_RHS (value INTEGER, index INTEGER, chunk_id INTEGER)
+        info = make_unique<CreateTableInfo>();
+        info->schema = DEFAULT_SCHEMA;
+        info->table = base +  "_RHS";
+        info->on_conflict = OnCreateConflict::ERROR_ON_CONFLICT;
+        info->temporary = false;
+        info->columns.push_back(move(ColumnDefinition("value", LogicalType::INTEGER)));
+        info->columns.push_back(move(ColumnDefinition("index", LogicalType::INTEGER)));
+        info->columns.push_back(move(ColumnDefinition("chunk_id", LogicalType::INTEGER)));
+        bound_create_info = binder->BindCreateTableInfo(move(info));
+        catalog.CreateTable(context, bound_create_info.get());
+
+
+        CreateLineageTables(op->children[0].get(), context);
+        CreateLineageTables(op->children[1].get(), context);
+        break;
+    }
+    case PhysicalOperatorType::LIMIT: {
+        // when persisting with limit, we can optimize our code by pushing the limit to childrens
+        CreateLineageTables(op->children[0].get(), context);
         break;
     }
     default:
