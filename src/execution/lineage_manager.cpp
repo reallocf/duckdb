@@ -352,7 +352,6 @@ void ManageLineage::BackwardLineage(PhysicalOperator *op, shared_ptr<LineageCont
         //         maps a row in the output to input index
         string tablename = op->GetName() + "_" + to_string( op->id ) ; // + node ID
         idx_t idx = dynamic_cast<LineageDataArray<sel_t>&>(*lop->data).getAtIndex(oidx);
-        lop->data->persist(context, tablename, lineage->chunk_id);
         std::cout << oidx << " maps to " << idx << std::endl;
         BackwardLineage(op->children[0].get(), move(lineage), idx, context);
         break;
@@ -368,17 +367,12 @@ void ManageLineage::BackwardLineage(PhysicalOperator *op, shared_ptr<LineageCont
         auto start = dynamic_cast<LineageRange&>(*collection->collection["rowid_range"]).start;
         auto end = dynamic_cast<LineageRange&>(*collection->collection["rowid_range"]).end;
         std::cout << "Table scan chunk range " << start << " " << end << std::endl;
-        string tablename = op->GetName() + "_" + to_string( op->id ) + "_range" ; // + node ID
-        dynamic_cast<LineageRange&>(*collection->collection["rowid_range"]).persist(context, tablename, lineage->chunk_id);
 
         if (collection->collection.find("filter") != collection->collection.end()) {
             // get selection vector
             std::cout << "filter on scan" <<  std::endl;
             auto fidx = dynamic_cast<LineageSelVec&>(*collection->collection["filter"]).getAtIndex(oidx);
             std::cout << oidx << " maps to " << fidx << " + offset " << fidx + start << std::endl;
-            string tablename = op->GetName() + "_" + to_string( op->id ) + "_filter" ; // + node ID
-            dynamic_cast<LineageDataArray<sel_t>&>(*collection->collection["filter"]).persist(context, tablename, lineage->chunk_id);
-
         } else {
             std::cout << oidx << " maps to itself + offset = " << oidx + start << std::endl;
         }
@@ -402,8 +396,6 @@ void ManageLineage::BackwardLineage(PhysicalOperator *op, shared_ptr<LineageCont
         //         maps a row in the output to a group
         idx_t group =  dynamic_cast<LineageDataArray<sel_t>&>(*lop->data).getAtIndex(oidx);
         std::cout << oidx << " belong to " << group << std::endl;
-        string tablename = op->GetName()  + "_" + to_string( op->id ) +  "_OUT"; // + node ID
-        lop->data->persist(context, tablename, lineage->chunk_id);
 
         // Lookup the data on the build side
         if (pipelines_lineage[1].find(op) != pipelines_lineage[1].end()) {
@@ -416,9 +408,6 @@ void ManageLineage::BackwardLineage(PhysicalOperator *op, shared_ptr<LineageCont
                     std::cout << "something is wrong,   aggregate sink lop not found" << std::endl;
                     continue;
                 }
-                string tablename = op->GetName() + "_" + to_string( op->id ) + "_SINK"; // + node ID
-                sink_lop->data->persist(context, tablename, lineage->chunk_id);
-
 
                 // schema: [ridx idx_t, group idx_t]
                 //         maps input row to a specific group
@@ -448,10 +437,6 @@ void ManageLineage::BackwardLineage(PhysicalOperator *op, shared_ptr<LineageCont
         std::cout << "-> Index Join LHS " <<  lhs_idx << std::endl;
         auto rhs_idx =  dynamic_cast<LineageDataVector<row_t>&>(*lop->data_rhs).getAtIndex(oidx);
         std::cout << "-> Index Join RHS " <<  rhs_idx << std::endl;
-
-        string tablename = op->GetName()+ "_" + to_string( op->id ) ; // + node ID
-        lop->data_lhs->persist(context, tablename+ "_LHS", lineage->chunk_id);
-        lop->data_rhs->persist(context, tablename+ "_RHS", lineage->chunk_id);
 
         BackwardLineage(op->children[0].get(), lineage, oidx, context);
         BackwardLineage(op->children[1].get(), lineage, oidx, context);
