@@ -1,0 +1,29 @@
+# name: test/sql/index/join_lineage/test_merge_join.test
+# description: merge Join
+# group: [merge_join]
+
+statement ok
+PRAGMA explain_output = PHYSICAL_ONLY;
+
+statement ok
+CREATE TABLE t1(i INTEGER, j INTEGER);
+CREATE TABLE t2(i INTEGER);
+
+statement ok
+INSERT INTO t1 SELECT i+1, i FROM range(0,1044) tbl(i);
+INSERT INTO t2 SELECT i+1 FROM range(4,6) tbl(i);
+
+
+# standalone limit
+query III
+select  * from t1, t2 where t1.i < t2.i;
+----
+1	0	5
+2	1	5
+3	2	5
+4	3	5
+1	0	6
+2	1	6
+3	2	6
+4	3	6
+5	4	6
