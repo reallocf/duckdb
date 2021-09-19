@@ -107,7 +107,7 @@ public:
 	//! The hash table load factor, when a resize is triggered
 	constexpr static float LOAD_FACTOR = 1.5;
 	constexpr static uint8_t HASH_WIDTH = sizeof(hash_t);
-    unique_ptr<LineageDataArray<sel_t>> lineage_data;
+    unique_ptr<LineageSelVec> lineage_data;
 
 private:
 	HtEntryType entry_type;

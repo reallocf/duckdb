@@ -122,7 +122,7 @@ void PerfectAggregateHashTable::AddChunk(ExecutionContext &context, DataChunk &g
 #ifdef LINEAGE
     // todo: to handle parallel execution, we need to assign unique id per chunk to be able to reference it later
 	// log lineage data that maps input to output groups
-	sink_per_chunk_lineage = make_shared<LineageOpUnary>(make_shared<LineageDataArray<sel_t>>(move(sel.sel_data()->owned_data), groups.size()));
+	sink_per_chunk_lineage = make_shared<LineageOpUnary>(make_shared<LineageSelVec>(move(sel), groups.size()));
 #endif
 
 	// after finding the group location we update the aggregates

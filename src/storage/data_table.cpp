@@ -424,7 +424,7 @@ bool DataTable::ScanBaseTable(ExecutionContext &context, Transaction &transactio
         if (context.trace_lineage) {
 			// We need lineage here because we have pushed down filters and such
 			lineage_data->add(
-			    "filter", make_unique<LineageDataArray<sel_t>>(move(sel.sel_data()->owned_data), approved_tuple_count));
+			    "filter", make_unique<LineageSelVec>(move(sel), approved_tuple_count));
 		}
 #endif
 	}

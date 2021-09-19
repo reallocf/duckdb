@@ -745,7 +745,7 @@ idx_t GroupedAggregateHashTable::FindOrCreateGroupsInternal(DataChunk &groups, V
 #ifdef LINEAGE
 	// this maps input to groups, we can use it later to map output to input
     // the sink op do call RegisterDataPerO
-    lineage_data = make_unique<LineageDataArray<sel_t>>(move(sel_lineage.sel_data()->owned_data), groups.size());
+    lineage_data = make_unique<LineageSelVec>(move(sel_lineage), groups.size());
 #endif
 
     // pointers in addresses now were moved behind the grousp by CompareGroups/ScatterGroups but we may have to add

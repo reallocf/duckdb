@@ -840,7 +840,8 @@ void ScanStructure::NextInnerJoin(DataChunk &keys, DataChunk &left, DataChunk &r
 		// todo: rethink again the path when current chunk get cached. how to extend already stored lineage
 		// could use VectorOperations::Copy(other.data[i], data[i], other.size(), 0, size());
 		lop = make_shared<LineageOpBinary>();
-		auto lineage_probe = make_unique<LineageDataArray<sel_t>>(move(result_vector.sel_data()->owned_data), result_count);
+		// todo: store it all together so that it can be persisted into one table
+		auto lineage_probe = make_unique<LineageSelVec>(move(result_vector), result_count);
 		auto lineage_build = make_unique<LineageDataArray<uintptr_t>>(move(key_locations_lineage), result_count);
 		lop->setLHS(move(lineage_probe));
 		lop->setRHS(move(lineage_build));

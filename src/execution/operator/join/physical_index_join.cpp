@@ -126,7 +126,7 @@ void PhysicalIndexJoin::Output(ExecutionContext &context, DataChunk &chunk, Phys
 	}
 
 #ifdef LINEAGE
-	lop->setLHS(make_unique<LineageDataArray<sel_t>>(move(sel.sel_data()->owned_data), output_sel_idx));
+	lop->setLHS(make_unique<LineageSelVec>(move(sel), output_sel_idx));
 	context.lineage->RegisterDataPerOp(this,  move(lop));
 #endif
 	state->result_size = output_sel_idx;
