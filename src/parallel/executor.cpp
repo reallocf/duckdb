@@ -65,6 +65,7 @@ void Executor::Initialize(PhysicalOperator *plan) {
 		// an exception has occurred executing one of the pipelines
 		throw Exception(exceptions[0]);
 	}
+	std::cout << physical_plan->ToString() << std::endl;
 }
 
 void Executor::Reset() {
