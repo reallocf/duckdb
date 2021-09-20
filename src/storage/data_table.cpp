@@ -421,20 +421,15 @@ bool DataTable::ScanBaseTable(ExecutionContext &context, Transaction &transactio
 			    duration_cast<duration<double>>(end_time - start_time).count());
 		}
 #ifdef LINEAGE
-        if (context.trace_lineage) {
-			// We need lineage here because we have pushed down filters and such
-			lineage_data->add(
-			    "filter", make_unique<LineageSelVec>(move(sel), approved_tuple_count));
-		}
+		// We need lineage here because we have pushed down filters and such
+		lineage_data->add("filter", make_unique<LineageSelVec>(move(sel), approved_tuple_count));
 #endif
 	}
 
 #ifdef LINEAGE
 	// range of rowids covered by this segment
-	if (context.trace_lineage) {
-		lineage_data->add("rowid_range", make_unique<LineageRange>(current_row, current_row + approved_tuple_count));
-		context.lineage->RegisterDataPerOp(context.getCurrent(), make_unique<LineageOpUnary>(move(lineage_data)));
-	}
+	lineage_data->add("rowid_range", make_unique<LineageRange>(current_row, current_row + approved_tuple_count));
+	context.lineage->RegisterDataPerOp(context.getCurrent(), make_unique<LineageOpUnary>(move(lineage_data)));
 #endif
 
     result.SetCardinality(approved_tuple_count);
