@@ -51,17 +51,14 @@ void PhysicalFilter::GetChunkInternal(ExecutionContext &context, DataChunk &chun
 	}
 
 
+	chunk.Slice(sel, result_count);
+
 #ifdef LINEAGE
-//	if (context.trace_lineage)
-    unique_ptr<sel_t[]> filter_sel(new sel_t[result_count]);
-    std::copy(sel.sel_data()->owned_data.get(), sel.sel_data()->owned_data.get() + result_count, filter_sel.get());
     context.lineage->RegisterDataPerOp(
         this,
-        make_shared<LineageOpUnary>(make_shared<LineageDataArray<sel_t>>(move(filter_sel), result_count))
+        make_shared<LineageOpUnary>(make_shared<LineageSelVec>(sel, result_count))
     );
 #endif
-
-	chunk.Slice(sel, result_count);
 
 
 
