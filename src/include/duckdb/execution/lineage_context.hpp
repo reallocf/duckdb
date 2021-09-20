@@ -437,11 +437,9 @@ public:
 
 	shared_ptr<LineageOp> GetLineageOp(PhysicalOperator* key, int type) {
 		if (ht.find(type) == ht.end()) {
-			std::cout << "GetLineageOp type not found for " << type << std::endl;
 			return NULL;
 		}
 		if (ht[type].find(key) == ht[type].end()) {
-            std::cout << "GetLineageOp key not found " << std::endl;
             return NULL;
 		}
 		return ht[type][key];

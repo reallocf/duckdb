@@ -559,8 +559,7 @@ void ManageLineage::Persist(PhysicalOperator *op, shared_ptr<LineageContext> lin
     case PhysicalOperatorType::FILTER: { // O(1)
         LineageOpUnary *lop = dynamic_cast<LineageOpUnary *>(lineage->GetLineageOp(op, 0).get());
         if (!lop) {
-            std::cout << "something is wrong, lop not found for filter" << std::endl;
-            return;
+             return;
         }
         // schema: [oidx idx_t, idx idx_t]
         //         maps a row in the output to input index
@@ -594,7 +593,6 @@ void ManageLineage::Persist(PhysicalOperator *op, shared_ptr<LineageContext> lin
         if (is_sink) {
             std::shared_ptr<LineageOpUnary> sink_lop = std::dynamic_pointer_cast<LineageOpUnary>(lineage->GetLineageOp(op, 1));
             if (!sink_lop) {
-                std::cout << "something is wrong,   aggregate sink lop not found" << std::endl;
                 return;
             }
 
@@ -605,7 +603,6 @@ void ManageLineage::Persist(PhysicalOperator *op, shared_ptr<LineageContext> lin
             std::shared_ptr<LineageOpUnary> lop =
                 std::dynamic_pointer_cast<LineageOpUnary>(lineage->GetLineageOp(op, 0));
             if (!lop) {
-                std::cout << "something is wrong, lop not found for   aggregate" << std::endl;
                 return;
             }
 
@@ -623,7 +620,6 @@ void ManageLineage::Persist(PhysicalOperator *op, shared_ptr<LineageContext> lin
         std::shared_ptr<LineageOpBinary> lop = std::dynamic_pointer_cast<LineageOpBinary>(lineage->GetLineageOp(op, 0));
 
         if (!lop) {
-            std::cout << "something is wrong, lop not found" << std::endl;
             return;
         }
 
@@ -637,7 +633,6 @@ void ManageLineage::Persist(PhysicalOperator *op, shared_ptr<LineageContext> lin
         if (is_sink) {
             std::shared_ptr<LineageOpUnary> sink_lop = std::dynamic_pointer_cast<LineageOpUnary>(lineage->GetLineageOp(op, 1));
             if (!sink_lop) {
-                std::cout << "something is wrong, hash join build lop not found" << std::endl;
                 return;
             }
             sink_lop->data->persist(context, tablename+ "_SINK", lineage->chunk_id);
@@ -646,7 +641,6 @@ void ManageLineage::Persist(PhysicalOperator *op, shared_ptr<LineageContext> lin
                 std::dynamic_pointer_cast<LineageOpCollection>(lineage->GetLineageOp(op, 0));
 
             if (!probe_lop) {
-                std::cout << "something is wrong, hash join probe_lop lop not found" << std::endl;
                 return;
             }
 
@@ -679,7 +673,6 @@ void ManageLineage::Persist(PhysicalOperator *op, shared_ptr<LineageContext> lin
                 std::dynamic_pointer_cast<LineageOpUnary>(lineage->GetLineageOp(op, 0));
 
             if (!lop) {
-                std::cout << "something is wrong, hash join probe_lop lop not found" << std::endl;
                 return;
             }
 
@@ -699,7 +692,6 @@ void ManageLineage::Persist(PhysicalOperator *op, shared_ptr<LineageContext> lin
                 std::dynamic_pointer_cast<LineageOpBinary>(lineage->GetLineageOp(op, 0));
 
             if (!lop) {
-                std::cout << "something is wrong, hash join probe_lop lop not found" << std::endl;
                 return;
             }
 
