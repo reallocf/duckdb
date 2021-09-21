@@ -57,23 +57,6 @@ select rowid, chunk_id, index as output, value as input from HASH_JOIN_13_0_LHS;
 4	0	4	3
 
 
-query III
-select rowid, chunk_id, index as output from HASH_JOIN_13_0_RHS;
-----
-0	0	0
-1	0	1
-2	0	2
-3	0	3
-4	0	4
-
-
-query III
-select rowid, chunk_id, index as output from HASH_JOIN_13_0_SINK;
-----
-0	0	0
-1	0	1
-2	0	2
-3	0	3
 
 query IIII
 select r.rowid, r.chunk_id, r.index as output, s.index as input  from HASH_JOIN_13_0_SINK as s, HASH_JOIN_13_0_RHS as r where s.value=r.value ;

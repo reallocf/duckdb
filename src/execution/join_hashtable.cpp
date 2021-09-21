@@ -300,9 +300,7 @@ void JoinHashTable::Build(ExecutionContext &context, DataChunk &keys, DataChunk 
 	vector<unique_ptr<BufferHandle>> handles;
 	vector<BlockAppendEntry> append_entries;
 	data_ptr_t key_locations[STANDARD_VECTOR_SIZE];
-#ifdef LINEAGE
-    unique_ptr<uintptr_t[]> key_locations_lineage(new uintptr_t[added_count]);
-#endif
+
 	// first allocate space of where to serialize the keys and payload columns
 	idx_t remaining = added_count;
 	{
@@ -342,16 +340,14 @@ void JoinHashTable::Build(ExecutionContext &context, DataChunk &keys, DataChunk 
 		idx_t next = append_idx + append_entry.count;
 		for (; append_idx < next; append_idx++) {
 			key_locations[append_idx] = append_entry.baseptr;
-#ifdef LINEAGE
-            key_locations_lineage[append_idx] = (uintptr_t)append_entry.baseptr;
-#endif
-
-#ifdef LINEAGE_DEBUG
-            std::cout << "key_locations[" << append_idx << "]" << " = " << (uintptr_t)(key_locations[append_idx]) << std::endl;
-#endif
 			append_entry.baseptr += entry_size;
 		}
 	}
+
+#ifdef LINEAGE
+    vector<data_ptr_t> key_locations_lineage(added_count);
+    std::copy(key_locations, key_locations+added_count, key_locations_lineage.begin());
+#endif
 
 	// log key_locations and current_sel
 	// hash the keys and obtain an entry in the list
@@ -377,9 +373,12 @@ void JoinHashTable::Build(ExecutionContext &context, DataChunk &keys, DataChunk 
 		InitializeOuterJoin(added_count, key_locations);
 	}
 	SerializeVector(hash_values, payload.size(), *current_sel, added_count, key_locations);
+
 #ifdef LINEAGE
 	// log lineage data that maps input to output ht payload entries
-	auto lineage_data_1 = make_shared<LineageDataArray<uintptr_t>>(move(key_locations_lineage), added_count);
+	//auto lineage_data_1 = make_shared<LineageDataArray<data_ptr_t>>(move(key_locations_lineage), added_count);
+    auto lineage_data_1 = make_shared<LineageDataVector<data_ptr_t>>(key_locations_lineage, added_count);
+
     // todo: handle the case when hash index key is null -> need to store current_sel
 	//       and store offset from address for hashtable payload instead of pointer value itself
     context.lineage->RegisterDataPerOp(context.getCurrent(),  make_shared<LineageOpUnary>(move(lineage_data_1)), 1);
