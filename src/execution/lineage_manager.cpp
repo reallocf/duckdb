@@ -179,7 +179,8 @@ void ManageLineage::CreateLineageTables(PhysicalOperator *op, ClientContext &con
 		break;
 	}
 	case PhysicalOperatorType::SIMPLE_AGGREGATE: {
-		break;
+        CreateLineageTables(op->children[0].get(), context);
+        break;
 	}
     case PhysicalOperatorType::INDEX_JOIN: {
         // CREATE TABLE base_LHS (value INTEGER, index INTEGER, chunk_id INTEGER)
@@ -587,6 +588,7 @@ void ManageLineage::Persist(PhysicalOperator *op, shared_ptr<LineageContext> lin
         break;
     }
     case PhysicalOperatorType::SIMPLE_AGGREGATE:
+        Persist(op->children[0].get(), move(lineage), context);
         break;
     case PhysicalOperatorType::PERFECT_HASH_GROUP_BY:
     case PhysicalOperatorType::HASH_GROUP_BY: {
