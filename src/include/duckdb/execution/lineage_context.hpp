@@ -109,6 +109,10 @@ public:
     std::cout << std::endl;
 	}
 
+  idx_t getAtIndex(idx_t idx) {
+    return (idx_t)vec[idx];
+  }
+
   unsigned long size_bytes() {
 		return count * sizeof(vec[0]);
 	}
@@ -134,6 +138,16 @@ public:
       std::cout << " (" << i << " -> " << vec.sel_data()->owned_data[i] << ") ";
     }
     std::cout << std::endl;
+  }
+
+  void getAllMatches(idx_t data, vector<idx_t> &matches) {
+    for (idx_t i = 0; i < count; i++) {
+      if (vec.get_index(i) == data) matches.push_back(i);
+    }
+  }
+
+  idx_t getAtIndex(idx_t idx) {
+    return vec.get_index(idx);
   }
 
   unsigned long size_bytes() {
