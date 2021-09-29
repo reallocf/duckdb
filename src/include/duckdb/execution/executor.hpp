@@ -34,6 +34,10 @@ public:
 	~Executor();
 
 	ClientContext &context;
+#ifdef LINEAGE
+  unique_ptr<ManageLineage> lineage_manager;
+  idx_t chunk_id;
+#endif
 
 public:
 	void Initialize(PhysicalOperator *physical_plan);

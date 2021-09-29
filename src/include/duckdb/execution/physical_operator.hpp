@@ -65,6 +65,10 @@ public:
 	vector<LogicalType> types;
 	//! The extimated cardinality of this physical operator
 	idx_t estimated_cardinality;
+#ifdef LINEAGE
+  // ID of this operator within the physical plan
+  idx_t id;
+#endif
 
 public:
 	virtual string GetName() const;
