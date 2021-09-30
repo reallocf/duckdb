@@ -84,6 +84,45 @@ void ManageLineage::BackwardLineage(PhysicalOperator *op, shared_ptr<LineageCont
         }
         BackwardLineage(op->children[0].get(), lineage, oidx);
         break;
+    } case PhysicalOperatorType::HASH_JOIN: {
+      // Probe lineage can have multiple lineage data if the output is cached
+      std::shared_ptr<LineageOpCollection> lop_col = std::dynamic_pointer_cast<LineageOpCollection>(lineage->GetLineageOp(op->id, 0));
+      if (!lop_col) {
+          std::cout << "something is wrong, hash join build lop not found" << std::endl;
+          return;
+      }
+
+      for (idx_t i = 0; i < lop_col->op.size(); ++i) {
+        auto lop = dynamic_cast<LineageOpBinary&>(*lop_col->op[i]);
+        // schema: [oidx idx_t, lhs_idx idx_t]
+        //         maps output row to row from probe side (LHS)
+        auto lhs_idx =  dynamic_cast<LineageSelVec&>(*lop.data_lhs).getAtIndex(oidx);
+        std::cout << "-> Hash Join LHS " <<  lhs_idx << std::endl;
+
+        // schema: [oidx idx_t, rhs_ptr uintptr_t]
+        //         maps output row to row from the build side in the hash table payload
+        uintptr_t rhs_ptr = dynamic_cast<LineageDataArray<uintptr_t>&>(*lop.data_rhs).getAtIndex(oidx);
+        std::cout << "-> Hash Join RHS ptr in HashJoin table " << rhs_ptr<< std::endl;
+
+        // We need to get the actual row id from the build side
+        if (pipelines_lineage[1].find(op) != pipelines_lineage[1].end()) {
+          vector<shared_ptr<LineageContext>> sink_lineage = pipelines_lineage[1][op];
+          for (idx_t i = 0; i < sink_lineage.size(); ++i) {
+            std::shared_ptr<LineageOpUnary> sink_lop = std::dynamic_pointer_cast<LineageOpUnary>(sink_lineage[i]->GetLineageOp(op->id, 1));
+
+            if (!sink_lop) {
+                std::cout << "something is wrong, hash join sink lop not found" << std::endl;
+                continue;
+            }
+
+            int rhs_idx = dynamic_cast<LineageDataArray<uintptr_t>&>(*sink_lop->data).findIndexOf((idx_t)rhs_ptr);
+            std::cout << "rhs_idx " << i << " " << rhs_idx << " " << rhs_ptr << std::endl;
+          }
+        }
+      }
+      BackwardLineage(op->children[0].get(), lineage, oidx);
+      BackwardLineage(op->children[1].get(), lineage, oidx);
+      break;
     } default: {
       for (idx_t i = 0; i < op->children.size(); ++i)
         BackwardLineage(op->children[i].get(), lineage, oidx);

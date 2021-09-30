@@ -130,6 +130,9 @@ void PhysicalHashJoin::Sink(ExecutionContext &context, GlobalOperatorState &stat
                             DataChunk &input) const {
 	auto &sink = (HashJoinGlobalState &)state;
 	auto &lstate = (HashJoinLocalState &)lstate_p;
+#ifdef LINEAGE
+  context.setCurrent(id);
+#endif
 	// resolve the join keys for the right chunk
 	lstate.build_executor.Execute(input, lstate.join_keys);
 	// build the HT
@@ -140,14 +143,26 @@ void PhysicalHashJoin::Sink(ExecutionContext &context, GlobalOperatorState &stat
 		for (idx_t i = 0; i < right_projection_map.size(); i++) {
 			lstate.build_chunk.data[i].Reference(input.data[right_projection_map[i]]);
 		}
+#ifdef LINEAGE
+		sink.hash_table->Build(context, lstate.join_keys, lstate.build_chunk);
+#else
 		sink.hash_table->Build(lstate.join_keys, lstate.build_chunk);
+#endif
 	} else if (!build_types.empty()) {
 		// there is not a projected map: place the entire right chunk in the HT
-		sink.hash_table->Build(lstate.join_keys, input);
+#ifdef LINEAGE
+		sink.hash_table->Build(context, lstate.join_keys, input);
+#else
+		sink.hash_table->Build(lstate.join_keys, lstate.build_chunk);
+#endif
 	} else {
 		// there are only keys: place an empty chunk in the payload
 		lstate.build_chunk.SetCardinality(input.size());
+#ifdef LINEAGE
+		sink.hash_table->Build(context, lstate.join_keys, lstate.build_chunk);
+#else
 		sink.hash_table->Build(lstate.join_keys, lstate.build_chunk);
+#endif
 	}
 }
 
@@ -219,14 +234,25 @@ void PhysicalHashJoin::GetChunkInternal(ExecutionContext &context, DataChunk &ch
 		// empty hash table with INNER, RIGHT or SEMI join means empty result set
 		return;
 	}
+
+#ifdef LINEAGE
+  vector<shared_ptr<LineageOp>> cached_lop_per_chunk;
+#endif
 	do {
 		ProbeHashTable(context, chunk, state);
+#ifdef LINEAGE
+    if (state->scan_structure && state->scan_structure->lop)
+      cached_lop_per_chunk.push_back(state->scan_structure->lop);
+#endif
 		if (chunk.size() == 0) {
 #if STANDARD_VECTOR_SIZE >= 128
 			if (state->cached_chunk.size() > 0) {
 				// finished probing but cached data remains, return cached chunk
 				chunk.Move(state->cached_chunk);
 				state->cached_chunk.Initialize(types);
+#ifdef LINEAGE
+        context.lineage->RegisterDataPerOp(id, make_shared<LineageOpCollection>(cached_lop_per_chunk));
+#endif
 			} else
 #endif
 			    if (IsRightOuterJoin(join_type)) {
@@ -243,15 +269,24 @@ void PhysicalHashJoin::GetChunkInternal(ExecutionContext &context, DataChunk &ch
 					// chunk cache full: return it
 					chunk.Move(state->cached_chunk);
 					state->cached_chunk.Initialize(types);
+#ifdef LINEAGE
+        context.lineage->RegisterDataPerOp(id, make_shared<LineageOpCollection>(cached_lop_per_chunk));
+#endif
 					return;
 				} else {
 					// chunk cache not full: probe again
 					chunk.Reset();
 				}
 			} else {
+#ifdef LINEAGE
+        context.lineage->RegisterDataPerOp(id, make_shared<LineageOpCollection>(cached_lop_per_chunk));
+#endif
 				return;
 			}
 #else
+#ifdef LINEAGE
+        context.lineage->RegisterDataPerOp(id, make_shared<LineageOpCollection>(cached_lop_per_chunk));
+#endif
 			return;
 #endif
 		}
