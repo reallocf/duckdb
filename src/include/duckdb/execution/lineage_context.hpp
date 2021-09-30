@@ -113,6 +113,13 @@ public:
     return (idx_t)vec[idx];
   }
 
+  int findIndexOf(idx_t data) {
+    for (idx_t i = 0; i < count; i++) {
+		  if (vec[i] == (T)data) return i;
+    }
+		return -1;
+	}
+
   unsigned long size_bytes() {
 		return count * sizeof(vec[0]);
 	}
