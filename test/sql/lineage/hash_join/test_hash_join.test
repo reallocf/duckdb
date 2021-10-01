@@ -15,6 +15,9 @@ CREATE TABLE t2(i INTEGER, k VARCHAR(10));
 statement ok
 INSERT INTO t2 VALUES (3, 'A'),   (2, 'B'), (3, 'C'), (1, 'D'), (3, 'A')
 
+statement ok
+PRAGMA trace_lineage = "ON"
+
 # standalone limit
 query II
 select t1.j, t2.k from t1 inner join t2 on (t1.i = t2.i)
@@ -32,3 +35,9 @@ select t1.j, t2.k from t1 inner join t2 on (t1.i = t2.i)
 4	A
 8	A
 7	A
+
+query II
+select query_id, query from queries_list;
+----
+11	select t1.j, t2.k from t1 inner join t2 on (t1.i = t2.i)
+13	select query_id, query from queries_list;

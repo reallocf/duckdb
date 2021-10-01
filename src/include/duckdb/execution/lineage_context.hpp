@@ -12,6 +12,11 @@
 
 #include "duckdb/common/common.hpp"
 #include "duckdb/common/unordered_map.hpp"
+
+#include "duckdb/catalog/catalog.hpp"
+#include "duckdb/common/types/chunk_collection.hpp"
+#include "duckdb/catalog/catalog_entry/table_catalog_entry.hpp"
+
 #include <iostream>
 
 
@@ -23,7 +28,8 @@ class LineageContext;
 
 class ManageLineage {
 public:
-  ManageLineage(ClientContext &context) : context(context)  {};
+  ManageLineage(ClientContext &context) : context(context), query_id(0),
+    queries_list_table_set(false)  {};
 
   void Reset();
   void AddOutputLineage(PhysicalOperator* opKey, shared_ptr<LineageContext>  lineage);
@@ -31,11 +37,16 @@ public:
 
   void AnnotatePlan(PhysicalOperator *op);
 
+  void CreateQueryTable();
+  void logQuery(string input_query);
+
   void BackwardLineage(PhysicalOperator *op, shared_ptr<LineageContext> lineage, int oidx);
 
   idx_t op_id = 0;
   unordered_map<int, unordered_map<PhysicalOperator*, vector<shared_ptr<LineageContext>>>> pipelines_lineage;
   ClientContext &context;
+  idx_t query_id;
+  bool queries_list_table_set;
 };
 
 
