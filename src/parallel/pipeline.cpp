@@ -110,10 +110,12 @@ void Pipeline::Execute(TaskContext &task) {
 			}
 			sink->Sink(context, *sink_state, *lstate, intermediate);
 #ifdef LINEAGE
-      if (context.lineage && !context.lineage->isEmpty()) {
+      if (client.trace_lineage && context.lineage && !context.lineage->isEmpty()) {
         context.lineage->chunk_id = chunk_id++;
-        lineage_per_thread.push_back(move(context.lineage));
-			}
+        // lineage_per_thread.push_back(move(context.lineage));
+        executor.lineage_manager->Persist(child, context.lineage, false);
+        executor.lineage_manager->Persist(sink, context.lineage, true);
+      }
 #endif
 			thread.profiler.EndOperator(nullptr);
 		}
@@ -126,8 +128,8 @@ void Pipeline::Execute(TaskContext &task) {
 	executor.Flush(thread);
 #ifdef LINEAGE
   // use lock to serialize access to global lineage manager
-  lock_guard<mutex> elock(executor.executor_lock);
-  executor.lineage_manager->AddLocalSinkLineage(sink, lineage_per_thread);
+  // lock_guard<mutex> elock(executor.executor_lock);
+  // executor.lineage_manager->AddLocalSinkLineage(sink, lineage_per_thread);
 #endif
 }
 
