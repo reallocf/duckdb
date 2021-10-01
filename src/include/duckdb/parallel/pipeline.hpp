@@ -30,7 +30,7 @@ public:
 	ProducerToken &token;
 
 #ifdef LINEAGE
-  idx_t chunk_id;
+  idx_t chunk_id = 0;
 #endif
 
 public:

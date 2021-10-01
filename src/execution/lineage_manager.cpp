@@ -103,6 +103,117 @@ void ManageLineage::logQuery(string input_query) {
   table->Persist(*table, context, insert_chunk);
 }
 
+void ManageLineage::CreateLineageTables(PhysicalOperator *op) {
+	string base = op->GetName() + "_" + to_string(query_id) + "_" + to_string( op->id );
+  switch (op->type) {
+  case PhysicalOperatorType::HASH_JOIN: {
+    // CREATE TABLE base_PROBE:
+    // schema: [INT out_index, INT lhs_value, BIGINT rhs_address, INT out_chunk_id]
+    auto info = make_unique<CreateTableInfo>();
+    info->schema = DEFAULT_SCHEMA;
+    info->table = base +  "_PROBE";
+    info->on_conflict = OnCreateConflict::ERROR_ON_CONFLICT;
+    info->temporary = false;
+    info->columns.push_back(ColumnDefinition("lhs_value", LogicalType::INTEGER));
+    info->columns.push_back(ColumnDefinition("rhs_address", LogicalType::BIGINT));
+    info->columns.push_back(ColumnDefinition("out_index", LogicalType::INTEGER));
+    info->columns.push_back(ColumnDefinition("out_chunk_id", LogicalType::INTEGER));
+    auto binder = Binder::CreateBinder(context);
+    auto bound_create_info = binder->BindCreateTableInfo(move(info));
+    auto &catalog = Catalog::GetCatalog(context);
+    catalog.CreateTable(context, bound_create_info.get());
+
+    // CREATE TABLE base_SINK:
+    // schema: [INT rhs_value, BIGINT rhs_address, INT out_chunk_id]
+    info = make_unique<CreateTableInfo>();
+    info->schema = DEFAULT_SCHEMA;
+    info->table = base +  "_SINK";
+    info->on_conflict = OnCreateConflict::ERROR_ON_CONFLICT;
+    info->temporary = false;
+    info->columns.push_back(ColumnDefinition("rhs_address", LogicalType::BIGINT));
+    info->columns.push_back(ColumnDefinition("rhs_value", LogicalType::INTEGER));
+    info->columns.push_back(ColumnDefinition("out_chunk_id", LogicalType::INTEGER));
+    bound_create_info = binder->BindCreateTableInfo(move(info));
+    catalog.CreateTable(context, bound_create_info.get());
+
+    CreateLineageTables(op->children[0].get());
+    CreateLineageTables(op->children[1].get());
+    break;
+  } default:
+    for (idx_t i = 0; i < op->children.size(); ++i)
+      CreateLineageTables(op->children[i].get());
+  }
+}
+
+void ManageLineage::Persist(PhysicalOperator *op, shared_ptr<LineageContext> lineage, bool is_sink = false) {
+  string tablename = op->GetName() + "_" + to_string(query_id) + "_" + to_string( op->id );
+  switch (op->type) {
+  case PhysicalOperatorType::HASH_JOIN: {
+    if (is_sink) {
+      std::shared_ptr<LineageOpUnary> sink_lop = std::dynamic_pointer_cast<LineageOpUnary>(lineage->GetLineageOp(op->id, 1));
+      if (!sink_lop) {
+          return;
+      }
+      // schema: [INT rhs_value, BIGINT rhs_address, INT out_chunk_id]
+      //         map input rowid (index) to a unique address in the HT (value)
+      //         chunk_id is used to associate a lineage for this operator to
+      //         its children.
+      TableCatalogEntry * table = Catalog::GetCatalog(context).GetEntry<TableCatalogEntry>(context,  DEFAULT_SCHEMA, tablename + "_SINK");
+      DataChunk insert_chunk;
+      insert_chunk.Initialize(table->GetTypes());
+      idx_t count = dynamic_cast<LineageDataArray<uintptr_t>&>(*sink_lop->data).count;
+      insert_chunk.SetCardinality(count);
+
+      // build side - group RHS to unique HT address
+      Vector sink_payload(table->GetTypes()[0], (data_ptr_t)&dynamic_cast<LineageDataArray<uintptr_t>&>(*sink_lop->data).vec[0]);
+      Vector chunk_ids(Value::Value::INTEGER(lineage->chunk_id));
+
+      insert_chunk.data[0].Reference(sink_payload);
+      insert_chunk.data[1].Sequence(0, 1);
+      insert_chunk.data[2].Reference(chunk_ids);
+
+      table->Persist(*table, context, insert_chunk);
+    } else {
+      std::shared_ptr<LineageOpCollection> probe_lop = std::dynamic_pointer_cast<LineageOpCollection>(lineage->GetLineageOp(op->id, 0));
+      if (!probe_lop) {
+          return;
+      }
+      // schema: [INT in_index, INT lhs_value, BIGINT rhs_address, INT out_chunk_id]
+      //         maps output row to row from probe side (LHS) and what the
+      //         unique group address it maps to from the RHS
+      TableCatalogEntry * table = Catalog::GetCatalog(context).GetEntry<TableCatalogEntry>(context,  DEFAULT_SCHEMA, tablename + "_PROBE");
+      for (idx_t i = 0; i < probe_lop->op.size(); ++i) {
+        auto op = dynamic_cast<LineageOpBinary&>(*probe_lop->op[i]);
+        idx_t count = dynamic_cast<LineageSelVec&>(*op.data_lhs).count;
+        DataChunk insert_chunk;
+        insert_chunk.Initialize(table->GetTypes());
+        insert_chunk.SetCardinality(count);
+
+        // probe - LHS
+        Vector lhs_payload(table->GetTypes()[0], (data_ptr_t)&dynamic_cast<LineageSelVec&>(*op.data_lhs).vec[0]);
+        // build side - RHS
+        Vector rhs_payload(table->GetTypes()[1], (data_ptr_t)&dynamic_cast<LineageDataArray<uintptr_t>&>(*op.data_rhs).vec[0]);
+        Vector chunk_ids(Value::Value::INTEGER(lineage->chunk_id));
+
+        insert_chunk.data[0].Reference(lhs_payload);
+        insert_chunk.data[1].Reference(rhs_payload);
+        insert_chunk.data[2].Sequence(0, 1);
+        insert_chunk.data[3].Reference(chunk_ids);
+
+        table->Persist(*table, context, insert_chunk);
+      }
+
+      Persist(op->children[0].get(), lineage, is_sink);
+      Persist(op->children[1].get(), lineage, is_sink);
+    }
+    break;
+  }
+  default:
+    for (idx_t i = 0; i < op->children.size(); ++i)
+      Persist(op->children[i].get(), lineage, is_sink);
+  }
+}
+
 void ManageLineage::BackwardLineage(PhysicalOperator *op, shared_ptr<LineageContext> lineage, int oidx) {
   std::cout << "Backward Lineage: TraverseTree op " << op << " " << op->GetName() << std::endl;
   switch (op->type) {

@@ -34,7 +34,10 @@ void Executor::Initialize(PhysicalOperator *plan) {
 		physical_state = physical_plan->GetOperatorState();
 
 #ifdef LINEAGE
-    lineage_manager->AnnotatePlan(physical_plan);
+    if (context.trace_lineage) {
+      lineage_manager->AnnotatePlan(physical_plan);
+      lineage_manager->CreateLineageTables(physical_plan);
+    }
 #endif
 
 		context.profiler->Initialize(physical_plan);

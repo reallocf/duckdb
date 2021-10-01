@@ -279,11 +279,10 @@ static void PragmaDebugManyFreeListBlocks(ClientContext &context, const Function
 static void PragmaTraceLineage(ClientContext &context, const FunctionParameters &parameters) {
   auto trace_lineage = parameters.values[0].ToString();
   if (trace_lineage == "ON") {
-		context.trace_lineage = true;
-	} else {
-		context.trace_lineage = false;
-	}
-
+    context.trace_lineage = true;
+  } else {
+    context.trace_lineage = false;
+  }
 	std::cout << "PragmaTraceLineage " << context.trace_lineage << std::endl;
 }
 #endif
