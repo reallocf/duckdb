@@ -321,10 +321,11 @@ unique_ptr<DataChunk> Executor::FetchChunk() {
 
 #ifdef LINEAGE
   // Flush the lineage to global storage location
-  if (econtext.lineage && !econtext.lineage->isEmpty()) {
+  if (context.trace_lineage && econtext.lineage && !econtext.lineage->isEmpty()) {
     econtext.lineage->chunk_id = chunk_id++;
-    lineage_manager->AddOutputLineage(physical_plan, move(econtext.lineage));
-	}
+    lineage_manager->Persist(physical_plan, econtext.lineage, false);
+    //lineage_manager->AddOutputLineage(physical_plan, move(econtext.lineage));
+  }
 #endif
 
 	context.profiler->Flush(thread.profiler);
