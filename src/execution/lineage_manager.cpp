@@ -106,6 +106,24 @@ void ManageLineage::logQuery(string input_query) {
 void ManageLineage::CreateLineageTables(PhysicalOperator *op) {
 	string base = op->GetName() + "_" + to_string(query_id) + "_" + to_string( op->id );
   switch (op->type) {
+  case PhysicalOperatorType::FILTER: {
+    // CREATE TABLE base:
+    // schema: [INT in_index, INT out_index, INT out_chunk_id]
+    auto info = make_unique<CreateTableInfo>();
+    info->schema = DEFAULT_SCHEMA;
+    info->table = base;
+    info->on_conflict = OnCreateConflict::ERROR_ON_CONFLICT;
+    info->temporary = false;
+    info->columns.push_back(ColumnDefinition("in_index", LogicalType::INTEGER));
+    info->columns.push_back(ColumnDefinition("out_index", LogicalType::INTEGER));
+    info->columns.push_back(ColumnDefinition("out_chunk_id", LogicalType::INTEGER));
+    auto binder = Binder::CreateBinder(context);
+    auto bound_create_info = binder->BindCreateTableInfo(move(info));
+    auto &catalog = Catalog::GetCatalog(context);
+    catalog.CreateTable(context, bound_create_info.get());
+    CreateLineageTables(op->children[0].get());
+    break;
+  }
 	case PhysicalOperatorType::TABLE_SCAN: {
     // CREATE TABLE base_range (range_start INTEGER, range_end INTEGER, chunk_id INTEGER)
     auto info = make_unique<CreateTableInfo>();
@@ -200,6 +218,27 @@ void ManageLineage::CreateLineageTables(PhysicalOperator *op) {
 void ManageLineage::Persist(PhysicalOperator *op, shared_ptr<LineageContext> lineage, bool is_sink = false) {
   string tablename = op->GetName() + "_" + to_string(query_id) + "_" + to_string( op->id );
   switch (op->type) {
+  case PhysicalOperatorType::FILTER: {
+    LineageOpUnary *lop = dynamic_cast<LineageOpUnary *>(lineage->GetLineageOp(op->id, 0).get());
+    if (!lop) return;
+    // schema: [INT in_index, INT out_index, INT out_chunk_id]
+    TableCatalogEntry * table = Catalog::GetCatalog(context).GetEntry<TableCatalogEntry>(context,  DEFAULT_SCHEMA, tablename);
+    DataChunk insert_chunk;
+    insert_chunk.Initialize(table->GetTypes());
+    idx_t count = dynamic_cast<LineageSelVec&>(*lop->data).count;
+    insert_chunk.SetCardinality(count);
+
+    Vector payload(table->GetTypes()[0], (data_ptr_t)&dynamic_cast<LineageSelVec&>(*lop->data).vec[0]);
+    Vector out_chunk_ids(Value::Value::INTEGER(lineage->chunk_id));
+
+    insert_chunk.data[0].Reference(payload);
+    insert_chunk.data[1].Sequence(0, 1);
+    insert_chunk.data[2].Reference(out_chunk_ids);
+
+    table->Persist(*table, context, insert_chunk);
+    Persist(op->children[0].get(), move(lineage), is_sink);
+    break;
+  }
   case PhysicalOperatorType::TABLE_SCAN: {
     // schema: [BOOLEAN filter_exists, INT in_index, INT out_index, INT in_chunk_id, INT out_chunk_id]
     LineageOpUnary *lop = dynamic_cast<LineageOpUnary *>(lineage->GetLineageOp(op->id, 0).get());
