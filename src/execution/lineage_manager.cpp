@@ -106,6 +106,28 @@ void ManageLineage::logQuery(string input_query) {
 void ManageLineage::CreateLineageTables(PhysicalOperator *op) {
 	string base = op->GetName() + "_" + to_string(query_id) + "_" + to_string( op->id );
   switch (op->type) {
+	case PhysicalOperatorType::TABLE_SCAN: {
+    // CREATE TABLE base_range (range_start INTEGER, range_end INTEGER, chunk_id INTEGER)
+    auto info = make_unique<CreateTableInfo>();
+    // CREATE TABLE base:
+    // schema: [BOOLEAN filter_exists, INT in_index, INT out_index, INT in_chunk_id, INT out_chunk_id]
+    info->schema = DEFAULT_SCHEMA;
+    info->table = base;
+    info->on_conflict = OnCreateConflict::ERROR_ON_CONFLICT;
+    info->temporary = false;
+    // if filter_exists is set, then consider in_index and out_index
+    // else, just the in_chunk_id would matter
+    info->columns.push_back(ColumnDefinition("filter_exists", LogicalType::BOOLEAN));
+    info->columns.push_back(ColumnDefinition("in_index", LogicalType::INTEGER));
+    info->columns.push_back(ColumnDefinition("out_index", LogicalType::INTEGER));
+    info->columns.push_back(ColumnDefinition("in_chunk_id", LogicalType::INTEGER));
+    info->columns.push_back(ColumnDefinition("out_chunk_id", LogicalType::INTEGER));
+    auto binder = Binder::CreateBinder(context);
+    auto bound_create_info = binder->BindCreateTableInfo(move(info));
+    auto &catalog = Catalog::GetCatalog(context);
+    catalog.CreateTable(context, bound_create_info.get());
+    break;
+  }
   case PhysicalOperatorType::HASH_GROUP_BY: {
     // CREATE TABLE base_out (group_id INTEGER, out_index INTEGER, out_chunk_id INTEGER)
     auto info = make_unique<CreateTableInfo>();
@@ -178,6 +200,49 @@ void ManageLineage::CreateLineageTables(PhysicalOperator *op) {
 void ManageLineage::Persist(PhysicalOperator *op, shared_ptr<LineageContext> lineage, bool is_sink = false) {
   string tablename = op->GetName() + "_" + to_string(query_id) + "_" + to_string( op->id );
   switch (op->type) {
+  case PhysicalOperatorType::TABLE_SCAN: {
+    // schema: [BOOLEAN filter_exists, INT in_index, INT out_index, INT in_chunk_id, INT out_chunk_id]
+    LineageOpUnary *lop = dynamic_cast<LineageOpUnary *>(lineage->GetLineageOp(op->id, 0).get());
+    if (!lop) return;
+
+    std::shared_ptr<LineageCollection> collection = std::dynamic_pointer_cast<LineageCollection>(lop->data);
+    // need to adjust the offset based on start
+    bool filter_exists = false;
+    idx_t count = 1;
+    if (collection->collection.find("vector_index") != collection->collection.end()) {
+      auto vector_index = dynamic_cast<LineageConstant&>(*collection->collection["vector_index"]).value;
+      if (collection->collection.find("filter") != collection->collection.end()) {
+        filter_exists = true;
+        count = dynamic_cast<LineageSelVec&>(*collection->collection["filter"]).count;
+      }
+
+      TableCatalogEntry * table = Catalog::GetCatalog(context).GetEntry<TableCatalogEntry>(context,  DEFAULT_SCHEMA, tablename);
+      DataChunk insert_chunk;
+      insert_chunk.Initialize(table->GetTypes());
+      insert_chunk.SetCardinality(count);
+
+      if (filter_exists) {
+        Vector filter_payload(table->GetTypes()[1], (data_ptr_t)&dynamic_cast<LineageSelVec&>(*collection->collection["filter"]).vec[0]);
+        insert_chunk.data[1].Reference(filter_payload);
+      } else {
+        Vector filter_payload(Value::Value::INTEGER(0));
+        insert_chunk.data[1].Reference(filter_payload);
+      }
+
+      Vector filter_exists_set(Value::Value::BOOLEAN(filter_exists));
+      Vector out_chunk_ids(Value::Value::INTEGER(lineage->chunk_id));
+      Vector in_chunk_ids(Value::Value::INTEGER(vector_index));
+
+      insert_chunk.data[0].Reference(filter_exists_set);
+      insert_chunk.data[2].Sequence(0, 1);
+      insert_chunk.data[3].Reference(in_chunk_ids); // Adjust using STANDARD_VECTOR_SIZE
+      insert_chunk.data[4].Reference(out_chunk_ids);
+
+      table->Persist(*table, context, insert_chunk);
+    }
+
+    break;
+  }
   case PhysicalOperatorType::HASH_GROUP_BY: {
     if (is_sink) {
       std::shared_ptr<LineageOpUnary> sink_lop = std::dynamic_pointer_cast<LineageOpUnary>(lineage->GetLineageOp(op->id, 1));
