@@ -275,6 +275,19 @@ static void PragmaDebugManyFreeListBlocks(ClientContext &context, const Function
 	config.debug_many_free_list_blocks = true;
 }
 
+#ifdef LINEAGE
+static void PragmaTraceLineage(ClientContext &context, const FunctionParameters &parameters) {
+  auto trace_lineage = parameters.values[0].ToString();
+  if (trace_lineage == "ON") {
+		context.trace_lineage = true;
+	} else {
+		context.trace_lineage = false;
+	}
+
+	std::cout << "PragmaTraceLineage " << context.trace_lineage << std::endl;
+}
+#endif
+
 void PragmaFunctions::RegisterFunction(BuiltinFunctions &set) {
 	RegisterEnableProfiling(set);
 
@@ -354,6 +367,9 @@ void PragmaFunctions::RegisterFunction(BuiltinFunctions &set) {
 	    PragmaFunction::PragmaAssignment("force_compression", PragmaForceCompression, LogicalType::VARCHAR));
 
 	set.AddFunction(PragmaFunction::PragmaStatement("debug_many_free_list_blocks", PragmaDebugManyFreeListBlocks));
+#ifdef LINEAGE
+  set.AddFunction(PragmaFunction::PragmaAssignment("trace_lineage", PragmaTraceLineage, LogicalType::VARCHAR));
+#endif
 }
 
 } // namespace duckdb

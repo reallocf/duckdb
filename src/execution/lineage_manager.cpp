@@ -2,6 +2,11 @@
 #include "duckdb/execution/lineage_context.hpp"
 #include "duckdb/main/client_context.hpp"
 
+#include "duckdb/planner/binder.hpp"
+#include "duckdb/parser/statement/create_statement.hpp"
+#include "duckdb/parser/parsed_data/create_table_info.hpp"
+#include "duckdb/planner/parsed_data/bound_create_table_info.hpp"
+
 namespace duckdb {
 class PhysicalOperator;
 class LineageContext;
@@ -11,6 +16,7 @@ void ManageLineage::Reset() {
   /* starting a new query */
   pipelines_lineage.clear();
   op_id = 0;
+  query_id++;
 }
 
 /*
@@ -45,6 +51,56 @@ void ManageLineage::AnnotatePlan(PhysicalOperator *op) {
 #endif
   for (idx_t i = 0; i < op->children.size(); ++i)
     AnnotatePlan(op->children[i].get());
+}
+
+/*
+ * Create table to store executed queries with their IDs
+ * Table name: queries_list
+ * Schema: (INT query_id, BLOB query)
+ */
+void ManageLineage::CreateQueryTable() {
+  auto info = make_unique <CreateTableInfo>();
+  info->schema = DEFAULT_SCHEMA;
+  info->table = "queries_list";
+  info->on_conflict = OnCreateConflict::ERROR_ON_CONFLICT;
+  info->temporary = false;
+
+  info->columns.push_back(ColumnDefinition("query_id", LogicalType::INTEGER));
+  info->columns.push_back(ColumnDefinition("query", LogicalType::BLOB));
+
+  auto binder = Binder::CreateBinder(context);
+  auto bound_create_info = binder->BindCreateTableInfo(move(info));
+  auto &catalog = Catalog::GetCatalog(context);
+  catalog.CreateTable(context, bound_create_info.get());
+  queries_list_table_set = true;
+}
+
+/*
+ * Persist executed query in queries_list table
+ */
+void ManageLineage::logQuery(string input_query) {
+  if (!queries_list_table_set) {
+    CreateQueryTable();
+  }
+
+  string tablename = "queries_list";
+  idx_t count = 1;
+  TableCatalogEntry * table = Catalog::GetCatalog(context).GetEntry<TableCatalogEntry>(context,  DEFAULT_SCHEMA, tablename);
+  DataChunk insert_chunk;
+  insert_chunk.Initialize(table->GetTypes());
+  insert_chunk.SetCardinality(count);
+
+  // query id
+  Vector query_ids(Value::INTEGER(query_id));
+
+  // query value
+  Vector payload(Value::BLOB(input_query));
+
+  // populate chunk
+  insert_chunk.data[0].Reference(query_ids);
+  insert_chunk.data[1].Reference(payload);
+
+  table->Persist(*table, context, insert_chunk);
 }
 
 void ManageLineage::BackwardLineage(PhysicalOperator *op, shared_ptr<LineageContext> lineage, int oidx) {

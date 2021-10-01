@@ -100,6 +100,10 @@ public:
 	//! The schema search path, in order by which entries are searched if no schema entry is provided
 	vector<string> catalog_search_path = {TEMP_SCHEMA, DEFAULT_SCHEMA, "pg_catalog"};
 
+#ifdef LINEAGE
+  bool trace_lineage = false;
+#endif
+
 public:
 	DUCKDB_API Transaction &ActiveTransaction() {
 		return transaction.ActiveTransaction();
