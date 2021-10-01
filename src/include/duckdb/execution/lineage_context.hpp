@@ -39,6 +39,8 @@ public:
 
   void CreateQueryTable();
   void logQuery(string input_query);
+  void CreateLineageTables(PhysicalOperator *op);
+  void Persist(PhysicalOperator* op, shared_ptr<LineageContext> lineage, bool is_sink);
 
   void BackwardLineage(PhysicalOperator *op, shared_ptr<LineageContext> lineage, int oidx);
 

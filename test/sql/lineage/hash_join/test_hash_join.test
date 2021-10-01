@@ -41,3 +41,24 @@ select query_id, query from queries_list;
 ----
 11	select t1.j, t2.k from t1 inner join t2 on (t1.i = t2.i)
 13	select query_id, query from queries_list;
+
+
+statement ok
+PRAGMA trace_lineage = "OFF";
+
+query III
+select lhs_value, rhs_value, probe.out_chunk_id from HASH_JOIN_11_1_PROBE AS probe JOIN HASH_JOIN_11_1_SINK AS sink USING (rhs_address);
+----
+0	4	0
+2	1	0
+3	4	0
+4	4	0
+5	4	0
+0	2	0
+3	2	0
+4	2	0
+5	2	0
+0	0	0
+3	0	0
+4	0	0
+5	0	0
