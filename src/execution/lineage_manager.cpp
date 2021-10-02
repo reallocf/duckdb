@@ -651,15 +651,10 @@ void ManageLineage::Persist(PhysicalOperator *op, shared_ptr<LineageContext> lin
 
             // schema: [oidx idx_t, rhs_ptr uintptr_t]
             //         maps output row to row from the build side in the hash table payload
-            auto lhs_count = 0;
-            auto rhs_count = 0;
             for (int i = 0; i < probe_lop->op.size(); ++i) {
                 auto op = dynamic_cast<LineageOpBinary&>(*probe_lop->op[i]);
-                op.data_lhs->persist(context, tablename + "_LHS", lineage->chunk_id, lhs_count);
-                op.data_rhs->persist(context, tablename + "_RHS", lineage->chunk_id, rhs_count);
-
-                lhs_count += dynamic_cast<LineageSelVec&>(*op.data_lhs).count;
-                rhs_count += dynamic_cast<LineageDataArray<uintptr_t>&>(*op.data_rhs).count;
+                op.data_lhs->persist(context, tablename + "_LHS", lineage->chunk_id);
+                op.data_rhs->persist(context, tablename + "_RHS", lineage->chunk_id);
             }
 
             Persist(op->children[0].get(), lineage, context, is_sink);
