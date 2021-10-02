@@ -16,6 +16,9 @@
 namespace duckdb {
 
 Executor::Executor(ClientContext &context) : context(context) {
+#ifdef LINEAGE
+  lineage_manager = make_unique<ManageLineage>(context);
+#endif
 }
 
 Executor::~Executor() {
@@ -29,6 +32,13 @@ void Executor::Initialize(PhysicalOperator *plan) {
 		lock_guard<mutex> elock(executor_lock);
 		physical_plan = plan;
 		physical_state = physical_plan->GetOperatorState();
+
+#ifdef LINEAGE
+    if (context.trace_lineage) {
+      lineage_manager->AnnotatePlan(physical_plan);
+      lineage_manager->CreateLineageTables(physical_plan);
+    }
+#endif
 
 		context.profiler->Initialize(physical_plan);
 		this->producer = scheduler.CreateProducer();
@@ -95,6 +105,10 @@ void Executor::Initialize(PhysicalOperator *plan) {
 }
 
 void Executor::Reset() {
+#ifdef LINEAGE
+  lineage_manager->Reset();
+  chunk_id = 0;
+#endif
 	lock_guard<mutex> elock(executor_lock);
 	delim_join_dependencies.clear();
 	recursive_cte = nullptr;
@@ -304,6 +318,16 @@ unique_ptr<DataChunk> Executor::FetchChunk() {
 	physical_plan->InitializeChunk(*chunk);
 	physical_plan->GetChunk(econtext, *chunk, physical_state.get());
 	physical_plan->FinalizeOperatorState(*physical_state, econtext);
+
+#ifdef LINEAGE
+  // Flush the lineage to global storage location
+  if (context.trace_lineage && econtext.lineage && !econtext.lineage->isEmpty()) {
+    econtext.lineage->chunk_id = chunk_id++;
+    lineage_manager->Persist(physical_plan, econtext.lineage, false);
+    //lineage_manager->AddOutputLineage(physical_plan, move(econtext.lineage));
+  }
+#endif
+
 	context.profiler->Flush(thread.profiler);
 	return chunk;
 }

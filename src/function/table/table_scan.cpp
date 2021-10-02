@@ -65,12 +65,28 @@ static unique_ptr<FunctionOperatorData> TableScanParallelInit(ClientContext &con
 	return move(result);
 }
 
+#ifdef LINEAGE
+static void TableScanFunc(ExecutionContext &context, const FunctionData *bind_data_p, FunctionOperatorData *operator_state,
+                          DataChunk *, DataChunk &output) {
+#else
 static void TableScanFunc(ClientContext &context, const FunctionData *bind_data_p, FunctionOperatorData *operator_state,
                           DataChunk *, DataChunk &output) {
+#endif
 	auto &bind_data = (TableScanBindData &)*bind_data_p;
 	auto &state = (TableScanOperatorData &)*operator_state;
+#ifdef LINEAGE
+	auto &transaction = Transaction::GetTransaction(context.client);
+#else
 	auto &transaction = Transaction::GetTransaction(context);
+#endif
 	bind_data.table->storage->Scan(transaction, output, state.scan_state, state.column_ids);
+#ifdef LINEAGE
+      if (transaction.scan_lineage_data) {
+        // We need lineage here because we have pushed down filters
+        context.lineage->RegisterDataPerOp(
+          context.getCurrent(), make_unique<LineageOpUnary>(move(transaction.scan_lineage_data)));
+      }
+#endif
 	bind_data.chunk_count++;
 }
 
@@ -163,11 +179,20 @@ static unique_ptr<FunctionOperatorData> IndexScanInit(ClientContext &context, co
 	return move(result);
 }
 
+#ifdef LINEAGE
+static void IndexScanFunction(ExecutionContext &context, const FunctionData *bind_data_p,
+                              FunctionOperatorData *operator_state, DataChunk *input, DataChunk &output) {
+#else
 static void IndexScanFunction(ClientContext &context, const FunctionData *bind_data_p,
                               FunctionOperatorData *operator_state, DataChunk *input, DataChunk &output) {
+#endif
 	auto &bind_data = (const TableScanBindData &)*bind_data_p;
 	auto &state = (IndexScanOperatorData &)*operator_state;
+#ifdef LINEAGE
+	auto &transaction = Transaction::GetTransaction(context.client);
+#else
 	auto &transaction = Transaction::GetTransaction(context);
+#endif
 	if (!state.finished) {
 		bind_data.table->storage->Fetch(transaction, output, state.column_ids, state.row_ids,
 		                                bind_data.result_ids.size(), state.fetch_state);

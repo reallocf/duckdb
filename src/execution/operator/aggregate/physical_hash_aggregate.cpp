@@ -197,8 +197,15 @@ void PhysicalHashAggregate::Sink(ExecutionContext &context, GlobalOperatorState 
 		}
 		D_ASSERT(gstate.finalized_hts.size() == 1);
 		gstate.total_groups += gstate.finalized_hts[0]->AddChunk(group_chunk, aggregate_input_chunk);
+#ifdef LINEAGE
+    // TODO: don't use gstate
+    context.lineage->RegisterDataPerOp(id,
+        make_shared<LineageOpUnary>(move(gstate.finalized_hts[0]->lineage_data)), 1);
+#endif
 		return;
 	}
+
+  // TODO: handle parallel execution
 
 	D_ASSERT(all_combinable);
 	D_ASSERT(!any_distinct);
@@ -338,6 +345,7 @@ bool PhysicalHashAggregate::FinalizeInternal(ClientContext &context, unique_ptr<
 		}
 	}
 
+  // TODO: check how lineage would change if this path was taken
 	if (any_partitioned) {
 		// if one is partitioned, all have to be
 		// this should mostly have already happened in Combine, but if not we do it here
@@ -392,6 +400,10 @@ void PhysicalHashAggregate::GetChunkInternal(ExecutionContext &context, DataChun
 
 	state.scan_chunk.Reset();
 
+#ifdef LINEAGE
+  context.setCurrent(id);
+#endif
+
 	// special case hack to sort out aggregating from empty intermediates
 	// for aggregations without groups
 	if (gstate.is_empty && is_implicit_aggr) {
@@ -424,7 +436,11 @@ void PhysicalHashAggregate::GetChunkInternal(ExecutionContext &context, DataChun
 			state.finished = true;
 			return;
 		}
+#ifdef LINEAGE
+		elements_found = gstate.finalized_hts[state.ht_index]->Scan(context, state.ht_scan_position, state.scan_chunk);
+#else
 		elements_found = gstate.finalized_hts[state.ht_index]->Scan(state.ht_scan_position, state.scan_chunk);
+#endif
 
 		if (elements_found > 0) {
 			break;

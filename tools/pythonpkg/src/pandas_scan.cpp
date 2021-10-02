@@ -139,8 +139,13 @@ void PandasScanFunction::PandasScanFuncParallel(ClientContext &context, const Fu
 
 //! The main pandas scan function: note that this can be called in parallel without the GIL
 //! hence this needs to be GIL-safe, i.e. no methods that create Python objects are allowed
+#ifdef LINEAGE
+void PandasScanFunction::PandasScanFunc(ExecutionContext &context, const FunctionData *bind_data,
+                                        FunctionOperatorData *operator_state, DataChunk *input, DataChunk &output) {
+#else
 void PandasScanFunction::PandasScanFunc(ClientContext &context, const FunctionData *bind_data,
                                         FunctionOperatorData *operator_state, DataChunk *input, DataChunk &output) {
+#endif
 	auto &data = (PandasScanFunctionData &)*bind_data;
 	auto &state = (PandasScanState &)*operator_state;
 

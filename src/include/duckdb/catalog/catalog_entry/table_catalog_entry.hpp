@@ -16,6 +16,9 @@
 #include "duckdb/planner/expression.hpp"
 #include "duckdb/common/case_insensitive_map.hpp"
 
+#ifdef LINEAGE
+#include "duckdb/common/types/chunk_collection.hpp"
+#endif
 namespace duckdb {
 
 class ColumnStatistics;
@@ -48,6 +51,9 @@ public:
 	case_insensitive_map_t<column_t> name_map;
 
 public:
+#ifdef LINEAGE
+	void Persist(TableCatalogEntry &table, ClientContext &context, DataChunk &chunk);
+#endif
 	unique_ptr<CatalogEntry> AlterEntry(ClientContext &context, AlterInfo *info) override;
 	//! Returns whether or not a column with the given name exists
 	bool ColumnExists(const string &name);

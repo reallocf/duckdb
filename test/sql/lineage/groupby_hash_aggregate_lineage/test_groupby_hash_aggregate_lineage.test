@@ -1,0 +1,51 @@
+# name: test/sql/lineage/groupby_lineage/test_groupby_hash_aggregate_lineage.test
+# description: Test Group By linage -- hash aggregate
+# group: [groupby_hash_aggregate_lineage]
+
+statement ok
+PRAGMA trace_lineage = "OFF";
+
+statement ok
+CREATE TABLE t1(i VARCHAR(10), j INTEGER);
+
+statement ok
+INSERT INTO t1 VALUES ('Haneen', 2),  ('Omar', 2), ('Haneen', 4), ('Mohammed', 1), ('Omar', 1), ('Haneen', 3), ('Mohammed', 2), ('Omar', 1)
+
+statement ok
+PRAGMA trace_lineage = "ON";
+
+# standalone limit
+query II
+select t1.i, avg(t1.j) from t1 GROUP BY t1.i
+----
+Haneen	3.000000
+Omar	1.333333
+Mohammed	1.500000
+
+statement ok
+PRAGMA trace_lineage = "OFF";
+
+query II
+SELECT * FROM queries_list;
+----
+9	select t1.i, avg(t1.j) from t1 GROUP BY t1.i
+11	PRAGMA trace_lineage = "OFF";
+
+query IIII
+select rowid, out_chunk_id, out_index, group_id from HASH_GROUP_BY_9_0_PROBE;
+----
+0	0	0	0
+1	0	1	1
+2	0	2	2
+
+query IIII
+select rowid, out_chunk_id, in_index, group_id  from HASH_GROUP_BY_9_0_SINK;
+----
+0	0	0	0
+1	0	1	1
+2	0	2	0
+3	0	3	2
+4	0	4	1
+5	0	5	0
+6	0	6	2
+7	0	7	1

@@ -73,8 +73,13 @@ static string TypeVectorToString(vector<LogicalType> &types) {
 	return StringUtil::Join(types, types.size(), ", ", [](const LogicalType &argument) { return argument.ToString(); });
 }
 
+#ifdef LINEAGE
+void MapFunction::MapFunctionExec(ExecutionContext &context, const FunctionData *bind_data,
+                                  FunctionOperatorData *operator_state, DataChunk *input, DataChunk &output) {
+#else
 void MapFunction::MapFunctionExec(ClientContext &context, const FunctionData *bind_data,
                                   FunctionOperatorData *operator_state, DataChunk *input, DataChunk &output) {
+#endif
 
 	py::gil_scoped_acquire acquire;
 

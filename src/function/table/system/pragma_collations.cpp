@@ -39,8 +39,13 @@ unique_ptr<FunctionOperatorData> PragmaCollateInit(ClientContext &context, const
 	return move(result);
 }
 
+#ifdef LINEAGE
+static void PragmaCollateFunction(ExecutionContext &context, const FunctionData *bind_data,
+                                  FunctionOperatorData *operator_state, DataChunk *input, DataChunk &output) {
+#else
 static void PragmaCollateFunction(ClientContext &context, const FunctionData *bind_data,
                                   FunctionOperatorData *operator_state, DataChunk *input, DataChunk &output) {
+#endif
 	auto &data = (PragmaCollateData &)*operator_state;
 	if (data.offset >= data.entries.size()) {
 		// finished returning values

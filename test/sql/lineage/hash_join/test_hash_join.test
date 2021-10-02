@@ -1,0 +1,64 @@
+# name: test/sql/lineage/hash_join/test_hash_join.test
+# description: Test Hash Joins
+# group: [hash_join]
+
+statement ok
+CREATE TABLE t1(i INTEGER, j INTEGER);
+
+statement ok
+INSERT INTO t1 VALUES (3, 1),  (NULL, 2), (2, 3), (3, 4), (3, 8), (3, 7)
+
+statement ok
+CREATE TABLE t2(i INTEGER, k VARCHAR(10));
+#CREATE TABLE t2(i VARCHAR(10), k INTEGER);
+
+statement ok
+INSERT INTO t2 VALUES (3, 'A'),   (2, 'B'), (3, 'C'), (1, 'D'), (3, 'A')
+
+statement ok
+PRAGMA trace_lineage = "ON"
+
+# standalone limit
+query II
+select t1.j, t2.k from t1 inner join t2 on (t1.i = t2.i)
+----
+1	A
+3	B
+4	A
+8	A
+7	A
+1	C
+4	C
+8	C
+7	C
+1	A
+4	A
+8	A
+7	A
+
+query II
+select query_id, query from queries_list;
+----
+11	select t1.j, t2.k from t1 inner join t2 on (t1.i = t2.i)
+13	select query_id, query from queries_list;
+
+
+statement ok
+PRAGMA trace_lineage = "OFF";
+
+query III
+select lhs_value, rhs_value, probe.out_chunk_id from HASH_JOIN_11_1_PROBE AS probe JOIN HASH_JOIN_11_1_SINK AS sink USING (rhs_address);
+----
+0	4	0
+2	1	0
+3	4	0
+4	4	0
+5	4	0
+0	2	0
+3	2	0
+4	2	0
+5	2	0
+0	0	0
+3	0	0
+4	0	0
+5	0	0

@@ -242,6 +242,10 @@ unique_ptr<QueryResult> ClientContext::ExecutePreparedStatement(ClientContextLoc
 	// store the physical plan in the context for calls to Fetch()
 	executor.Initialize(statement.plan.get());
 
+#ifdef LINEAGE
+  if (trace_lineage) executor.lineage_manager->logQuery(query);
+#endif
+
 	auto types = executor.GetTypes();
 
 	D_ASSERT(types == statement.types);

@@ -31,8 +31,13 @@ static unique_ptr<FunctionOperatorData> UnnestInit(ClientContext &context, const
 	return make_unique<UnnestOperatorData>();
 }
 
+#ifdef LINEAGE
+static void UnnestFunction(ExecutionContext &context, const FunctionData *bind_data_p,
+                           FunctionOperatorData *operator_state, DataChunk *input, DataChunk &output) {
+#else
 static void UnnestFunction(ClientContext &context, const FunctionData *bind_data_p,
                            FunctionOperatorData *operator_state, DataChunk *input, DataChunk &output) {
+#endif
 	auto &bind_data = (UnnestFunctionData &)*bind_data_p;
 	auto &state = (UnnestOperatorData &)*operator_state;
 

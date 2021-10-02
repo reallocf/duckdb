@@ -61,6 +61,10 @@ public:
 		JoinHashTable &ht;
 		bool finished;
 
+#ifdef LINEAGE
+    shared_ptr<LineageOpBinary> lop;
+#endif
+
 		explicit ScanStructure(JoinHashTable &ht);
 		//! Get the next batch of data from the scan structure
 		void Next(DataChunk &keys, DataChunk &left, DataChunk &result);
@@ -106,7 +110,11 @@ public:
 	~JoinHashTable();
 
 	//! Add the given data to the HT
+#ifdef LINEAGE
+	void Build(ExecutionContext& context, DataChunk &keys, DataChunk &input);
+#else
 	void Build(DataChunk &keys, DataChunk &input);
+#endif
 	//! Finalize the build of the HT, constructing the actual hash table and making the HT ready for probing. Finalize
 	//! must be called before any call to Probe, and after Finalize is called Build should no longer be ever called.
 	void Finalize();

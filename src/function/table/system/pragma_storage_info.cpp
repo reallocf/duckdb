@@ -98,8 +98,13 @@ unique_ptr<FunctionOperatorData> PragmaStorageInfoInit(ClientContext &context, c
 	return make_unique<PragmaStorageOperatorData>();
 }
 
+#ifdef LINEAGE
+static void PragmaStorageInfoFunction(ExecutionContext &context, const FunctionData *bind_data_p,
+                                      FunctionOperatorData *operator_state, DataChunk *input, DataChunk &output) {
+#else
 static void PragmaStorageInfoFunction(ClientContext &context, const FunctionData *bind_data_p,
                                       FunctionOperatorData *operator_state, DataChunk *input, DataChunk &output) {
+#endif
 	auto &bind_data = (PragmaStorageFunctionData &)*bind_data_p;
 	auto &data = (PragmaStorageOperatorData &)*operator_state;
 	idx_t count = 0;

@@ -51,6 +51,13 @@ void PhysicalFilter::GetChunkInternal(ExecutionContext &context, DataChunk &chun
 		return;
 	}
 	chunk.Slice(sel, result_count);
+
+#ifdef LINEAGE
+    context.lineage->RegisterDataPerOp(
+	    id,
+	    make_shared<LineageOpUnary>(make_shared<LineageSelVec>(sel, result_count))
+	);
+#endif
 }
 
 unique_ptr<PhysicalOperatorState> PhysicalFilter::GetOperatorState() {

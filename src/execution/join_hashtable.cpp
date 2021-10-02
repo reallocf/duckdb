@@ -142,7 +142,11 @@ idx_t JoinHashTable::PrepareKeys(DataChunk &keys, unique_ptr<VectorData[]> &key_
 	return added_count;
 }
 
+#ifdef LINEAGE
+void JoinHashTable::Build(ExecutionContext &context, DataChunk &keys, DataChunk &payload) {
+#else
 void JoinHashTable::Build(DataChunk &keys, DataChunk &payload) {
+#endif
 	D_ASSERT(!finalized);
 	D_ASSERT(keys.size() == payload.size());
 	if (keys.size() == 0) {
@@ -230,6 +234,15 @@ void JoinHashTable::Build(DataChunk &keys, DataChunk &payload) {
 
 	RowOperations::Scatter(source_chunk, source_data.data(), layout, addresses, *string_heap, *current_sel,
 	                       added_count);
+#ifdef LINEAGE
+  // log lineage data that maps input to output ht payload entries
+  unique_ptr<uintptr_t[]> key_locations_lineage(new uintptr_t[added_count]);
+  std::copy(key_locations, key_locations + added_count, (data_ptr_t*)key_locations_lineage.get());
+  auto lineage_data = make_shared<LineageDataArray<uintptr_t>>(move(key_locations_lineage), added_count);
+  // todo: handle the case when hash index key is null -> need to store current_sel
+  //       and store offset from address for hashtable payload instead of pointer value itself
+  context.lineage->RegisterDataPerOp(context.getCurrent(),  make_shared<LineageOpUnary>(move(lineage_data)), 1);
+#endif
 }
 
 void JoinHashTable::InsertHashes(Vector &hashes, idx_t count, data_ptr_t key_locations[]) {
@@ -460,12 +473,31 @@ void ScanStructure::NextInnerJoin(DataChunk &keys, DataChunk &left, DataChunk &r
 		// on the LHS, we create a slice using the result vector
 		result.Slice(left, result_vector, result_count);
 
+#ifdef LINEAGE
+    auto ptrs = FlatVector::GetData<uintptr_t>(pointers);
+    unique_ptr<uintptr_t[]> key_locations_lineage(new uintptr_t[result_count]);
+
+    for (idx_t i = 0; i < result_count; i++) {
+      auto idx = result_vector.get_index(i);
+      key_locations_lineage[i] = ptrs[idx];
+    }
+#endif
+
 		// on the RHS, we need to fetch the data from the hash table
 		for (idx_t i = 0; i < ht.build_types.size(); i++) {
 			auto &vector = result.data[left.ColumnCount() + i];
 			D_ASSERT(vector.GetType() == ht.build_types[i]);
 			GatherResult(vector, result_vector, result_count, i + ht.condition_types.size());
 		}
+#ifdef LINEAGE
+		// TODO: rethink again the path when current chunk get cached. how to extend already stored lineage
+		//       could use VectorOperations::Copy(other.data[i], data[i], other.size(), 0, size());
+		lop = make_shared<LineageOpBinary>();
+		auto lineage_probe = make_unique<LineageSelVec>(move(result_vector), result_count);
+		auto lineage_build = make_unique<LineageDataArray<uintptr_t>>(move(key_locations_lineage), result_count);
+		lop->setLHS(move(lineage_probe));
+		lop->setRHS(move(lineage_build));
+#endif
 		AdvancePointers();
 	}
 }

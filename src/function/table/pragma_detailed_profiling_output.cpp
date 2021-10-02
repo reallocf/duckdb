@@ -107,9 +107,15 @@ static void ExtractFunctions(ChunkCollection &collection, ExpressionInfo &info, 
 	}
 }
 
+#ifdef LINEAGE
+static void PragmaDetailedProfilingOutputFunction(ExecutionContext &context, const FunctionData *bind_data_p,
+                                                  FunctionOperatorData *operator_state, DataChunk *input,
+                                                  DataChunk &output) {
+#else
 static void PragmaDetailedProfilingOutputFunction(ClientContext &context, const FunctionData *bind_data_p,
                                                   FunctionOperatorData *operator_state, DataChunk *input,
                                                   DataChunk &output) {
+#endif
 	auto &state = (PragmaDetailedProfilingOutputOperatorData &)*operator_state;
 	auto &data = (PragmaDetailedProfilingOutputData &)*bind_data_p;
 
@@ -125,11 +131,19 @@ static void PragmaDetailedProfilingOutputFunction(ClientContext &context, const 
 		int operator_counter = 1;
 		int function_counter = 1;
 		int expression_counter = 1;
+#ifdef LINEAGE
+		if (context.client.query_profiler_history->GetPrevProfilers().empty()) {
+#else
 		if (context.query_profiler_history->GetPrevProfilers().empty()) {
+#endif
 			return;
 		}
 		// For each Operator
+#ifdef LINEAGE
+		for (auto op : context.client.query_profiler_history->GetPrevProfilers().back().second->GetTreeMap()) {
+#else
 		for (auto op : context.query_profiler_history->GetPrevProfilers().back().second->GetTreeMap()) {
+#endif
 			// For each Expression Executor
 			for (auto &expr_executor : op.second->info.executors_info) {
 				// For each Expression tree

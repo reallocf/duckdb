@@ -29,6 +29,10 @@ public:
 	Executor &executor;
 	ProducerToken &token;
 
+#ifdef LINEAGE
+  idx_t chunk_id = 0;
+#endif
+
 public:
 	//! Execute a task within the pipeline on a single thread
 	void Execute(TaskContext &task);
