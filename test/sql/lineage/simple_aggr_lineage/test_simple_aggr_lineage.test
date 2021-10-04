@@ -1,0 +1,308 @@
+# name: test/sql/lineage/simple_aggr_lineage/test_simple_aggr_lineage.test
+# description: Test Simple Aggregate Lineage
+# group: [simple_aggr_lineage]
+
+
+statement ok
+PRAGMA explain_output = PHYSICAL_ONLY;
+
+statement ok
+CREATE TABLE t1(i INTEGER);
+
+statement ok
+INSERT INTO t1 SELECT i FROM range(0,5) tbl(i);
+
+statement ok
+PRAGMA trace_lineage = "ON";
+
+query I
+select COUNT(*) from t1
+----
+5
+
+statement ok
+PRAGMA trace_lineage = "OFF";
+
+query II
+SELECT * FROM queries_list;
+----
+9	select COUNT(*) from t1
+11	PRAGMA trace_lineage = "OFF";
+
+
+query IIII
+select rowid, chunk_id, range_start, range_end from SEQ_SCAN_9_0_range;
+----
+0	0	0	5
+1	0	0	5
+
+query IIII
+select rowid, chunk_id, value, index from SEQ_SCAN_9_0_filter;
+----
+
+statement ok
+CREATE TABLE t2(i INTEGER);
+
+statement ok
+INSERT INTO t2 SELECT i FROM range(1,11) tbl(i);
+
+statement ok
+PRAGMA trace_lineage = "ON";
+
+query I
+select AVG(i) from t2
+----
+5.5
+
+statement ok
+PRAGMA trace_lineage = "OFF";
+
+query II
+SELECT * FROM queries_list;
+----
+9	select AVG(i) from t2
+11	PRAGMA trace_lineage = "OFF";
+
+
+query IIII
+select rowid, chunk_id, range_start, range_end from SEQ_SCAN_9_0_range;
+----
+0	0	0	10
+1	0	0	10
+
+
+statement ok
+CREATE TABLE t3(i INTEGER);
+
+statement ok
+INSERT INTO t3 SELECT i FROM range(1,100000) tbl(i);
+
+statement ok
+PRAGMA trace_lineage = "ON";
+
+query I
+select AVG(i) from t3
+----
+50000
+
+statement ok
+PRAGMA trace_lineage = "OFF";
+
+query II
+SELECT * FROM queries_list;
+----
+9	select AVG(i) from t3
+11	PRAGMA trace_lineage = "OFF";
+
+
+query IIII
+select rowid, chunk_id, range_start, range_end from SEQ_SCAN_9_0_range limit 5;
+----
+0	0	0	1024
+1	0	0	1024
+2	1	1024	2048
+3	1	1024	2048
+4	2	2048	3072
+
+#SUM test 10
+
+statement ok
+CREATE TABLE t4(i INTEGER);
+
+statement ok
+INSERT INTO t4 SELECT i FROM range(1,11) tbl(i);
+
+statement ok
+PRAGMA trace_lineage = "ON";
+
+query I
+select SUM(i) from t4
+----
+55
+
+statement ok
+PRAGMA trace_lineage = "OFF";
+
+query II
+SELECT * FROM queries_list;
+----
+9	select SUM(i) from t4
+11	PRAGMA trace_lineage = "OFF";
+
+
+query IIII
+select rowid, chunk_id, range_start, range_end from SEQ_SCAN_9_0_range;
+----
+0	0	0	10
+1	0	0	10
+
+#SUM test 100000
+
+statement ok
+CREATE TABLE t5(i INTEGER);
+
+statement ok
+INSERT INTO t5 SELECT i FROM range(1,100000) tbl(i);
+
+statement ok
+PRAGMA trace_lineage = "ON";
+
+query I
+select SUM(i) from t5
+----
+4999950000
+
+statement ok
+PRAGMA trace_lineage = "OFF";
+
+query II
+SELECT * FROM queries_list;
+----
+9	select SUM(i) from t5
+11	PRAGMA trace_lineage = "OFF";
+
+
+query IIII
+select rowid, chunk_id, range_start, range_end from SEQ_SCAN_9_0_range limit 5;
+----
+0	0	0	1024
+1	0	0	1024
+2	1	1024	2048
+3	1	1024	2048
+4	2	2048	3072
+
+#MIN test 10
+
+statement ok
+CREATE TABLE t6(i INTEGER);
+
+statement ok
+INSERT INTO t6 SELECT i FROM range(1,10) tbl(i);
+
+statement ok
+PRAGMA trace_lineage = "ON";
+
+query I
+select MIN(i) from t6
+----
+1
+
+statement ok
+PRAGMA trace_lineage = "OFF";
+
+query II
+SELECT * FROM queries_list;
+----
+9	select MIN(i) from t6
+11	PRAGMA trace_lineage = "OFF";
+
+
+query IIII
+select rowid, chunk_id, range_start, range_end from SEQ_SCAN_9_0_range limit 5;
+----
+0	0	0	9
+1	0	0	9
+
+#MIN test 100000
+
+statement ok
+CREATE TABLE t7(i INTEGER);
+
+statement ok
+INSERT INTO t7 SELECT i FROM range(1,100000) tbl(i);
+
+statement ok
+PRAGMA trace_lineage = "ON";
+
+query I
+select MIN(i) from t7
+----
+1
+
+statement ok
+PRAGMA trace_lineage = "OFF";
+
+query II
+SELECT * FROM queries_list;
+----
+9	select MIN(i) from t7
+11	PRAGMA trace_lineage = "OFF";
+
+
+query IIII
+select rowid, chunk_id, range_start, range_end from SEQ_SCAN_9_0_range limit 5;
+----
+0	0	0	1024
+1	0	0	1024
+2	1	1024	2048
+3	1	1024	2048
+4	2	2048	3072
+
+#MAX test 10
+
+statement ok
+CREATE TABLE t8(i INTEGER);
+
+statement ok
+INSERT INTO t8 SELECT i FROM range(1,11) tbl(i);
+
+statement ok
+PRAGMA trace_lineage = "ON";
+
+query I
+select MAX(i) from t8
+----
+10
+
+statement ok
+PRAGMA trace_lineage = "OFF";
+
+query II
+SELECT * FROM queries_list;
+----
+9	select MAX(i) from t8
+11	PRAGMA trace_lineage = "OFF";
+
+
+query IIII
+select rowid, chunk_id, range_start, range_end from SEQ_SCAN_9_0_range;
+----
+0	0	0	10
+1	0	0	10
+
+#MAX test 100000
+
+statement ok
+CREATE TABLE t9(i INTEGER);
+
+statement ok
+INSERT INTO t9 SELECT i FROM range(1,1000001) tbl(i);
+
+statement ok
+PRAGMA trace_lineage = "ON";
+
+query I
+select MAX(i) from t9
+----
+1000000
+
+statement ok
+PRAGMA trace_lineage = "OFF";
+
+query II
+SELECT * FROM queries_list;
+----
+9	select MAX(i) from t9
+11	PRAGMA trace_lineage = "OFF";
+
+query IIII
+select rowid, chunk_id, range_start, range_end from SEQ_SCAN_9_0_range limit 5;
+----
+0	0	0	1024
+1	0	0	1024
+2	1	1024	2048
+3	1	1024	2048
+4	2	2048	3072
+
+
+
