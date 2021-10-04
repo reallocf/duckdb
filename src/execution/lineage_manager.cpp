@@ -163,6 +163,7 @@ void ManageLineage::CreateLineageTables(PhysicalOperator *op) {
     catalog.CreateTable(context, bound_create_info.get());
     break;
   }
+  case PhysicalOperatorType::PERFECT_HASH_GROUP_BY:
   case PhysicalOperatorType::HASH_GROUP_BY: {
     // CREATE TABLE base_out (group_id INTEGER, out_index INTEGER, out_chunk_id INTEGER)
     auto info = make_unique<CreateTableInfo>();
@@ -340,6 +341,7 @@ void ManageLineage::Persist(PhysicalOperator *op, shared_ptr<LineageContext> lin
 
     break;
   }
+  case PhysicalOperatorType::PERFECT_HASH_GROUP_BY:
   case PhysicalOperatorType::HASH_GROUP_BY: {
     if (is_sink) {
       std::shared_ptr<LineageOpUnary> sink_lop = std::dynamic_pointer_cast<LineageOpUnary>(lineage->GetLineageOp(op->id, 1));

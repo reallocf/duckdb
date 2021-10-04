@@ -99,12 +99,20 @@ void PerfectAggregateHashTable::AddChunk(DataChunk &groups, DataChunk &payload) 
 		current_shift -= required_bits[i];
 		ComputeGroupLocation(groups.data[i], group_minima[i], address_data, current_shift, groups.size());
 	}
+
+#ifdef LINEAGE
+  SelectionVector tuples_lineage;
+  tuples_lineage.Initialize(groups.size());
+#endif
 	// now we have the HT entry number for every tuple
 	// compute the actual pointer to the data by adding it to the base HT pointer and multiplying by the tuple size
 	idx_t needs_init = 0;
 	for (idx_t i = 0; i < groups.size(); i++) {
 		D_ASSERT(address_data[i] < total_groups);
 		const auto group = address_data[i];
+#ifdef LINEAGE
+    tuples_lineage.set_index(i, group);
+#endif
 		address_data[i] = uintptr_t(data) + address_data[i] * tuple_size;
 		if (!group_is_set[group]) {
 			group_is_set[group] = true;
@@ -117,6 +125,9 @@ void PerfectAggregateHashTable::AddChunk(DataChunk &groups, DataChunk &payload) 
 	}
 	RowOperations::InitializeStates(layout, addresses, sel, needs_init);
 
+#ifdef LINEAGE
+	sink_per_chunk_lineage = make_shared<LineageOpUnary>(make_shared<LineageSelVec>(move(tuples_lineage), groups.size()));
+#endif
 	// after finding the group location we update the aggregates
 	idx_t payload_idx = 0;
 	auto &aggregates = layout.GetAggregates();
@@ -218,9 +229,18 @@ static void ReconstructGroupVector(uint32_t group_values[], Value &min, idx_t re
 	}
 }
 
+#ifdef LINEAGE
+void PerfectAggregateHashTable::Scan(ExecutionContext &context, idx_t &scan_position, DataChunk &result) {
+#else
 void PerfectAggregateHashTable::Scan(idx_t &scan_position, DataChunk &result) {
+#endif
 	auto data_pointers = FlatVector::GetData<data_ptr_t>(addresses);
+#ifdef LINEAGE
+  unique_ptr<uint32_t[]> group_values_smrt(new uint32_t[STANDARD_VECTOR_SIZE]);
+  auto group_values = group_values_smrt.get();
+#else
 	uint32_t group_values[STANDARD_VECTOR_SIZE];
+#endif
 
 	// iterate over the HT until we either have exhausted the entire HT, or
 	idx_t entry_count = 0;
@@ -249,6 +269,13 @@ void PerfectAggregateHashTable::Scan(idx_t &scan_position, DataChunk &result) {
 	// then construct the payloads
 	result.SetCardinality(entry_count);
 	RowOperations::FinalizeStates(layout, addresses, result, grouping_columns);
+
+#ifdef LINEAGE
+  // Log group_values & count for this chunk. This maps output to groups
+  auto per_chunk_lineage = make_unique<LineageDataArray<uint32_t>>(move(group_values_smrt), entry_count);
+  auto lop = make_shared<LineageOpUnary>(move(per_chunk_lineage));
+  context.lineage->RegisterDataPerOp(context.getCurrent(),  move(lop));
+#endif
 }
 
 void PerfectAggregateHashTable::Destroy() {
