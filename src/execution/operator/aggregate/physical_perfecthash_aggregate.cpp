@@ -153,6 +153,9 @@ void PhysicalPerfectHashAggregate::Sink(ExecutionContext &context, GlobalOperato
 	D_ASSERT(aggregate_input_chunk.ColumnCount() == 0 || group_chunk.size() == aggregate_input_chunk.size());
 
 	lstate.ht->AddChunk(group_chunk, aggregate_input_chunk);
+#ifdef LINEAGE
+  context.lineage->RegisterDataPerOp(id, move(lstate.ht->sink_per_chunk_lineage), 1);
+#endif
 }
 
 //===--------------------------------------------------------------------===//
@@ -183,8 +186,12 @@ void PhysicalPerfectHashAggregate::GetChunkInternal(ExecutionContext &context, D
                                                     PhysicalOperatorState *state_p) const {
 	auto &state = (PerfectHashAggregateState &)*state_p;
 	auto &gstate = (PerfectHashAggregateGlobalState &)*sink_state;
-
+#ifdef LINEAGE
+  context.setCurrent(id);
+	gstate.ht->Scan(context, state.ht_scan_position, chunk);
+#else
 	gstate.ht->Scan(state.ht_scan_position, chunk);
+#endif
 }
 
 unique_ptr<PhysicalOperatorState> PhysicalPerfectHashAggregate::GetOperatorState() {
