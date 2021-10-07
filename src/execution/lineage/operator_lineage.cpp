@@ -36,6 +36,25 @@ LineageProcessStruct OperatorLineage::Process(const vector<LogicalType>& types, 
 	if (data[finished_idx].size() > data_idx) {
 		switch (this->type) {
 		case PhysicalOperatorType::PIECEWISE_MERGE_JOIN:
+		case PhysicalOperatorType::NESTED_LOOP_JOIN: {
+			// Index Join
+			// schema: [INTEGER lhs_index, BIGINT rhs_index, INTEGER out_index]
+
+			LineageDataWithOffset this_data = data[LINEAGE_PROBE][data_idx];
+			idx_t res_count = this_data.data->Count();
+
+
+			Vector lhs_payload(types[1], this_data.data->Process(this_data.offset));
+			// sink side, offset is adjusted during capture
+			Vector rhs_payload(types[0], this_data.data->Process(0));
+
+			insert_chunk.SetCardinality(res_count);
+			insert_chunk.data[0].Reference(lhs_payload);
+			insert_chunk.data[1].Reference(rhs_payload);
+			insert_chunk.data[2].Sequence(count_so_far, 1);
+			count_so_far += res_count;
+			break;
+		}
 		case PhysicalOperatorType::INDEX_JOIN: {
 			// Index Join
 			// schema: [INTEGER lhs_index, BIGINT rhs_index, INTEGER out_index]

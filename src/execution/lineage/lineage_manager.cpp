@@ -30,6 +30,7 @@ shared_ptr<PipelineLineage> GetPipelineLineageNodeForOp(PhysicalOperator *op) {
 	case PhysicalOperatorType::ORDER_BY: {
 		return make_shared<PipelineBreakerLineage>();
 	}
+	case PhysicalOperatorType::NESTED_LOOP_JOIN:
 	case PhysicalOperatorType::BLOCKWISE_NL_JOIN:
 	case PhysicalOperatorType::PIECEWISE_MERGE_JOIN:
 	case PhysicalOperatorType::INDEX_JOIN:
@@ -118,6 +119,7 @@ vector<vector<ColumnDefinition>> GetTableColumnTypes(PhysicalOperator *op) {
 		break;
 	}
 	case PhysicalOperatorType::BLOCKWISE_NL_JOIN:
+	case PhysicalOperatorType::NESTED_LOOP_JOIN:
 	case PhysicalOperatorType::PIECEWISE_MERGE_JOIN: {
 		// sink: [INTEGER in_index, INTEGER out_index]
 		vector<ColumnDefinition> sink;
