@@ -233,6 +233,28 @@ void ManageLineage::CreateLineageTables(PhysicalOperator *op) {
     CreateLineageTables(op->children[1].get());
     break;
   }
+  case PhysicalOperatorType::BLOCKWISE_NL_JOIN: {
+    // CREATE TABLE base:
+    // schema: [INT lhs_rowid, INT lhs_in_chunk_id, INT rhs_rowid, INT rhs_chunk_id, INT out_index,INT out_chunk_id]
+    auto info = make_unique<CreateTableInfo>();
+    info->schema = DEFAULT_SCHEMA;
+    info->table = base;
+    info->on_conflict = OnCreateConflict::ERROR_ON_CONFLICT;
+    info->temporary = false;
+    info->columns.push_back(ColumnDefinition("lhs_rowid", LogicalType::INTEGER));
+    info->columns.push_back(ColumnDefinition("lhs_in_chunk_id", LogicalType::INTEGER));
+    info->columns.push_back(ColumnDefinition("rhs_rowid", LogicalType::INTEGER));
+    info->columns.push_back(ColumnDefinition("rhs_in_chunk_id", LogicalType::INTEGER));
+    info->columns.push_back(ColumnDefinition("out_index", LogicalType::INTEGER));
+    info->columns.push_back(ColumnDefinition("out_chunk_id", LogicalType::INTEGER));
+    auto binder = Binder::CreateBinder(context);
+    auto bound_create_info = binder->BindCreateTableInfo(move(info));
+    auto &catalog = Catalog::GetCatalog(context);
+    catalog.CreateTable(context, bound_create_info.get());
+    CreateLineageTables(op->children[0].get());
+    CreateLineageTables(op->children[1].get());
+    break;
+  }
   case PhysicalOperatorType::PIECEWISE_MERGE_JOIN:
   case PhysicalOperatorType::NESTED_LOOP_JOIN: {
     // CREATE TABLE rhs_sink:
@@ -441,6 +463,33 @@ void ManageLineage::Persist(PhysicalOperator *op, shared_ptr<LineageContext> lin
       table->Persist(*table, context, insert_chunk);
       Persist(op->children[0].get(), lineage, is_sink);
     }
+    break;
+  }
+  case PhysicalOperatorType::BLOCKWISE_NL_JOIN: {
+    // schema: [INT lhs_rowid, INT lhs_in_chunk_id, INT rhs_rowid, INT rhs_chunk_id, INT out_index,INT out_chunk_id]
+    std::shared_ptr<LineageOpBinary> lop = std::dynamic_pointer_cast<LineageOpBinary>(lineage->GetLineageOp(op->id, 0));
+    if (!lop) return;
+    TableCatalogEntry * table = Catalog::GetCatalog(context).GetEntry<TableCatalogEntry>(context,  DEFAULT_SCHEMA, tablename);
+    DataChunk insert_chunk;
+    insert_chunk.Initialize(table->GetTypes());
+    idx_t count = dynamic_cast<LineageSelVec&>(*lop->data_rhs).count;
+    insert_chunk.SetCardinality(count);
+
+    Vector lhs_rowid(Value::Value::INTEGER(dynamic_cast<LineageRange&>(*lop->data_lhs).start));
+    Vector lhs_chunk_id(Value::Value::INTEGER(dynamic_cast<LineageRange&>(*lop->data_lhs).end));
+    Vector rhs_rowid(table->GetTypes()[2], (data_ptr_t)&dynamic_cast<LineageSelVec&>(*lop->data_rhs).vec[0]);
+    Vector rhs_chunkid(Value::Value::INTEGER(dynamic_cast<LineageSelVec&>(*lop->data_rhs).offset));
+    Vector chunk_ids(Value::Value::INTEGER(lineage->chunk_id));
+
+    insert_chunk.data[0].Reference(lhs_rowid);
+    insert_chunk.data[1].Reference(lhs_chunk_id);
+    insert_chunk.data[2].Reference(rhs_rowid);
+    insert_chunk.data[3].Reference(rhs_chunkid);
+    insert_chunk.data[4].Sequence(0, 1);
+    insert_chunk.data[5].Reference(chunk_ids);
+
+    table->Persist(*table, context, insert_chunk);
+    Persist(op->children[0].get(), lineage, is_sink);
     break;
   }
   case PhysicalOperatorType::CROSS_PRODUCT: {

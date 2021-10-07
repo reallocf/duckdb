@@ -76,6 +76,9 @@ public:
 	                             Expression &condition)
 	    : PhysicalOperatorState(op, left), left_position(0), right_position(0), fill_in_rhs(false),
 	      checked_found_match(false), executor(condition) {
+#ifdef LINEAGE
+    left_chunk_id=0;
+#endif
 		if (IsLeftOuterJoin(join_type)) {
 			lhs_found_match = unique_ptr<bool[]>(new bool[STANDARD_VECTOR_SIZE]);
 		}
@@ -84,6 +87,9 @@ public:
 	//! Whether or not a tuple on the LHS has found a match, only used for LEFT OUTER and FULL OUTER joins
 	unique_ptr<bool[]> lhs_found_match;
 	idx_t left_position;
+#ifdef LINEAGE
+  idx_t left_chunk_id;
+#endif
 	idx_t right_position;
 	bool fill_in_rhs;
 	bool checked_found_match;
@@ -149,6 +155,9 @@ void PhysicalBlockwiseNLJoin::GetChunkInternal(ExecutionContext &context, DataCh
 				}
 			}
 			children[0]->GetChunk(context, state->child_chunk, state->child_state.get());
+#ifdef LINEAGE
+      state->left_chunk_id++;
+#endif
 			// no more data on LHS, if FULL OUTER JOIN iterate over RHS
 			if (state->child_chunk.size() == 0) {
 				if (IsRightOuterJoin(join_type)) {
@@ -196,6 +205,13 @@ void PhysicalBlockwiseNLJoin::GetChunkInternal(ExecutionContext &context, DataCh
 				}
 			}
 			chunk.Slice(match_sel, result_count);
+#ifdef LINEAGE
+      auto lop = make_shared<LineageOpBinary>();
+      // left_position within the left_chunk_id retrieved from the child
+      lop->setLHS(make_shared<LineageRange>(state->left_position, state->left_chunk_id-1));
+      lop->setRHS(make_shared<LineageSelVec>(move(match_sel), result_count, state->right_position));
+      context.lineage->RegisterDataPerOp(id, move(lop));
+#endif
 		} else {
 			// no result: reset the chunk
 			chunk.Reset();
