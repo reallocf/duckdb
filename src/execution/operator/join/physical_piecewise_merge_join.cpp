@@ -87,6 +87,9 @@ void PhysicalPiecewiseMergeJoin::Sink(ExecutionContext &context, GlobalOperatorS
 		mj_state.rhs_executor.ExecuteExpression(k, mj_state.join_keys.data[k]);
 	}
 	// append the join keys and the chunk to the chunk collection
+#ifdef LINEAGE
+  context.lineage->RegisterDataPerOp(id, make_shared<LineageOpUnary>(make_shared<LineageConstant>(gstate.right_chunks.Count())), 1);
+#endif
 	gstate.right_chunks.Append(input);
 	gstate.right_conditions.Append(mj_state.join_keys);
 }
@@ -276,6 +279,11 @@ void PhysicalPiecewiseMergeJoin::ResolveComplexJoin(ExecutionContext &context, D
 			// found matches: output them
 			chunk.Slice(state->child_chunk, left_info.result, result_count);
 			chunk.Slice(right_chunk, right_info.result, result_count, state->child_chunk.ColumnCount());
+#ifdef LINEAGE
+      auto lineage_lhs = make_unique<LineageSelVec>(move(left_info.result), result_count);
+      auto lineage_rhs = make_unique<LineageSelVec>(move(right_info.result), result_count, state->right_chunk_index);
+      context.lineage->RegisterDataPerOp(id, make_shared<LineageOpBinary>(move(lineage_lhs), move(lineage_rhs)));
+#endif
 		}
 	} while (chunk.size() == 0);
 }

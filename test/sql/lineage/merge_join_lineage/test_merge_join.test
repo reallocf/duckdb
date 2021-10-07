@@ -1,0 +1,48 @@
+# name: test/sql/lineage/merge_join_lineage/test_merge_join.test
+# description: Test Merge Join
+# group: [merge_join_lineage]
+
+statement ok
+CREATE TABLE t1(i INTEGER, j INTEGER);
+
+statement ok
+INSERT INTO t1 VALUES (3, 1),  (NULL, 2), (2, 3), (3, 4), (3, 8), (3, 7)
+
+statement ok
+CREATE TABLE t2(i INTEGER, k VARCHAR(10));
+
+statement ok
+INSERT INTO t2 VALUES (3, 'A'),   (2, 'B'), (3, 'C'), (1, 'D'), (3, 'A')
+
+statement ok
+PRAGMA trace_lineage = "ON"
+
+# standalone limit
+query IIII
+select t1.i, t1.j, t2.i, t2.k from t1 inner join t2 on (t1.i < t2.i)
+----
+2	3	3	C
+2	3	3	A
+2	3	3	A
+
+query II
+select query_id, query from queries_list;
+----
+11	select t1.i, t1.j, t2.i, t2.k from t1 inner join t2 on (t1.i < t2.i)
+13	select query_id, query from queries_list;
+
+
+statement ok
+PRAGMA trace_lineage = "OFF";
+
+query II
+select in_chunk_id, out_chunk_id from PIECEWISE_MERGE_JOIN_11_0_SINK;
+----
+0	0
+
+query IIIII
+select lhs_value, rhs_value, rhs_chunk_id, out_index, out_chunk_id from PIECEWISE_MERGE_JOIN_11_0;
+----
+2	2	0	0	0
+2	0	0	1	0
+2	4	0	2	0

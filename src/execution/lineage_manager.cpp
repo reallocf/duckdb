@@ -214,6 +214,7 @@ void ManageLineage::CreateLineageTables(PhysicalOperator *op) {
     CreateLineageTables(op->children[1].get());
     break;
   }
+  case PhysicalOperatorType::PIECEWISE_MERGE_JOIN:
   case PhysicalOperatorType::NESTED_LOOP_JOIN: {
     // CREATE TABLE rhs_sink:
     // schema: [INT in_chunk_id, INT out_chunk_id]
@@ -423,6 +424,7 @@ void ManageLineage::Persist(PhysicalOperator *op, shared_ptr<LineageContext> lin
     }
     break;
   }
+  case PhysicalOperatorType::PIECEWISE_MERGE_JOIN:
   case PhysicalOperatorType::NESTED_LOOP_JOIN: {
     // schema: [INT in_chunk_id, INT out_chunk_id]
     if (is_sink) {
@@ -633,6 +635,7 @@ void ManageLineage::BackwardLineage(PhysicalOperator *op, shared_ptr<LineageCont
         BackwardLineage(op->children[0].get(), lineage, oidx);
         break;
     }
+    case PhysicalOperatorType::PIECEWISE_MERGE_JOIN:
     case PhysicalOperatorType::NESTED_LOOP_JOIN: {
       std::shared_ptr<LineageOpBinary> lop = std::dynamic_pointer_cast<LineageOpBinary>(lineage->GetLineageOp(op->id, 0));
       if (!lop) {
