@@ -53,6 +53,21 @@ LineageProcessStruct OperatorLineage::Process(const vector<LogicalType>& types, 
 			count_so_far += res_count;
 			break;
 		}
+		case PhysicalOperatorType::BLOCKWISE_NL_JOIN: {
+			LineageDataWithOffset this_data = data[LINEAGE_PROBE][data_idx];
+			idx_t res_count = this_data.data->Count();
+
+			// constant value
+			Vector lhs_payload(Value::Value::INTEGER(this_data.offset+((int*)this_data.data->Process(0))[0]));
+			Vector rhs_payload(types[1], this_data.data->Process(0));
+
+			insert_chunk.SetCardinality(res_count);
+			insert_chunk.data[0].Reference(lhs_payload);
+			insert_chunk.data[1].Reference(rhs_payload);
+			insert_chunk.data[2].Sequence(count_so_far, 1);
+			count_so_far += res_count;
+			break;
+		}
 		case PhysicalOperatorType::FILTER:
 		case PhysicalOperatorType::LIMIT:
 		case PhysicalOperatorType::TABLE_SCAN: {
