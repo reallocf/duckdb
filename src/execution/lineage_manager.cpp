@@ -214,6 +214,25 @@ void ManageLineage::CreateLineageTables(PhysicalOperator *op) {
     CreateLineageTables(op->children[1].get());
     break;
   }
+  case PhysicalOperatorType::CROSS_PRODUCT: {
+    // CREATE TABLE base:
+    // schema: [INT rhs_rowid, INT rhs_in_chunk_id, INT out_chunk_id]
+    auto info = make_unique<CreateTableInfo>();
+    info->schema = DEFAULT_SCHEMA;
+    info->table = base;
+    info->on_conflict = OnCreateConflict::ERROR_ON_CONFLICT;
+    info->temporary = false;
+    info->columns.push_back(ColumnDefinition("rhs_rowid", LogicalType::INTEGER));
+    info->columns.push_back(ColumnDefinition("rhs_in_chunk_id", LogicalType::INTEGER));
+    info->columns.push_back(ColumnDefinition("out_chunk_id", LogicalType::INTEGER));
+    auto binder = Binder::CreateBinder(context);
+    auto bound_create_info = binder->BindCreateTableInfo(move(info));
+    auto &catalog = Catalog::GetCatalog(context);
+    catalog.CreateTable(context, bound_create_info.get());
+    CreateLineageTables(op->children[0].get());
+    CreateLineageTables(op->children[1].get());
+    break;
+  }
   case PhysicalOperatorType::PIECEWISE_MERGE_JOIN:
   case PhysicalOperatorType::NESTED_LOOP_JOIN: {
     // CREATE TABLE rhs_sink:
@@ -422,6 +441,28 @@ void ManageLineage::Persist(PhysicalOperator *op, shared_ptr<LineageContext> lin
       table->Persist(*table, context, insert_chunk);
       Persist(op->children[0].get(), lineage, is_sink);
     }
+    break;
+  }
+  case PhysicalOperatorType::CROSS_PRODUCT: {
+    // CREATE TABLE base:
+    // schema: [INT rhs_rowid, INT rhs_in_chunk_id, INT out_chunk_id]
+    std::shared_ptr<LineageOpUnary> lop = std::dynamic_pointer_cast<LineageOpUnary>(lineage->GetLineageOp(op->id, 0));
+    if (!lop) return;
+    TableCatalogEntry * table = Catalog::GetCatalog(context).GetEntry<TableCatalogEntry>(context,  DEFAULT_SCHEMA, tablename);
+    DataChunk insert_chunk;
+    insert_chunk.Initialize(table->GetTypes());
+    insert_chunk.SetCardinality(1);
+
+    Vector rhs_rowid(Value::Value::INTEGER(dynamic_cast<LineageRange&>(*lop->data).start));
+    Vector rhs_chunk_id(Value::Value::INTEGER(dynamic_cast<LineageRange&>(*lop->data).end));
+    Vector chunk_ids(Value::Value::INTEGER(lineage->chunk_id));
+
+    insert_chunk.data[0].Reference(rhs_rowid);
+    insert_chunk.data[1].Reference(rhs_chunk_id);
+    insert_chunk.data[2].Reference(chunk_ids);
+
+    table->Persist(*table, context, insert_chunk);
+    Persist(op->children[0].get(), lineage, is_sink);
     break;
   }
   case PhysicalOperatorType::PIECEWISE_MERGE_JOIN:
@@ -634,6 +675,17 @@ void ManageLineage::BackwardLineage(PhysicalOperator *op, shared_ptr<LineageCont
         }
         BackwardLineage(op->children[0].get(), lineage, oidx);
         break;
+    }
+    case PhysicalOperatorType::CROSS_PRODUCT: {
+      std::shared_ptr<LineageOpUnary> lop = std::dynamic_pointer_cast<LineageOpUnary>(lineage->GetLineageOp(op->id, 0));
+      if (!lop) {
+          std::cout << "something is wrong, " << op->GetName() << " not found" << std::endl;
+          return;
+      }
+      idx_t right_position =  dynamic_cast<LineageRange&>(*lop->data).start;
+      idx_t right_chunk_id =  dynamic_cast<LineageRange&>(*lop->data).end;
+      std::cout << "right position: " << right_position << " right_chunk_id: " << right_chunk_id << std::endl;
+      break;
     }
     case PhysicalOperatorType::PIECEWISE_MERGE_JOIN:
     case PhysicalOperatorType::NESTED_LOOP_JOIN: {

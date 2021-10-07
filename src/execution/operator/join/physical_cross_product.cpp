@@ -88,6 +88,13 @@ void PhysicalCrossProduct::GetChunkInternal(ExecutionContext &context, DataChunk
 		                          right_chunk.size());
 	}
 
+#ifdef LINEAGE
+  // right_position -> tuple id from right side
+  auto lop = make_shared<LineageOpUnary>(make_shared<LineageRange>(state->right_position,
+        right_collection.LocateChunk(state->right_position)));
+  context.lineage->RegisterDataPerOp(id, move(lop));
+#endif
+
 	// for the next iteration, move to the next position on the right side
 	state->right_position++;
 }
