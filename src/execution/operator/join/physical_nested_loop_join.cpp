@@ -159,6 +159,9 @@ void PhysicalNestedLoopJoin::Sink(ExecutionContext &context, GlobalOperatorState
 	}
 
 	// append the data and the
+#ifdef LINEAGE
+  context.lineage->RegisterDataPerOp(id, make_shared<LineageOpUnary>(make_shared<LineageConstant>(gstate.right_data.Count())), 1);
+#endif
 	gstate.right_data.Append(input);
 	gstate.right_chunks.Append(nlj_state.right_condition);
 }
@@ -343,6 +346,11 @@ void PhysicalNestedLoopJoin::ResolveComplexJoin(ExecutionContext &context, DataC
 			}
 			chunk.Slice(state->child_chunk, lvector, match_count);
 			chunk.Slice(right_data, rvector, match_count, state->child_chunk.ColumnCount());
+#ifdef LINEAGE
+      auto lineage_lhs = make_unique<LineageSelVec>(move(lvector), match_count);
+      auto lineage_rhs = make_unique<LineageSelVec>(move(rvector), match_count, state->right_chunk);
+      context.lineage->RegisterDataPerOp(id, make_shared<LineageOpBinary>(move(lineage_lhs), move(lineage_rhs)));
+#endif
 		}
 
 		// check if we exhausted the RHS, if we did we need to move to the next right chunk in the next iteration
