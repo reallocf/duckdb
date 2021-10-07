@@ -288,7 +288,7 @@ void RowGroup::TemplatedScan(Transaction *transaction, RowGroupScanState &state,
 	auto &column_ids = state.parent.column_ids;
 	auto &adaptive_filter = state.parent.adaptive_filter;
 #ifdef LINEAGE
-  transaction->scan_lineage_data = make_unique<LineageCollection>();
+  if (transaction) transaction->scan_lineage_data = make_unique<LineageCollection>();
 #endif
 	while (true) {
 		if (state.vector_index * STANDARD_VECTOR_SIZE >= state.max_row) {
@@ -421,11 +421,13 @@ void RowGroup::TemplatedScan(Transaction *transaction, RowGroupScanState &state,
 			count = approved_tuple_count;
 
 #ifdef LINEAGE
-		  transaction->scan_lineage_data->add("filter", make_unique<LineageSelVec>(move(sel), approved_tuple_count));
+      if (transaction)
+		    transaction->scan_lineage_data->add("filter", make_unique<LineageSelVec>(move(sel), approved_tuple_count));
 #endif
 		}
 #ifdef LINEAGE
-    transaction->scan_lineage_data->add("vector_index", make_unique<LineageConstant>(state.vector_index));
+    if (transaction)
+      transaction->scan_lineage_data->add("vector_index", make_unique<LineageConstant>(state.vector_index));
 #endif
 		result.SetCardinality(count);
 		state.vector_index++;
