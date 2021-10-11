@@ -60,12 +60,14 @@ PRAGMA trace_lineage = "OFF";
 query II
 SELECT * FROM queries_list;
 ----
-9	select AVG(i) from t2
+9	select COUNT(*) from t1
 11	PRAGMA trace_lineage = "OFF";
+25	select AVG(i) from t2
+27	PRAGMA trace_lineage = "OFF";
 
 
 query IIII
-select rowid, chunk_id, range_start, range_end from SEQ_SCAN_9_0_range;
+select rowid, chunk_id, range_start, range_end from SEQ_SCAN_25_0_range;
 ----
 0	0	0	10
 1	0	0	10
@@ -91,18 +93,23 @@ PRAGMA trace_lineage = "OFF";
 query II
 SELECT * FROM queries_list;
 ----
-9	select AVG(i) from t3
+9	select COUNT(*) from t1
 11	PRAGMA trace_lineage = "OFF";
+25	select AVG(i) from t2
+27	PRAGMA trace_lineage = "OFF";
+39	select AVG(i) from t3
+41	PRAGMA trace_lineage = "OFF";
 
 
 query IIII
-select rowid, chunk_id, range_start, range_end from SEQ_SCAN_9_0_range limit 5;
+select rowid, chunk_id, range_start, range_end from SEQ_SCAN_39_0_range limit 5;
 ----
 0	0	0	1024
 1	0	0	1024
 2	1	1024	2048
 3	1	1024	2048
 4	2	2048	3072
+
 
 #SUM test 10
 
@@ -126,12 +133,18 @@ PRAGMA trace_lineage = "OFF";
 query II
 SELECT * FROM queries_list;
 ----
-9	select SUM(i) from t4
+9	select COUNT(*) from t1
 11	PRAGMA trace_lineage = "OFF";
+25	select AVG(i) from t2
+27	PRAGMA trace_lineage = "OFF";
+39	select AVG(i) from t3
+41	PRAGMA trace_lineage = "OFF";
+53	select SUM(i) from t4
+55	PRAGMA trace_lineage = "OFF";
 
 
 query IIII
-select rowid, chunk_id, range_start, range_end from SEQ_SCAN_9_0_range;
+select rowid, chunk_id, range_start, range_end from SEQ_SCAN_53_0_range;
 ----
 0	0	0	10
 1	0	0	10
@@ -158,12 +171,20 @@ PRAGMA trace_lineage = "OFF";
 query II
 SELECT * FROM queries_list;
 ----
-9	select SUM(i) from t5
+9	select COUNT(*) from t1
 11	PRAGMA trace_lineage = "OFF";
+25	select AVG(i) from t2
+27	PRAGMA trace_lineage = "OFF";
+39	select AVG(i) from t3
+41	PRAGMA trace_lineage = "OFF";
+53	select SUM(i) from t4
+55	PRAGMA trace_lineage = "OFF";
+67	select SUM(i) from t5
+69	PRAGMA trace_lineage = "OFF";
 
 
 query IIII
-select rowid, chunk_id, range_start, range_end from SEQ_SCAN_9_0_range limit 5;
+select rowid, chunk_id, range_start, range_end from SEQ_SCAN_67_0_range limit 5;
 ----
 0	0	0	1024
 1	0	0	1024
@@ -193,12 +214,21 @@ PRAGMA trace_lineage = "OFF";
 query II
 SELECT * FROM queries_list;
 ----
-9	select MIN(i) from t6
+9	select COUNT(*) from t1
 11	PRAGMA trace_lineage = "OFF";
-
+25	select AVG(i) from t2
+27	PRAGMA trace_lineage = "OFF";
+39	select AVG(i) from t3
+41	PRAGMA trace_lineage = "OFF";
+53	select SUM(i) from t4
+55	PRAGMA trace_lineage = "OFF";
+67	select SUM(i) from t5
+69	PRAGMA trace_lineage = "OFF";
+81	select MIN(i) from t6
+83	PRAGMA trace_lineage = "OFF";
 
 query IIII
-select rowid, chunk_id, range_start, range_end from SEQ_SCAN_9_0_range limit 5;
+select rowid, chunk_id, range_start, range_end from SEQ_SCAN_81_0_range limit 5;
 ----
 0	0	0	9
 1	0	0	9
@@ -225,12 +255,24 @@ PRAGMA trace_lineage = "OFF";
 query II
 SELECT * FROM queries_list;
 ----
-9	select MIN(i) from t7
+9	select COUNT(*) from t1
 11	PRAGMA trace_lineage = "OFF";
+25	select AVG(i) from t2
+27	PRAGMA trace_lineage = "OFF";
+39	select AVG(i) from t3
+41	PRAGMA trace_lineage = "OFF";
+53	select SUM(i) from t4
+55	PRAGMA trace_lineage = "OFF";
+67	select SUM(i) from t5
+69	PRAGMA trace_lineage = "OFF";
+81	select MIN(i) from t6
+83	PRAGMA trace_lineage = "OFF";
+95	select MIN(i) from t7
+97	PRAGMA trace_lineage = "OFF";
 
 
 query IIII
-select rowid, chunk_id, range_start, range_end from SEQ_SCAN_9_0_range limit 5;
+select rowid, chunk_id, range_start, range_end from SEQ_SCAN_95_0_range limit 5;
 ----
 0	0	0	1024
 1	0	0	1024
@@ -260,12 +302,26 @@ PRAGMA trace_lineage = "OFF";
 query II
 SELECT * FROM queries_list;
 ----
-9	select MAX(i) from t8
+9	select COUNT(*) from t1
 11	PRAGMA trace_lineage = "OFF";
+25	select AVG(i) from t2
+27	PRAGMA trace_lineage = "OFF";
+39	select AVG(i) from t3
+41	PRAGMA trace_lineage = "OFF";
+53	select SUM(i) from t4
+55	PRAGMA trace_lineage = "OFF";
+67	select SUM(i) from t5
+69	PRAGMA trace_lineage = "OFF";
+81	select MIN(i) from t6
+83	PRAGMA trace_lineage = "OFF";
+95	select MIN(i) from t7
+97	PRAGMA trace_lineage = "OFF";
+109	select MAX(i) from t8
+111	PRAGMA trace_lineage = "OFF";
 
 
 query IIII
-select rowid, chunk_id, range_start, range_end from SEQ_SCAN_9_0_range;
+select rowid, chunk_id, range_start, range_end from SEQ_SCAN_109_0_range;
 ----
 0	0	0	10
 1	0	0	10
@@ -292,17 +348,30 @@ PRAGMA trace_lineage = "OFF";
 query II
 SELECT * FROM queries_list;
 ----
-9	select MAX(i) from t9
+9	select COUNT(*) from t1
 11	PRAGMA trace_lineage = "OFF";
+25	select AVG(i) from t2
+27	PRAGMA trace_lineage = "OFF";
+39	select AVG(i) from t3
+41	PRAGMA trace_lineage = "OFF";
+53	select SUM(i) from t4
+55	PRAGMA trace_lineage = "OFF";
+67	select SUM(i) from t5
+69	PRAGMA trace_lineage = "OFF";
+81	select MIN(i) from t6
+83	PRAGMA trace_lineage = "OFF";
+95	select MIN(i) from t7
+97	PRAGMA trace_lineage = "OFF";
+109	select MAX(i) from t8
+111	PRAGMA trace_lineage = "OFF";
+123	select MAX(i) from t9
+125	PRAGMA trace_lineage = "OFF";
 
 query IIII
-select rowid, chunk_id, range_start, range_end from SEQ_SCAN_9_0_range limit 5;
+select rowid, chunk_id, range_start, range_end from SEQ_SCAN_123_0_range limit 5;
 ----
 0	0	0	1024
 1	0	0	1024
 2	1	1024	2048
 3	1	1024	2048
 4	2	2048	3072
-
-
-
