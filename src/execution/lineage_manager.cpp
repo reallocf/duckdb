@@ -104,7 +104,7 @@ void ManageLineage::logQuery(string input_query) {
 }
 
 void ManageLineage::CreateLineageTables(PhysicalOperator *op) {
-	string base = op->GetName() + "_" + to_string(query_id) + "_" + to_string( op->id );
+  string base = op->GetName() + "_" + to_string(query_id);
   switch (op->type) {
   case PhysicalOperatorType::LIMIT: {
     // schema: [INT limit, INT offset, INT out_chunk_id]
@@ -254,7 +254,7 @@ void ManageLineage::CreateLineageTables(PhysicalOperator *op) {
 }
 
 void ManageLineage::Persist(PhysicalOperator *op, shared_ptr<LineageContext> lineage, bool is_sink = false) {
-  string tablename = op->GetName() + "_" + to_string(query_id) + "_" + to_string( op->id );
+  string tablename = op->GetName() + "_" + to_string(query_id);
   switch (op->type) {
   case PhysicalOperatorType::LIMIT: {
     LineageOpUnary *lop = dynamic_cast<LineageOpUnary *>(lineage->GetLineageOp(op->id, 0).get());
