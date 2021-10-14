@@ -111,10 +111,10 @@ void Pipeline::Execute(TaskContext &task) {
 			sink->Sink(context, *sink_state, *lstate, intermediate);
 #ifdef LINEAGE
       if (client.trace_lineage && context.lineage && !context.lineage->isEmpty()) {
-        context.lineage->chunk_id = chunk_id++;
+		  context.lineage->chunk_id = chunk_id++;
         // lineage_per_thread.push_back(move(context.lineage));
-        executor.lineage_manager->Persist(child, context.lineage, false);
-        executor.lineage_manager->Persist(sink, context.lineage, true);
+        executor.lineage_manager->Persist(child, context.lineage, false, 0);
+        executor.lineage_manager->Persist(sink, context.lineage, true, 0);
       }
 #endif
 			thread.profiler.EndOperator(nullptr);

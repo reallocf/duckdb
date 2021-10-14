@@ -191,6 +191,7 @@ public:
 	DataChunk join_keys;
 	ExpressionExecutor probe_executor;
 	unique_ptr<JoinHashTable::ScanStructure> scan_structure;
+	idx_t probe_idx = 0;
 };
 
 bool CanCacheType(const LogicalType &type) {
@@ -311,7 +312,10 @@ void PhysicalHashJoin::ProbeHashTable(ExecutionContext &context, DataChunk &chun
 	// probe the HT
 	do {
 		// fetch the chunk from the left side
+		idx_t chunk_id = context.lineage->chunk_id;
+		context.lineage->chunk_id = state->probe_idx;
 		children[0]->GetChunk(context, state->child_chunk, state->child_state.get());
+		context.lineage->chunk_id = chunk_id;
 		if (state->child_chunk.size() == 0) {
 			return;
 		}
@@ -319,11 +323,15 @@ void PhysicalHashJoin::ProbeHashTable(ExecutionContext &context, DataChunk &chun
 			ConstructEmptyJoinResult(sink.hash_table->join_type, sink.hash_table->has_null, state->child_chunk, chunk);
 			return;
 		}
+
 		// resolve the join keys for the left chunk
 		state->probe_executor.Execute(state->child_chunk, state->join_keys);
 
 		// perform the actual probe
 		state->scan_structure = sink.hash_table->Probe(state->join_keys);
+		// this is local to the getchunk, this is a problem
+		// have another index that is global and increment whenever getchunk is called, this will be the lineage->chunk_id?
+		state->scan_structure->probe_idx = state->probe_idx++;
 		state->scan_structure->Next(state->join_keys, state->child_chunk, chunk);
 	} while (chunk.size() == 0);
 }
