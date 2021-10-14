@@ -130,6 +130,19 @@ int PandasScanFunction::PandasProgress(ClientContext &context, const FunctionDat
 	return percentage;
 }
 
+#ifdef LINEAGE
+void PandasScanFunction::PandasScanFuncParallel(ExecutionContext &context, const FunctionData *bind_data,
+                                                FunctionOperatorData *operator_state, DataChunk *input,
+                                                DataChunk &output, ParallelState *parallel_state_p) {
+	//! FIXME: Have specialized parallel function from pandas scan here
+	PandasScanFunc(context, bind_data, operator_state, input, output);
+}
+
+//! The main pandas scan function: note that this can be called in parallel without the GIL
+//! hence this needs to be GIL-safe, i.e. no methods that create Python objects are allowed
+void PandasScanFunction::PandasScanFunc(ExecutionContext &context, const FunctionData *bind_data,
+                                        FunctionOperatorData *operator_state, DataChunk *input, DataChunk &output) {
+#else
 void PandasScanFunction::PandasScanFuncParallel(ClientContext &context, const FunctionData *bind_data,
                                                 FunctionOperatorData *operator_state, DataChunk *input,
                                                 DataChunk &output, ParallelState *parallel_state_p) {
@@ -139,10 +152,6 @@ void PandasScanFunction::PandasScanFuncParallel(ClientContext &context, const Fu
 
 //! The main pandas scan function: note that this can be called in parallel without the GIL
 //! hence this needs to be GIL-safe, i.e. no methods that create Python objects are allowed
-#ifdef LINEAGE
-void PandasScanFunction::PandasScanFunc(ExecutionContext &context, const FunctionData *bind_data,
-                                        FunctionOperatorData *operator_state, DataChunk *input, DataChunk &output) {
-#else
 void PandasScanFunction::PandasScanFunc(ClientContext &context, const FunctionData *bind_data,
                                         FunctionOperatorData *operator_state, DataChunk *input, DataChunk &output) {
 #endif

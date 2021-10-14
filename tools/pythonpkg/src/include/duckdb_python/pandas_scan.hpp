@@ -49,14 +49,16 @@ public:
 #ifdef LINEAGE
 	static void PandasScanFunc(ExecutionContext &context, const FunctionData *bind_data,
 	                           FunctionOperatorData *operator_state, DataChunk *input, DataChunk &output);
+	static void PandasScanFuncParallel(ExecutionContext &context, const FunctionData *bind_data,
+	                                   FunctionOperatorData *operator_state, DataChunk *input, DataChunk &output,
+	                                   ParallelState *parallel_state_p);
 #else
 	static void PandasScanFunc(ClientContext &context, const FunctionData *bind_data,
 	                           FunctionOperatorData *operator_state, DataChunk *input, DataChunk &output);
-#endif
-
 	static void PandasScanFuncParallel(ClientContext &context, const FunctionData *bind_data,
 	                                   FunctionOperatorData *operator_state, DataChunk *input, DataChunk &output,
 	                                   ParallelState *parallel_state_p);
+#endif
 
 	static unique_ptr<NodeStatistics> PandasScanCardinality(ClientContext &context, const FunctionData *bind_data);
 };
