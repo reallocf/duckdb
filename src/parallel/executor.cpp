@@ -35,6 +35,7 @@ void Executor::Initialize(PhysicalOperator *plan) {
 
 #ifdef LINEAGE
     if (context.trace_lineage) {
+		std::cout << physical_plan->ToString() << std::endl;
       lineage_manager->AnnotatePlan(physical_plan);
       lineage_manager->CreateLineageTables(physical_plan);
     }
@@ -322,8 +323,8 @@ unique_ptr<DataChunk> Executor::FetchChunk() {
 #ifdef LINEAGE
   // Flush the lineage to global storage location
   if (context.trace_lineage && econtext.lineage && !econtext.lineage->isEmpty()) {
-    econtext.lineage->chunk_id = chunk_id++;
-    lineage_manager->Persist(physical_plan, econtext.lineage, false);
+	  econtext.lineage->chunk_id = chunk_id++;
+    lineage_manager->Persist(physical_plan, econtext.lineage, false, 0);
     //lineage_manager->AddOutputLineage(physical_plan, move(econtext.lineage));
   }
 #endif

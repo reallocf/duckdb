@@ -63,6 +63,7 @@ public:
 
 #ifdef LINEAGE
     shared_ptr<LineageOpBinary> lop;
+	idx_t probe_idx = 0;
 #endif
 
 		explicit ScanStructure(JoinHashTable &ht);

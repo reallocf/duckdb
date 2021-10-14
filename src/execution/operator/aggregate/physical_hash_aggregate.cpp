@@ -200,7 +200,7 @@ void PhysicalHashAggregate::Sink(ExecutionContext &context, GlobalOperatorState 
 #ifdef LINEAGE
     // TODO: don't use gstate
     context.lineage->RegisterDataPerOp(id,
-        make_shared<LineageOpUnary>(move(gstate.finalized_hts[0]->lineage_data)), 1);
+        make_shared<LineageOpUnary>(move(gstate.finalized_hts[0]->lineage_data)));
 #endif
 		return;
 	}

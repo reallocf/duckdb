@@ -226,6 +226,7 @@ void ManageLineage::CreateLineageTables(PhysicalOperator *op) {
     info->columns.push_back(ColumnDefinition("rhs_address", LogicalType::BIGINT));
     info->columns.push_back(ColumnDefinition("out_index", LogicalType::INTEGER));
     info->columns.push_back(ColumnDefinition("out_chunk_id", LogicalType::INTEGER));
+	info->columns.push_back(ColumnDefinition("probe_idx", LogicalType::INTEGER));
     auto binder = Binder::CreateBinder(context);
     auto bound_create_info = binder->BindCreateTableInfo(move(info));
     auto &catalog = Catalog::GetCatalog(context);
@@ -253,11 +254,11 @@ void ManageLineage::CreateLineageTables(PhysicalOperator *op) {
   }
 }
 
-void ManageLineage::Persist(PhysicalOperator *op, shared_ptr<LineageContext> lineage, bool is_sink = false) {
+void ManageLineage::Persist(PhysicalOperator *op, shared_ptr<LineageContext> lineage, bool is_sink = false, idx_t lindex = 0) {
   string tablename = op->GetName() + "_" + to_string(query_id);
   switch (op->type) {
   case PhysicalOperatorType::LIMIT: {
-    LineageOpUnary *lop = dynamic_cast<LineageOpUnary *>(lineage->GetLineageOp(op->id, 0).get());
+    LineageOpUnary *lop = dynamic_cast<LineageOpUnary *>(lineage->GetLineageOp(op->id, lindex).get());
     if (!lop) return;
     // schema: [INT limit, INT offset, INT out_chunk_id]
     TableCatalogEntry * table = Catalog::GetCatalog(context).GetEntry<TableCatalogEntry>(context,  DEFAULT_SCHEMA, tablename);
@@ -278,7 +279,7 @@ void ManageLineage::Persist(PhysicalOperator *op, shared_ptr<LineageContext> lin
     break;
   }
   case PhysicalOperatorType::FILTER: {
-    LineageOpUnary *lop = dynamic_cast<LineageOpUnary *>(lineage->GetLineageOp(op->id, 0).get());
+    LineageOpUnary *lop = dynamic_cast<LineageOpUnary *>(lineage->GetLineageOp(op->id, lindex).get());
     if (!lop) return;
     // schema: [INT in_index, INT out_index, INT out_chunk_id]
     TableCatalogEntry * table = Catalog::GetCatalog(context).GetEntry<TableCatalogEntry>(context,  DEFAULT_SCHEMA, tablename);
@@ -300,7 +301,7 @@ void ManageLineage::Persist(PhysicalOperator *op, shared_ptr<LineageContext> lin
   }
   case PhysicalOperatorType::TABLE_SCAN: {
     // schema: [BOOLEAN filter_exists, INT in_index, INT out_index, INT in_chunk_id, INT out_chunk_id]
-    LineageOpUnary *lop = dynamic_cast<LineageOpUnary *>(lineage->GetLineageOp(op->id, 0).get());
+    LineageOpUnary *lop = dynamic_cast<LineageOpUnary *>(lineage->GetLineageOp(op->id, lindex).get());
     if (!lop) return;
 
     std::shared_ptr<LineageCollection> collection = std::dynamic_pointer_cast<LineageCollection>(lop->data);
@@ -344,7 +345,7 @@ void ManageLineage::Persist(PhysicalOperator *op, shared_ptr<LineageContext> lin
   case PhysicalOperatorType::PERFECT_HASH_GROUP_BY:
   case PhysicalOperatorType::HASH_GROUP_BY: {
     if (is_sink) {
-      std::shared_ptr<LineageOpUnary> sink_lop = std::dynamic_pointer_cast<LineageOpUnary>(lineage->GetLineageOp(op->id, 1));
+      std::shared_ptr<LineageOpUnary> sink_lop = std::dynamic_pointer_cast<LineageOpUnary>(lineage->GetLineageOp(op->id, lindex));
       if (!sink_lop) return;
       // schema: [INT in_index, INT group_id, INT out_chunk_id]
       //         map input rowid (index) to a unique group in the HT (group).
@@ -365,7 +366,7 @@ void ManageLineage::Persist(PhysicalOperator *op, shared_ptr<LineageContext> lin
 
       table->Persist(*table, context, insert_chunk);
     } else {
-      std::shared_ptr<LineageOpUnary> lop = std::dynamic_pointer_cast<LineageOpUnary>(lineage->GetLineageOp(op->id, 0));
+      std::shared_ptr<LineageOpUnary> lop = std::dynamic_pointer_cast<LineageOpUnary>(lineage->GetLineageOp(op->id, lindex));
       if (!lop) return;
       // schema: [INT out-index, INT group_id, INT out_chunk_id]
       //         map output rowid (index) to the unique group in the HT (group).
@@ -391,7 +392,7 @@ void ManageLineage::Persist(PhysicalOperator *op, shared_ptr<LineageContext> lin
   }
   case PhysicalOperatorType::HASH_JOIN: {
     if (is_sink) {
-      std::shared_ptr<LineageOpUnary> sink_lop = std::dynamic_pointer_cast<LineageOpUnary>(lineage->GetLineageOp(op->id, 1));
+      std::shared_ptr<LineageOpUnary> sink_lop = std::dynamic_pointer_cast<LineageOpUnary>(lineage->GetLineageOp(op->id, lindex));
       if (!sink_lop) {
           return;
       }
@@ -415,7 +416,7 @@ void ManageLineage::Persist(PhysicalOperator *op, shared_ptr<LineageContext> lin
 
       table->Persist(*table, context, insert_chunk);
     } else {
-      std::shared_ptr<LineageOpCollection> probe_lop = std::dynamic_pointer_cast<LineageOpCollection>(lineage->GetLineageOp(op->id, 0));
+      std::shared_ptr<LineageOpCollection> probe_lop = std::dynamic_pointer_cast<LineageOpCollection>(lineage->GetLineageOp(op->id, lindex));
       if (!probe_lop) {
           return;
       }
@@ -423,35 +424,41 @@ void ManageLineage::Persist(PhysicalOperator *op, shared_ptr<LineageContext> lin
       //         maps output row to row from probe side (LHS) and what the
       //         unique group address it maps to from the RHS
       TableCatalogEntry * table = Catalog::GetCatalog(context).GetEntry<TableCatalogEntry>(context,  DEFAULT_SCHEMA, tablename + "_PROBE");
+	  idx_t acc_count = 0;
       for (idx_t i = 0; i < probe_lop->op.size(); ++i) {
-        auto op = dynamic_cast<LineageOpBinary&>(*probe_lop->op[i]);
-        idx_t count = dynamic_cast<LineageSelVec&>(*op.data_lhs).count;
+        auto local_op = dynamic_cast<LineageOpBinary&>(*probe_lop->op[i]);
+        idx_t count = dynamic_cast<LineageSelVec&>(*local_op.data_lhs).count;
         DataChunk insert_chunk;
         insert_chunk.Initialize(table->GetTypes());
         insert_chunk.SetCardinality(count);
 
         // probe - LHS
-        Vector lhs_payload(table->GetTypes()[0], (data_ptr_t)&dynamic_cast<LineageSelVec&>(*op.data_lhs).vec[0]);
+        Vector lhs_payload(table->GetTypes()[0], (data_ptr_t)&dynamic_cast<LineageSelVec&>(*local_op.data_lhs).vec[0]);
         // build side - RHS
-        Vector rhs_payload(table->GetTypes()[1], (data_ptr_t)&dynamic_cast<LineageDataArray<uintptr_t>&>(*op.data_rhs).vec[0]);
+        Vector rhs_payload(table->GetTypes()[1], (data_ptr_t)&dynamic_cast<LineageDataArray<uintptr_t>&>(*local_op.data_rhs).vec[0]);
         Vector chunk_ids(Value::Value::INTEGER(lineage->chunk_id));
+		idx_t probe_idx = dynamic_cast<LineageSelVec&>(*local_op.data_lhs).offset;
+		Vector probe_idx_vec(Value::Value::INTEGER(probe_idx));
 
         insert_chunk.data[0].Reference(lhs_payload);
         insert_chunk.data[1].Reference(rhs_payload);
-        insert_chunk.data[2].Sequence(0, 1);
+        insert_chunk.data[2].Sequence(acc_count, 1);
+		acc_count += count;
         insert_chunk.data[3].Reference(chunk_ids);
-
+		// add probe_idx to associate this with a GetChunk pipeline for probe side
+		insert_chunk.data[4].Reference(probe_idx_vec);
         table->Persist(*table, context, insert_chunk);
+
+		Persist(op->children[0].get(), lineage, is_sink, probe_idx);
       }
 
-      Persist(op->children[0].get(), lineage, is_sink);
       Persist(op->children[1].get(), lineage, is_sink);
     }
     break;
   }
   case PhysicalOperatorType::INDEX_JOIN: {
     // CREATE TABLE INDEX_JOIN (lhs_value INT, rhs_value BIGINT, in_index INT, out_chunk_id INT)
-    LineageOpBinary *lop = dynamic_cast<LineageOpBinary *>(lineage->GetLineageOp(op->id, 0).get());
+    LineageOpBinary *lop = dynamic_cast<LineageOpBinary *>(lineage->GetLineageOp(op->id, lindex).get());
     if (!lop) return;
     TableCatalogEntry * table = Catalog::GetCatalog(context).GetEntry<TableCatalogEntry>(context,  DEFAULT_SCHEMA, tablename);
     DataChunk insert_chunk;
@@ -475,140 +482,6 @@ void ManageLineage::Persist(PhysicalOperator *op, shared_ptr<LineageContext> lin
   default:
     for (idx_t i = 0; i < op->children.size(); ++i)
       Persist(op->children[i].get(), lineage, is_sink);
-  }
-}
-
-void ManageLineage::BackwardLineage(PhysicalOperator *op, shared_ptr<LineageContext> lineage, int oidx) {
-  std::cout << "Backward Lineage: TraverseTree op " << op << " " << op->GetName() << std::endl;
-  switch (op->type) {
-    case PhysicalOperatorType::LIMIT: {
-      LineageOpUnary *lop = dynamic_cast<LineageOpUnary *>(lineage->GetLineageOp(op->id, 0).get());
-      if (!lop) {
-        std::cout << "something is wrong, lop not found for  limit" << std::endl;
-        return;
-      }
-
-      auto offset = dynamic_cast<LineageRange&>(*lop->data).start;
-      auto limit = dynamic_cast<LineageRange&>(*lop->data).end;
-      std::cout << "Limit: offset " << offset << " limit: " << limit << std::endl;
-      BackwardLineage(op->children[0].get(), lineage, oidx);
-      break;
-    }
-    case PhysicalOperatorType::TABLE_SCAN: {
-      LineageOpUnary *lop = dynamic_cast<LineageOpUnary *>(lineage->GetLineageOp(op->id, 0).get());
-      if (!lop) {
-        std::cout << "something is wrong, lop not found for  table scan" << std::endl;
-        return;
-      }
-      std::shared_ptr<LineageCollection> collection = std::dynamic_pointer_cast<LineageCollection>(lop->data);
-      // need to adjust the offset based on start
-      if (collection->collection.find("vector_index") != collection->collection.end()) {
-        auto vector_index = dynamic_cast<LineageConstant&>(*collection->collection["vector_index"]).value;
-        std::cout << "Table scan chunk Id " << vector_index <<  std::endl;
-      }
-
-      if (collection->collection.find("filter") != collection->collection.end()) {
-        // get selection vector
-        std::cout << "filter on scan" <<  std::endl;
-        auto fidx = dynamic_cast<LineageSelVec&>(*collection->collection["filter"]).getAtIndex(oidx);
-        std::cout << oidx << " maps to " << fidx  << std::endl;
-      }
-      break;
-    }
-    case PhysicalOperatorType::PERFECT_HASH_GROUP_BY:
-    case PhysicalOperatorType::HASH_GROUP_BY: {
-      std::shared_ptr<LineageOpUnary> lop = std::dynamic_pointer_cast<LineageOpUnary>(lineage->GetLineageOp(op->id, 0));
-      if (!lop) {
-          std::cout << "something is wrong, lop not found for aggregate" << std::endl;
-          return;
-      }
-
-      // schema: [oidx idx_t, group idx_t]
-      //         maps a row in the output to a group
-      idx_t group =  dynamic_cast<LineageDataArray<sel_t>&>(*lop->data).getAtIndex(oidx);
-      std::cout << oidx << " belong to " << group << std::endl;
-
-      // Lookup the data on the build side
-      if (pipelines_lineage[1].find(op) != pipelines_lineage[1].end()) {
-          vector<shared_ptr<LineageContext>> sink_lineage = pipelines_lineage[1][op];
-          vector<idx_t> matches;
-          for (idx_t i = 0; i < sink_lineage.size(); ++i) {
-            std::shared_ptr<LineageOpUnary> sink_lop = std::dynamic_pointer_cast<LineageOpUnary>(sink_lineage[i]->GetLineageOp(op->id, 1));
-
-            if (!sink_lop) {
-              std::cout << "something is wrong, aggregate sink lop not found" << std::endl;
-              continue;
-            }
-
-            // schema: [ridx idx_t, group idx_t]
-            //         maps input row to a specific group
-            // getAllMatches: get all ridx that belong to group, O(n)
-            dynamic_cast<LineageSelVec&>(*sink_lop->data).getAllMatches(group, matches);
-            std::cout << " getAllMatches for " << group << " has " << matches.size() << std::endl;
-          }
-        }
-        BackwardLineage(op->children[0].get(), lineage, oidx);
-        break;
-    } case PhysicalOperatorType::HASH_JOIN: {
-      // Probe lineage can have multiple lineage data if the output is cached
-      std::shared_ptr<LineageOpCollection> lop_col = std::dynamic_pointer_cast<LineageOpCollection>(lineage->GetLineageOp(op->id, 0));
-      if (!lop_col) {
-          std::cout << "something is wrong, hash join build lop not found" << std::endl;
-          return;
-      }
-
-      for (idx_t i = 0; i < lop_col->op.size(); ++i) {
-        auto lop = dynamic_cast<LineageOpBinary&>(*lop_col->op[i]);
-        // schema: [oidx idx_t, lhs_idx idx_t]
-        //         maps output row to row from probe side (LHS)
-        auto lhs_idx =  dynamic_cast<LineageSelVec&>(*lop.data_lhs).getAtIndex(oidx);
-        std::cout << "-> Hash Join LHS " <<  lhs_idx << std::endl;
-
-        // schema: [oidx idx_t, rhs_ptr uintptr_t]
-        //         maps output row to row from the build side in the hash table payload
-        uintptr_t rhs_ptr = dynamic_cast<LineageDataArray<uintptr_t>&>(*lop.data_rhs).getAtIndex(oidx);
-        std::cout << "-> Hash Join RHS ptr in HashJoin table " << rhs_ptr<< std::endl;
-
-        // We need to get the actual row id from the build side
-        if (pipelines_lineage[1].find(op) != pipelines_lineage[1].end()) {
-          vector<shared_ptr<LineageContext>> sink_lineage = pipelines_lineage[1][op];
-          for (idx_t i = 0; i < sink_lineage.size(); ++i) {
-            std::shared_ptr<LineageOpUnary> sink_lop = std::dynamic_pointer_cast<LineageOpUnary>(sink_lineage[i]->GetLineageOp(op->id, 1));
-
-            if (!sink_lop) {
-                std::cout << "something is wrong, hash join sink lop not found" << std::endl;
-                continue;
-            }
-
-            int rhs_idx = dynamic_cast<LineageDataArray<uintptr_t>&>(*sink_lop->data).findIndexOf((idx_t)rhs_ptr);
-            std::cout << "rhs_idx " << i << " " << rhs_idx << " " << rhs_ptr << std::endl;
-          }
-        }
-      }
-      BackwardLineage(op->children[0].get(), lineage, oidx);
-      BackwardLineage(op->children[1].get(), lineage, oidx);
-      break;
-    }
-    case PhysicalOperatorType::INDEX_JOIN: {
-      std::shared_ptr<LineageOpBinary> lop = std::dynamic_pointer_cast<LineageOpBinary>(lineage->GetLineageOp(op->id, 0));
-      if (!lop) {
-          std::cout << "something is wrong, lop not found" << std::endl;
-          return;
-      }
-
-      auto lhs_idx = dynamic_cast<LineageSelVec&>(*lop->data_lhs).getAtIndex(oidx);
-      std::cout << "-> Index Join LHS " <<  lhs_idx << std::endl;
-      auto rhs_idx =  dynamic_cast<LineageDataVector<row_t>&>(*lop->data_rhs).getAtIndex(oidx);
-      std::cout << "-> Index Join RHS " <<  rhs_idx << std::endl;
-
-      BackwardLineage(op->children[0].get(), lineage, oidx);
-      BackwardLineage(op->children[1].get(), lineage, oidx);
-      break;
-    }
-    default: {
-      for (idx_t i = 0; i < op->children.size(); ++i)
-        BackwardLineage(op->children[i].get(), lineage, oidx);
-    }
   }
 }
 

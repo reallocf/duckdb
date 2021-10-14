@@ -241,7 +241,7 @@ void JoinHashTable::Build(DataChunk &keys, DataChunk &payload) {
   auto lineage_data = make_shared<LineageDataArray<uintptr_t>>(move(key_locations_lineage), added_count);
   // todo: handle the case when hash index key is null -> need to store current_sel
   //       and store offset from address for hashtable payload instead of pointer value itself
-  context.lineage->RegisterDataPerOp(context.getCurrent(),  make_shared<LineageOpUnary>(move(lineage_data)), 1);
+  context.lineage->RegisterDataPerOp(context.getCurrent(),  make_shared<LineageOpUnary>(move(lineage_data)));
 #endif
 }
 
@@ -493,8 +493,11 @@ void ScanStructure::NextInnerJoin(DataChunk &keys, DataChunk &left, DataChunk &r
 		// TODO: rethink again the path when current chunk get cached. how to extend already stored lineage
 		//       could use VectorOperations::Copy(other.data[i], data[i], other.size(), 0, size());
 		lop = make_shared<LineageOpBinary>();
-		auto lineage_probe = make_unique<LineageSelVec>(move(result_vector), result_count);
+		// probe_idx is local within a pipeline
+		// we want something that would cross pipelines.. but also a way to associate operators below the getchunk
+		auto lineage_probe = make_unique<LineageSelVec>(move(result_vector), result_count, probe_idx);
 		auto lineage_build = make_unique<LineageDataArray<uintptr_t>>(move(key_locations_lineage), result_count);
+		// add chunk id used to get the probe side chunk
 		lop->setLHS(move(lineage_probe));
 		lop->setRHS(move(lineage_build));
 #endif

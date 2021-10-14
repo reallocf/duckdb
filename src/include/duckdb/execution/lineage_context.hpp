@@ -40,9 +40,7 @@ public:
   void CreateQueryTable();
   void logQuery(string input_query);
   void CreateLineageTables(PhysicalOperator *op);
-  void Persist(PhysicalOperator* op, shared_ptr<LineageContext> lineage, bool is_sink);
-
-  void BackwardLineage(PhysicalOperator *op, shared_ptr<LineageContext> lineage, int oidx);
+  void Persist(PhysicalOperator* op, shared_ptr<LineageContext> lineage, bool is_sink, idx_t lindex);
 
   idx_t op_id = 0;
   unordered_map<int, unordered_map<PhysicalOperator*, vector<shared_ptr<LineageContext>>>> pipelines_lineage;
@@ -307,26 +305,26 @@ public:
     chunk_id = 0;
   }
 
-  void RegisterDataPerOp(idx_t key, shared_ptr<LineageOp> op, int type = 0) {
-    ht[type][key] = move(op);
+  void RegisterDataPerOp(idx_t key, shared_ptr<LineageOp> op) {
+    ht[key][chunk_id] = move(op);
   }
 
-	bool isEmpty() {
+  bool isEmpty() {
     return ht.empty();
-	}
+  }
 
-	shared_ptr<LineageOp> GetLineageOp(idx_t key, int type) {
-    if (ht.find(type) == ht.end())
-			return NULL;
+  idx_t GetLineageOpSize(idx_t key) {
+	  return ht[key].size();
+  }
 
-		if (ht[type].find(key) == ht[type].end())
-      return NULL;
+  shared_ptr<LineageOp> GetLineageOp(idx_t key, int index=0) {
+    if (ht.find(key) == ht.end()) return NULL;
+	if (ht[key].find(index) == ht[key].end()) return NULL;
+    return ht[key][index];
+  }
 
-    return ht[type][key];
-	}
-
-  std::unordered_map<int, std::unordered_map<idx_t, shared_ptr<LineageOp>>> ht;
-	int32_t chunk_id;
+  std::unordered_map<idx_t, std::unordered_map<idx_t, shared_ptr<LineageOp>>> ht;
+  int32_t chunk_id;
 };
 
 } // namespace duckdb
