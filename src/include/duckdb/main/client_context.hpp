@@ -101,7 +101,10 @@ public:
 	vector<string> catalog_search_path = {TEMP_SCHEMA, DEFAULT_SCHEMA, "pg_catalog"};
 
 #ifdef LINEAGE
-  bool trace_lineage = false;
+	//! Whether or not lineage is currently being captured
+	bool trace_lineage = false;
+	//! The lineage manager
+	unique_ptr<ManageLineage> lineage_manager;
 #endif
 
 public:

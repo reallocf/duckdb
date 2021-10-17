@@ -91,7 +91,7 @@ void PhysicalIndexJoin::Output(ExecutionContext &context, DataChunk &chunk, Phys
 	}
 
 #ifdef LINEAGE
-	auto lop = make_unique<LineageOpBinary>();
+	unique_ptr<LineageDataRowVector> rhs_lineage;
 #endif
 
 	//! Now we fetch the RHS data
@@ -104,7 +104,10 @@ void PhysicalIndexJoin::Output(ExecutionContext &context, DataChunk &chunk, Phys
 		Vector row_ids(LOGICAL_ROW_TYPE, (data_ptr_t)&fetch_rows[0]);
 		tbl->Fetch(transaction, rhs_chunk, fetch_ids, row_ids, output_sel_idx, fetch_state);
 #ifdef LINEAGE
-		lop->setRHS(make_unique<LineageDataVector<row_t>>(fetch_rows, output_sel_idx));
+		rhs_lineage = make_unique<LineageDataRowVector>(fetch_rows, output_sel_idx);
+	} else {
+		// TODO what's going on in this case?
+		rhs_lineage = make_unique<LineageDataRowVector>(vector<row_t>(), 0);
 #endif
 	}
 
@@ -126,8 +129,8 @@ void PhysicalIndexJoin::Output(ExecutionContext &context, DataChunk &chunk, Phys
 	}
 
 #ifdef LINEAGE
-	lop->setLHS(make_unique<LineageSelVec>(move(sel), output_sel_idx));
-	context.lineage->RegisterDataPerOp(id,  move(lop));
+	auto lhs_lineage = make_unique<LineageSelVec>(move(sel), output_sel_idx);
+	lineage_op->Capture(make_shared<LineageBinaryData>(move(lhs_lineage), move(rhs_lineage)), LINEAGE_UNARY);
 #endif
 
 	state->result_size = output_sel_idx;

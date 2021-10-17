@@ -28,19 +28,18 @@ PRAGMA trace_lineage = "OFF";
 query II
 SELECT * FROM queries_list;
 ----
-9	select * from t1 where 2 > i  OR i > 1998
-11	PRAGMA trace_lineage = "OFF";
+1	select * from t1 where 2 > i  OR i > 1998
+2	PRAGMA trace_lineage = "OFF";
 
-query IIII
-SELECT rowid, in_index, out_index, out_chunk_id FROM FILTER_9_0
+query III
+SELECT rowid, in_index, out_index FROM LINEAGE_1_FILTER_0_0
 ----
-0	0	0	0
-1	1	1	0
-2	975	0	1
+0	0	0
+1	1	1
+2	975	2
 
 
-query IIIIII
-SELECT rowid, filter_exists, in_chunk_id, in_index, out_index, out_chunk_id FROM SEQ_SCAN_9_1
+# We don't capture anything for the SEQ_SCAN because nothing is filtered out
+query III
+SELECT rowid, in_index, out_index FROM LINEAGE_1_SEQ_SCAN_1_0
 ----
-0	False	0	0	0	0
-1	False	1	0	0	1

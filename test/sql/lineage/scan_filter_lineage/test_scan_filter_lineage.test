@@ -27,11 +27,11 @@ PRAGMA trace_lineage = "OFF";
 query II
 SELECT * FROM queries_list;
 ----
-9	select * from t1 where i > 2
-11	PRAGMA trace_lineage = "OFF";
+1	select * from t1 where i > 2
+2	PRAGMA trace_lineage = "OFF";
 
-query IIIIII
-SELECT rowid, filter_exists, in_chunk_id, in_index, out_index, out_chunk_id FROM SEQ_SCAN_9_0
+query II
+SELECT in_index, rowid FROM LINEAGE_1_SEQ_SCAN_0_0
 ----
-0	True	0	3	0	0
-1	True	0	4	1	0
+3	0
+4	1

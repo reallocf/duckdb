@@ -198,9 +198,8 @@ void PhysicalHashAggregate::Sink(ExecutionContext &context, GlobalOperatorState 
 		D_ASSERT(gstate.finalized_hts.size() == 1);
 		gstate.total_groups += gstate.finalized_hts[0]->AddChunk(group_chunk, aggregate_input_chunk);
 #ifdef LINEAGE
-    // TODO: don't use gstate
-    context.lineage->RegisterDataPerOp(id,
-        make_shared<LineageOpUnary>(move(gstate.finalized_hts[0]->lineage_data)), 1);
+		// TODO: don't use gstate
+		lineage_op->Capture(move(gstate.finalized_hts[0]->lineage_data), LINEAGE_SINK);
 #endif
 		return;
 	}
@@ -401,7 +400,7 @@ void PhysicalHashAggregate::GetChunkInternal(ExecutionContext &context, DataChun
 	state.scan_chunk.Reset();
 
 #ifdef LINEAGE
-  context.setCurrent(id);
+	context.SetCurrentLineageOp(lineage_op);
 #endif
 
 	// special case hack to sort out aggregating from empty intermediates

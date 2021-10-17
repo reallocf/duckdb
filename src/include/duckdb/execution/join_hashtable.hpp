@@ -62,7 +62,7 @@ public:
 		bool finished;
 
 #ifdef LINEAGE
-    shared_ptr<LineageOpBinary> lop;
+		shared_ptr<LineageBinaryData> lineage_probe_data;
 #endif
 
 		explicit ScanStructure(JoinHashTable &ht);

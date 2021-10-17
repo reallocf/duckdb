@@ -81,11 +81,9 @@ static void TableScanFunc(ClientContext &context, const FunctionData *bind_data_
 #endif
 	bind_data.table->storage->Scan(transaction, output, state.scan_state, state.column_ids);
 #ifdef LINEAGE
-      if (transaction.scan_lineage_data) {
-        // We need lineage here because we have pushed down filters
-        context.lineage->RegisterDataPerOp(
-          context.getCurrent(), make_unique<LineageOpUnary>(move(transaction.scan_lineage_data)));
-      }
+	if (transaction.scan_lineage_data) {
+		context.GetCurrentLineageOp()->Capture(move(transaction.scan_lineage_data), LINEAGE_UNARY);
+	}
 #endif
 	bind_data.chunk_count++;
 }

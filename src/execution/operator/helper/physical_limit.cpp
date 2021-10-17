@@ -97,10 +97,7 @@ void PhysicalLimit::GetChunkInternal(ExecutionContext &context, DataChunk &chunk
 	} while (chunk.size() == 0);
 
 #ifdef LINEAGE
-    context.lineage->RegisterDataPerOp(
-        id,
-        make_shared<LineageOpUnary>(make_shared<LineageRange>(offset, limit))
-    );
+    lineage_op.get()->Capture(make_shared<LineageRange>(offset, offset + limit), LINEAGE_UNARY);
 #endif
 }
 

@@ -1,0 +1,44 @@
+# name: test/sql/lineage/tpch_lineage/test_tpch_lineage.test
+# description: Test TPCH Lineage
+# group: [tpch_lineage]
+
+require tpch
+
+statement ok
+CALL dbgen(sf=0.01);
+
+
+statement ok
+PRAGMA trace_lineage = "ON";
+
+query III
+SELECT l_orderkey, o_orderdate, o_shippriority FROM orders,lineitem WHERE l_orderkey = o_orderkey AND o_orderdate < CAST('1995-03-15' AS date) AND l_shipdate > CAST('1995-03-15' AS date) limit 10
+----
+577	1994-12-19	0
+577	1994-12-19	0
+742	1994-12-23	0
+930	1994-12-17	0
+930	1994-12-17	0
+998	1994-11-26	0
+998	1994-11-26	0
+359	1994-12-19	0
+386	1995-01-25	0
+386	1995-01-25	0
+
+statement ok
+PRAGMA trace_lineage = "OFF";
+
+query II
+SELECT * FROM queries_list;
+----
+1	SELECT l_orderkey, o_orderdate, o_shippriority FROM orders,lineitem WHERE l_orderkey = o_orderkey AND o_orderdate < CAST('1995-03-15' AS date) AND l_shipdate > CAST('1995-03-15' AS date) limit 10
+2	PRAGMA trace_lineage = "OFF";
+
+
+query IIII
+SELECT rowid, lhs_address, rhs_index, out_index FROM LINEAGE_1_HASH_JOIN_2_1 as probe
+----
+
+query III
+SELECT rowid, in_index, out_index, out_index FROM LINEAGE_1_SEQ_SCAN_3_0
+----

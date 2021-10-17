@@ -66,7 +66,8 @@ public:
 	bool is_invalidated;
 
 #ifdef LINEAGE
-  unique_ptr<LineageCollection> scan_lineage_data;
+	//! Captured scan selection vector
+	shared_ptr<LineageSelVec> scan_lineage_data;
 #endif
 public:
 	static Transaction &GetTransaction(ClientContext &context);

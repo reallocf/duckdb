@@ -8,6 +8,8 @@
 
 #pragma once
 
+#include <utility>
+
 #include "duckdb/common/common.hpp"
 #ifdef LINEAGE
 #include "duckdb/execution/lineage_context.hpp"
@@ -25,18 +27,15 @@ class ExecutionContext {
 public:
 	ExecutionContext(ClientContext &client_p, ThreadContext &thread_p, TaskContext &task_p)
 	    : client(client_p), thread(thread_p), task(task_p) {
-#ifdef LINEAGE
-    lineage = make_shared<LineageContext>();
-#endif
 	}
 
 #ifdef LINEAGE
-  void setCurrent(idx_t op_id) {
-    current_op_id = op_id;
+  void SetCurrentLineageOp(shared_ptr<LineageOp> lop) {
+    current_lop = move(lop);
   }
 
-  idx_t getCurrent() {
-    return current_op_id;
+  shared_ptr<LineageOp> GetCurrentLineageOp() {
+    return current_lop;
   }
 #endif
 
@@ -47,10 +46,8 @@ public:
 	//! The task context for this execution
 	TaskContext &task;
 #ifdef LINEAGE
-	//! The lineage context for this execution
-  shared_ptr<LineageContext> lineage;
 	//! Current operator of this execution
-  idx_t current_op_id;
+	shared_ptr<LineageOp> current_lop;
 #endif
 };
 

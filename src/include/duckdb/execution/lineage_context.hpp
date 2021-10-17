@@ -18,6 +18,7 @@
 #include "duckdb/catalog/catalog_entry/table_catalog_entry.hpp"
 
 #include <iostream>
+#include <utility>
 
 
 namespace duckdb {
@@ -28,181 +29,160 @@ class LineageContext;
 
 class ManageLineage {
 public:
-  ManageLineage(ClientContext &context) : context(context), query_id(0),
-    queries_list_table_set(false)  {};
+	explicit ManageLineage(ClientContext &context) : context(context), query_id(0){};
 
-  void Reset();
-  void AddOutputLineage(PhysicalOperator* opKey, shared_ptr<LineageContext>  lineage);
-  void AddLocalSinkLineage(PhysicalOperator*, vector< shared_ptr<LineageContext>>);
+	void AnnotatePlan(PhysicalOperator *op);
+	void CreateQueryTable();
+	void LogQuery(const string& input_query);
+	void CreateLineageTables(PhysicalOperator *op);
 
-  void AnnotatePlan(PhysicalOperator *op);
-
-  void CreateQueryTable();
-  void logQuery(string input_query);
-  void CreateLineageTables(PhysicalOperator *op);
-  void Persist(PhysicalOperator* op, shared_ptr<LineageContext> lineage, bool is_sink);
-
-  void BackwardLineage(PhysicalOperator *op, shared_ptr<LineageContext> lineage, int oidx);
-
-  idx_t op_id = 0;
-  unordered_map<int, unordered_map<PhysicalOperator*, vector<shared_ptr<LineageContext>>>> pipelines_lineage;
-  ClientContext &context;
-  idx_t query_id;
-  bool queries_list_table_set;
+	ClientContext &context;
+	idx_t query_id = 0;
+	string query_list_table_name = "queries_list";
 };
 
 
 class LineageData {
 public:
-  LineageData() {}
-  virtual unsigned long size_bytes() = 0;
-  virtual void debug() = 0;
-  virtual ~LineageData() {};
+	LineageData() {}
+	virtual idx_t Count() = 0;
+	virtual idx_t Size() = 0;
+	virtual void Debug() = 0;
+	virtual data_ptr_t Process(idx_t count_so_far) = 0;
+	virtual ~LineageData() {};
 };
 
-// A PassThrough to indicate that the operator doesn't affect lineage at all
-// for example in the case of a Projection
-class LineagePassThrough : public LineageData {
+// TODO get templating working like before - that would be better
+
+class LineageDataRowVector : public LineageData {
 public:
-
-  LineagePassThrough() {
+	LineageDataRowVector(vector<row_t> vec_p, idx_t count) : vec(move(vec_p)), count(count) {
 #ifdef LINEAGE_DEBUG
-    debug();
+		Debug();
 #endif
-  }
-
-  void debug() {
-    std::cout << "LineagePassThrough" << std::endl;
-  }
-
-  unsigned long size_bytes() { return 0; }
-};
-
-
-template <class T>
-class LineageDataVector : public LineageData {
-public:
-  LineageDataVector (vector<T> vec_p, idx_t count) : vec(move(vec_p)), count(count) {
-#ifdef LINEAGE_DEBUG
-    debug();
-#endif
-  }
-
-  void debug() {
-    std::cout << "LineageDataVector " << " " << typeid(vec).name() << std::endl;
-    for (idx_t i = 0; i < count; i++) {
-      std::cout << " (" << i << " -> " << vec[i] << ") ";
-    }
-    std::cout << std::endl;
-  }
-
-  idx_t getAtIndex(idx_t idx) {
-    return (idx_t)vec[idx];
-  }
-
-  unsigned long size_bytes() {
-    return count * sizeof(vec[0]);
-  }
-
-  vector<T> vec;
-  idx_t count;
-};
-
-
-template <typename T>
-class LineageDataArray : public LineageData {
-public:
-  LineageDataArray (unique_ptr<T[]> vec_p, idx_t count, LogicalType type = LogicalType::INTEGER) :
-    vec(move(vec_p)), count(count), type(type) {
-#ifdef LINEAGE_DEBUG
-    debug();
-#endif
-    }
-
-  void debug() {
-    std::cout << "LineageDataArray " << " " << typeid(vec).name() << std::endl;
-    for (idx_t i = 0; i < count; i++) {
-      std::cout << " (" << i << " -> " << vec[i] << ") ";
-    }
-    std::cout << std::endl;
 	}
 
-  idx_t getAtIndex(idx_t idx) {
-    return (idx_t)vec[idx];
-  }
-
-  int findIndexOf(idx_t data) {
-    for (idx_t i = 0; i < count; i++) {
-		  if (vec[i] == (T)data) return i;
-    }
-		return -1;
+	void Debug() override {
+		std::cout << "LineageDataVector " << " " << typeid(vec).name() << std::endl;
+		for (idx_t i = 0; i < count; i++) {
+			std::cout << " (" << i << " -> " << vec[i] << ") ";
+		}
+		std::cout << std::endl;
 	}
 
-  unsigned long size_bytes() {
+	idx_t Size() override {
 		return count * sizeof(vec[0]);
 	}
 
-  unique_ptr<T[]> vec;
-  idx_t count;
-	LogicalType type;
+	idx_t Count() override {
+		return count;
+	}
+
+	data_ptr_t Process(idx_t count_so_far) override {
+		return (data_ptr_t)vec.data();
+	}
+
+	vector<row_t> vec;
+	idx_t count;
+};
+
+
+class LineageDataUIntPtrArray : public LineageData {
+public:
+	LineageDataUIntPtrArray(unique_ptr<uintptr_t[]> vec_p, idx_t count) : vec(move(vec_p)), count(count) {
+#ifdef LINEAGE_DEBUG
+		Debug();
+#endif
+	}
+
+	void Debug() override {
+		std::cout << "LineageDataArray " << " " << typeid(vec).name() << std::endl;
+		for (idx_t i = 0; i < count; i++) {
+			std::cout << " (" << i << " -> " << vec[i] << ") ";
+		}
+		std::cout << std::endl;
+	}
+
+	idx_t Size() override {
+		return count * sizeof(vec[0]);
+	}
+
+	idx_t Count() override {
+		return count;
+	}
+
+	data_ptr_t Process(idx_t count_so_far) override {
+		return (data_ptr_t)vec.get();
+	}
+
+	unique_ptr<uintptr_t[]> vec;
+	idx_t count;
+};
+
+
+class LineageDataUInt32Array : public LineageData {
+public:
+	LineageDataUInt32Array(unique_ptr<uint32_t[]>vec_p, idx_t count) : vec(move(vec_p)), count(count) {
+#ifdef LINEAGE_DEBUG
+		Debug();
+#endif
+	}
+
+	void Debug() override {
+		std::cout << "LineageDataArray " << " " << typeid(vec).name() << std::endl;
+		for (idx_t i = 0; i < count; i++) {
+			std::cout << " (" << i << " -> " << vec[i] << ") ";
+		}
+		std::cout << std::endl;
+	}
+
+	idx_t Size() override {
+		return count * sizeof(vec[0]);
+	}
+
+	idx_t Count() override {
+		return count;
+	}
+
+	data_ptr_t Process(idx_t count_so_far) override {
+		return (data_ptr_t)vec.get();
+	}
+
+	unique_ptr<uint32_t[]> vec;
+	idx_t count;
 };
 
 
 class LineageSelVec : public LineageData {
 public:
-  LineageSelVec (SelectionVector vec_p, idx_t count, idx_t offset = 0, LogicalType type = LogicalType::INTEGER) :
-    vec(move(vec_p)), count(count), type(type), offset(offset) {
+	LineageSelVec(const SelectionVector& vec_p, idx_t count) : vec(vec_p), count(count) {
 #ifdef LINEAGE_DEBUG
-    debug();
+		Debug();
 #endif
-    }
+	}
 
-  void debug() {
-    std::cout << "LineageSelVec " << " " << typeid(vec).name() << std::endl;
-    for (idx_t i = 0; i < count; i++) {
-      std::cout << " (" << i << " -> " << vec.sel_data()->owned_data[i] << ") ";
-    }
-    std::cout << std::endl;
-  }
+	void Debug() override {
+		std::cout << "LineageSelVec " << " " << typeid(vec).name() << std::endl;
+		for (idx_t i = 0; i < count; i++) {
+			std::cout << " (" << i << " -> " << vec.sel_data()->owned_data[i] << ") ";
+		}
+		std::cout << std::endl;
+	}
 
-  void getAllMatches(idx_t data, vector<idx_t> &matches) {
-    for (idx_t i = 0; i < count; i++) {
-      if (vec.get_index(i) == data) matches.push_back(i);
-    }
-  }
+	idx_t Size() override {
+		return count * sizeof(vec.get_index(0));
+	}
 
-  idx_t getAtIndex(idx_t idx) {
-    return vec.get_index(idx);
-  }
+	idx_t Count() override {
+		return count;
+	}
 
-  unsigned long size_bytes() {
-    return count * sizeof(vec.get_index(0));
-  }
+	data_ptr_t Process(idx_t count_so_far) override {
+		return (data_ptr_t)vec.data();
+	}
 
-  SelectionVector vec;
-  idx_t count;
-  LogicalType type;
-	idx_t offset;
-};
-
-class LineageConstant : public LineageData {
-public:
-
-  LineageConstant(idx_t value) : value(value) {
-#ifdef LINEAGE_DEBUG
-    debug();
-#endif
-  }
-
-  void debug() {
-    std::cout << "LineageConstant: " << value << std::endl;
-  }
-
-  unsigned long size_bytes() {
-    return sizeof(value);
-  }
-
-  idx_t value;
+	SelectionVector vec;
+	idx_t count;
 };
 
 
@@ -210,123 +190,222 @@ public:
 // used to quickly capture Limits
 class LineageRange : public LineageData {
 public:
-
-  LineageRange(idx_t start, idx_t end) : start(start), end(end) {
+	LineageRange(idx_t start, idx_t end) : start(start), end(end) {
 #ifdef LINEAGE_DEBUG
-    debug();
+		Debug();
 #endif
-  }
-
-  void debug() {
-    std::cout << "LineageRange - Start: " << start << " End: " << end << std::endl;
-  }
-
-  unsigned long size_bytes() {
-    return 2*sizeof(start);
-  }
-
-  idx_t start;
-	idx_t end;
-};
-
-
-class LineageCollection: public LineageData {
-public:
-  void add(string key, unique_ptr<LineageData> data) {
-    collection[key] = move(data);
 	}
 
-  void debug() {}
-  unsigned long size_bytes() { return 0; }
+	void Debug() override {
+		std::cout << "LineageRange - Start: " << start << " End: " << end << std::endl;
+	}
 
-  std::unordered_map<string, unique_ptr<LineageData>> collection;
+	idx_t Size() override {
+	  return 2*sizeof(start);
+	}
+
+	idx_t Count() override {
+		return end - start;
+	}
+
+	data_ptr_t Process(idx_t count_so_far) override {
+		// Lazily convert lineage range to selection vector
+		if (vec.empty()) {
+			for (idx_t i = start; i < end; i++) {
+				vec.push_back(count_so_far + i);
+			}
+		}
+		return (data_ptr_t)vec.data();
+	}
+
+	idx_t start;
+	idx_t end;
+	vector<sel_t> vec;
 };
 
+// Captures two lineage data of the same side - used for Joins
+class LineageBinaryData : public LineageData {
+public:
+	LineageBinaryData(unique_ptr<LineageData> lhs, unique_ptr<LineageData> rhs) :
+	      left(std::move(lhs)), right(std::move(rhs)) {
+		D_ASSERT(left->Count() == right->Count());
+#ifdef LINEAGE_DEBUG
+		Debug();
+#endif
+	}
 
-// base operator for Unary and Binary
+	void Debug() override {
+		left->Debug();
+		right->Debug();
+	}
+
+	idx_t Size() override {
+		return left->Size() + right->Size();
+	}
+
+	idx_t Count() override {
+		return left->Count();
+	}
+
+	data_ptr_t Process(idx_t count_so_far) override {
+		if (switch_on_left) {
+			switch_on_left = !switch_on_left;
+			return left->Process(count_so_far);
+		} else {
+			switch_on_left = !switch_on_left;
+			return right->Process(count_so_far);
+		}
+	}
+
+	unique_ptr<LineageData> left;
+	unique_ptr<LineageData> right;
+	bool switch_on_left = true;
+};
+
+#ifndef LINEAGE_UNARY
+
+#define LINEAGE_UNARY 0
+#define LINEAGE_SINK 0
+#define LINEAGE_SOURCE 1
+#define LINEAGE_BUILD 0
+#define LINEAGE_PROBE 1
+
+#endif
+
+struct LineageProcessStruct {
+	idx_t count_so_far;
+	bool still_processing;
+};
+
 class LineageOp {
 public:
-  LineageOp()  {}
+	LineageOp()  {}
 
-  virtual unsigned long size_bytes() = 0;
-  virtual ~LineageOp() {};
-};
+	idx_t Size() {
+		idx_t size = 0;
+		for (const auto& lineage_data : data[0]) {
+			size += lineage_data->Size();
+		}
+		for (const auto& lineage_data : data[1]) {
+			size += lineage_data->Size();
+		}
+		return size;
+	};
 
-
-class LineageOpCollection: public LineageOp {
-public:
-  LineageOpCollection(vector<shared_ptr<LineageOp>> op_p) : op(move(op_p)){}
-
-  unsigned long size_bytes() { return 0; }
-
-  vector<shared_ptr<LineageOp>> op;
-};
-
-
-class LineageOpUnary : public LineageOp {
-public:
-  LineageOpUnary(shared_ptr<LineageData> data_p) : data(move(data_p)){}
-
-  unsigned long size_bytes() {
-    if (data)  return data->size_bytes();
-    return 0;
-  }
-
-  shared_ptr<LineageData> data;
-};
-
-
-class LineageOpBinary : public LineageOp {
-public:
-  LineageOpBinary()  : data_lhs(nullptr), data_rhs(nullptr) {}
-  LineageOpBinary(shared_ptr<LineageData> data_lhs_p, shared_ptr<LineageData> data_rhs_p) : data_lhs(move(data_lhs_p)), data_rhs(move(data_rhs_p)) {}
-
-  unsigned long size_bytes() {
-	  unsigned long size = 0;
-    if (data_lhs) size = data_lhs->size_bytes();
-		if (data_rhs) size += data_rhs->size_bytes();
-    return size;
-  }
-
-  void setLHS(shared_ptr<LineageData> lhs) {
-    data_lhs = move(lhs);
-  }
-
-  void setRHS(shared_ptr<LineageData> rhs) {
-    data_rhs = move(rhs);
-  }
-
-  shared_ptr<LineageData> data_lhs;
-  shared_ptr<LineageData> data_rhs;
-};
-
-
-class LineageContext {
-public:
-  LineageContext() {
-    chunk_id = 0;
-  }
-
-  void RegisterDataPerOp(idx_t key, shared_ptr<LineageOp> op, int type = 0) {
-    ht[type][key] = move(op);
-  }
-
-	bool isEmpty() {
-    return ht.empty();
+	void Capture(const shared_ptr<LineageData>& datum, idx_t lineage_idx) {
+		data[lineage_idx].push_back(datum);
 	}
 
-	shared_ptr<LineageOp> GetLineageOp(idx_t key, int type) {
-    if (ht.find(type) == ht.end())
-			return NULL;
-
-		if (ht[type].find(key) == ht[type].end())
-      return NULL;
-
-    return ht[type][key];
+	void FinishedProcessing() {
+		finished_idx++;
+		data_idx = 0;
 	}
 
-  std::unordered_map<int, std::unordered_map<idx_t, shared_ptr<LineageOp>>> ht;
-	int32_t chunk_id;
+	LineageProcessStruct Process(const vector<LogicalType>& types, idx_t count_so_far, DataChunk &insert_chunk) {
+		bool still_processing = true;
+		if (data[1].empty()) {
+			// Non-Pipeline Breaker
+			if (data[0].size() <= data_idx) {
+				still_processing = false;
+			} else {
+				if (dynamic_cast<LineageBinaryData*>(data[LINEAGE_UNARY][0].get()) != nullptr) {
+					// Index Join
+					// schema: [INTEGER lhs_index, BIGINT rhs_index, INTEGER out_index]
+
+					idx_t res_count = data[0][data_idx]->Count();
+
+					Vector lhs_payload(types[0], data[0][data_idx]->Process(count_so_far));
+					Vector rhs_payload(types[1], data[0][data_idx]->Process(count_so_far));
+
+					insert_chunk.SetCardinality(res_count);
+					insert_chunk.data[0].Reference(lhs_payload);
+					insert_chunk.data[1].Reference(rhs_payload);
+					insert_chunk.data[2].Sequence(count_so_far, 1);
+					count_so_far += res_count;
+				} else {
+					// Seq Scan, Filter, Limit, etc...
+					// schema: [INTEGER in_index, INTEGER out_index]
+
+					idx_t res_count = data[0][data_idx]->Count();
+
+					Vector payload(types[0], data[0][data_idx]->Process(count_so_far));
+
+					insert_chunk.SetCardinality(res_count);
+					insert_chunk.data[0].Reference(payload);
+					insert_chunk.data[1].Sequence(count_so_far, 1);
+					count_so_far += res_count;
+				}
+			}
+		} else {
+			// Pipeline Breaker
+			if (data[finished_idx].size() <= data_idx) {
+				still_processing = false;
+			} else {
+				if (dynamic_cast<LineageBinaryData*>(data[LINEAGE_PROBE][0].get()) != nullptr) {
+					// Hash Join - other joins too?
+					if (finished_idx == 0) {
+						// schema1: [INTEGER in_index, INTEGER out_address] TODO remove this one now that no chunking?
+
+						idx_t res_count = data[0][data_idx]->Count();
+
+						Vector payload(types[1], data[0][data_idx]->Process(count_so_far));
+
+						insert_chunk.SetCardinality(res_count);
+						insert_chunk.data[0].Sequence(count_so_far, 1);
+						insert_chunk.data[1].Reference(payload);
+						count_so_far += res_count;
+					} else {
+						// schema2: [INTEGER lhs_address, INTEGER rhs_index, INTEGER out_index]
+
+						idx_t res_count = data[1][data_idx]->Count();
+
+						Vector lhs_payload(types[0], data[1][data_idx]->Process(count_so_far));
+						Vector rhs_payload(types[1], data[1][data_idx]->Process(count_so_far));
+
+						insert_chunk.SetCardinality(res_count);
+						insert_chunk.data[0].Reference(lhs_payload);
+						insert_chunk.data[1].Reference(rhs_payload);
+						insert_chunk.data[2].Sequence(count_so_far, 1);
+						count_so_far += res_count;
+					}
+				} else {
+					// Hash Aggregate / Perfect Hash Aggregate
+					// schema for both: [INTEGER in_index, INTEGER out_index]
+					if (finished_idx == 0) {
+						idx_t res_count = data[finished_idx][data_idx]->Count();
+
+						Vector payload(types[1], data[finished_idx][data_idx]->Process(count_so_far));
+
+						insert_chunk.SetCardinality(res_count);
+						insert_chunk.data[0].Sequence(count_so_far, 1);
+						insert_chunk.data[1].Reference(payload);
+						count_so_far += res_count;
+					} else {
+						// TODO: can we remove this one for Hash Aggregate?
+						idx_t res_count = data[finished_idx][data_idx]->Count();
+
+						Vector payload(types[0], data[finished_idx][data_idx]->Process(count_so_far));
+
+						insert_chunk.SetCardinality(res_count);
+						insert_chunk.data[0].Reference(payload);
+						insert_chunk.data[1].Sequence(count_so_far, 1);
+						count_so_far += res_count;
+					}
+				}
+			}
+		}
+		data_idx++;
+		return LineageProcessStruct{
+		    count_so_far,
+		    still_processing
+		};
+	}
+
+	// data[0] used by all ops; data[1] used by pipeline breakers
+	// TODO does this need to have a shared_ptr wrapper?
+	std::vector<shared_ptr<LineageData>> data[2];
+	idx_t finished_idx = 0;
+	idx_t data_idx = 0;
 };
 
 } // namespace duckdb

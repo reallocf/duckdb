@@ -28,11 +28,13 @@ PRAGMA trace_lineage = "OFF";
 query II
 SELECT * FROM queries_list;
 ----
-9	select * from t1 limit 3 offset 1
-11	PRAGMA trace_lineage = "OFF";
+1	select * from t1 limit 3 offset 1
+2	PRAGMA trace_lineage = "OFF";
 
 
-query IIII
-select rowid, * from LIMIT_9_0
+query III
+select rowid, * from LINEAGE_1_LIMIT_0_0
 ----
-0	1	3	0
+0	1	0
+1	2	1
+2	3	2
