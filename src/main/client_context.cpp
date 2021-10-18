@@ -57,7 +57,7 @@ ClientContext::ClientContext(shared_ptr<DatabaseInstance> database)
 	progress_bar = make_unique<ProgressBar>(&executor, wait_time);
 
 #ifdef LINEAGE
-	lineage_manager = make_unique<ManageLineage>(*this);
+	lineage_manager = make_unique<LineageManager>(*this);
 #endif
 }
 

@@ -104,7 +104,7 @@ public:
 	//! Whether or not lineage is currently being captured
 	bool trace_lineage = false;
 	//! The lineage manager
-	unique_ptr<ManageLineage> lineage_manager;
+	unique_ptr<LineageManager> lineage_manager;
 #endif
 
 public:

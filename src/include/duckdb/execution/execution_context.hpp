@@ -12,16 +12,13 @@
 
 #include "duckdb/common/common.hpp"
 #ifdef LINEAGE
-#include "duckdb/execution/lineage_context.hpp"
+#include "duckdb/execution/lineage.hpp"
 #endif
 
 namespace duckdb {
 class ClientContext;
 class ThreadContext;
 class TaskContext;
-#ifdef LINEAGE
-class LineageContext;
-#endif
 
 class ExecutionContext {
 public:

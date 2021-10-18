@@ -15,7 +15,7 @@ add_library_unity(
   expression_executor.cpp
   expression_executor_state.cpp
   join_hashtable.cpp
-  lineage_manager.cpp
+        lineage.cpp
   partitionable_hashtable.cpp
   perfect_aggregate_hashtable.cpp
   physical_operator.cpp
