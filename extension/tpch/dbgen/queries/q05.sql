@@ -20,5 +20,3 @@ WHERE
     AND o_orderdate < CAST('1995-01-01' AS date)
 GROUP BY
     n_name
-ORDER BY
-    revenue DESC;
