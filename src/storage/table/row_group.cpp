@@ -425,10 +425,6 @@ void RowGroup::TemplatedScan(Transaction *transaction, RowGroupScanState &state,
 		    transaction->scan_lineage_data->add("filter", make_unique<LineageSelVec>(move(sel), approved_tuple_count));
 #endif
 		}
-#ifdef LINEAGE
-    if (transaction)
-      transaction->scan_lineage_data->add("vector_index", make_unique<LineageConstant>(state.vector_index));
-#endif
 		result.SetCardinality(count);
 		state.vector_index++;
 		break;

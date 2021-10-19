@@ -83,6 +83,7 @@ static void TableScanFunc(ClientContext &context, const FunctionData *bind_data_
 #ifdef LINEAGE
       if (transaction.scan_lineage_data) {
         // We need lineage here because we have pushed down filters
+        transaction.scan_lineage_data->add("vector_index", make_unique<LineageConstant>(bind_data.chunk_count));
         context.lineage->RegisterDataPerOp(
           context.getCurrent(), make_unique<LineageOpUnary>(move(transaction.scan_lineage_data)));
       }

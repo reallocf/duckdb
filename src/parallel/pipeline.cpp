@@ -115,6 +115,8 @@ void Pipeline::Execute(TaskContext &task) {
         // lineage_per_thread.push_back(move(context.lineage));
         executor.lineage_manager->Persist(child, context.lineage, false, 0);
         executor.lineage_manager->Persist(sink, context.lineage, true, 0);
+        context.lineage->ht.clear();
+        context.lineage->chunk_id = 0;
       }
 #endif
 			thread.profiler.EndOperator(nullptr);

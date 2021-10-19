@@ -18,7 +18,7 @@
 #include "duckdb/catalog/catalog_entry/table_catalog_entry.hpp"
 
 #include <iostream>
-
+#include <set>
 
 namespace duckdb {
 class PhysicalOperator;

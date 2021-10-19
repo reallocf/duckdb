@@ -424,7 +424,8 @@ void ManageLineage::Persist(PhysicalOperator *op, shared_ptr<LineageContext> lin
       //         maps output row to row from probe side (LHS) and what the
       //         unique group address it maps to from the RHS
       TableCatalogEntry * table = Catalog::GetCatalog(context).GetEntry<TableCatalogEntry>(context,  DEFAULT_SCHEMA, tablename + "_PROBE");
-	  idx_t acc_count = 0;
+      idx_t acc_count = 0;
+      std::set<int> probe_idx_set;
       for (idx_t i = 0; i < probe_lop->op.size(); ++i) {
         auto local_op = dynamic_cast<LineageOpBinary&>(*probe_lop->op[i]);
         idx_t count = dynamic_cast<LineageSelVec&>(*local_op.data_lhs).count;
@@ -437,19 +438,26 @@ void ManageLineage::Persist(PhysicalOperator *op, shared_ptr<LineageContext> lin
         // build side - RHS
         Vector rhs_payload(table->GetTypes()[1], (data_ptr_t)&dynamic_cast<LineageDataArray<uintptr_t>&>(*local_op.data_rhs).vec[0]);
         Vector chunk_ids(Value::Value::INTEGER(lineage->chunk_id));
-		idx_t probe_idx = dynamic_cast<LineageSelVec&>(*local_op.data_lhs).offset;
-		Vector probe_idx_vec(Value::Value::INTEGER(probe_idx));
+        idx_t probe_idx = dynamic_cast<LineageSelVec&>(*local_op.data_lhs).offset;
+        Vector probe_idx_vec(Value::Value::INTEGER(probe_idx));
 
         insert_chunk.data[0].Reference(lhs_payload);
         insert_chunk.data[1].Reference(rhs_payload);
         insert_chunk.data[2].Sequence(acc_count, 1);
-		acc_count += count;
+        acc_count += count;
         insert_chunk.data[3].Reference(chunk_ids);
-		// add probe_idx to associate this with a GetChunk pipeline for probe side
-		insert_chunk.data[4].Reference(probe_idx_vec);
+        // add probe_idx to associate this with a GetChunk pipeline for probe side
+        insert_chunk.data[4].Reference(probe_idx_vec);
         table->Persist(*table, context, insert_chunk);
 
-		Persist(op->children[0].get(), lineage, is_sink, probe_idx);
+        if (probe_idx_set.find(probe_idx) != probe_idx_set.end()) {
+          continue;
+        }
+        probe_idx_set.insert(probe_idx);
+        idx_t chunk_id = lineage->chunk_id;
+        lineage->chunk_id = probe_idx;
+        Persist(op->children[0].get(), lineage, is_sink, probe_idx);
+        lineage->chunk_id = chunk_id;
       }
 
       Persist(op->children[1].get(), lineage, is_sink);
