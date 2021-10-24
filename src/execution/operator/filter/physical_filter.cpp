@@ -46,15 +46,16 @@ void PhysicalFilter::GetChunkInternal(ExecutionContext &context, DataChunk &chun
 		result_count = state->executor.SelectExpression(chunk, sel);
 	} while (result_count == 0);
 
+#ifdef LINEAGE
+	// Capture lineage regardless of if anything was filtered out or not - TODO optimize by removing if nothing filtered?
+	lineage_op->Capture(make_shared<LineageSelVec>(sel, result_count), LINEAGE_UNARY);
+#endif
+
 	if (result_count == initial_count) {
 		// nothing was filtered: skip adding any selection vectors
 		return;
 	}
 	chunk.Slice(sel, result_count);
-
-#ifdef LINEAGE
-	lineage_op->Capture(make_shared<LineageSelVec>(sel, result_count), LINEAGE_UNARY);
-#endif
 }
 
 unique_ptr<PhysicalOperatorState> PhysicalFilter::GetOperatorState() {

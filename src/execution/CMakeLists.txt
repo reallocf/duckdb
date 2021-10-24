@@ -1,4 +1,5 @@
 add_subdirectory(expression_executor)
+add_subdirectory(lineage)
 add_subdirectory(merge_join)
 add_subdirectory(nested_loop_join)
 add_subdirectory(operator)
@@ -15,7 +16,6 @@ add_library_unity(
   expression_executor.cpp
   expression_executor_state.cpp
   join_hashtable.cpp
-        lineage.cpp
   partitionable_hashtable.cpp
   perfect_aggregate_hashtable.cpp
   physical_operator.cpp

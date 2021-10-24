@@ -50,7 +50,7 @@ PRAGMA trace_lineage = "OFF";
 
 
 query II
-select in_index, out_index from LINEAGE_1_PERFECT_HASH_GROUP_BY_0_1 as source;
+select in_index, out_index from LINEAGE_1_PERFECT_HASH_GROUP_BY_2_1 as source;
 ----
 1	0
 2	1
@@ -58,7 +58,7 @@ select in_index, out_index from LINEAGE_1_PERFECT_HASH_GROUP_BY_0_1 as source;
 5	3
 
 query II
-select in_index, out_index from LINEAGE_1_PERFECT_HASH_GROUP_BY_0_0 as sink;
+select in_index, out_index from LINEAGE_1_PERFECT_HASH_GROUP_BY_2_0 as sink;
 ----
 0	1
 1	5
@@ -71,7 +71,7 @@ select in_index, out_index from LINEAGE_1_PERFECT_HASH_GROUP_BY_0_0 as sink;
 
 query II
 select sink.in_index, source.out_index
-from LINEAGE_1_PERFECT_HASH_GROUP_BY_0_1 as source, LINEAGE_1_PERFECT_HASH_GROUP_BY_0_0 as sink
+from LINEAGE_1_PERFECT_HASH_GROUP_BY_2_1 as source, LINEAGE_1_PERFECT_HASH_GROUP_BY_2_0 as sink
 where source.in_index=sink.out_index;
 ----
 0	0

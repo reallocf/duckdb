@@ -48,8 +48,8 @@ PRAGMA trace_lineage = "OFF";
 
 query III
 select sink.in_index, probe.rhs_index, probe.out_index
-from LINEAGE_1_HASH_JOIN_1_1 AS probe
-JOIN LINEAGE_1_HASH_JOIN_1_0 AS sink ON sink.out_address = probe.lhs_address;
+from LINEAGE_1_HASH_JOIN_2_1 AS probe
+JOIN LINEAGE_1_HASH_JOIN_2_0 AS sink ON sink.out_address = probe.lhs_address;
 ----
 4	0	0
 1	2	1

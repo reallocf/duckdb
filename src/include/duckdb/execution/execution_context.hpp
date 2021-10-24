@@ -12,7 +12,7 @@
 
 #include "duckdb/common/common.hpp"
 #ifdef LINEAGE
-#include "duckdb/execution/lineage.hpp"
+#include "duckdb/execution/lineage/lineage.hpp"
 #endif
 
 namespace duckdb {
@@ -27,11 +27,11 @@ public:
 	}
 
 #ifdef LINEAGE
-  void SetCurrentLineageOp(shared_ptr<LineageOp> lop) {
+  void SetCurrentLineageOp(shared_ptr<OperatorLineage> lop) {
     current_lop = move(lop);
   }
 
-  shared_ptr<LineageOp> GetCurrentLineageOp() {
+  shared_ptr<OperatorLineage> GetCurrentLineageOp() {
     return current_lop;
   }
 #endif
@@ -44,7 +44,7 @@ public:
 	TaskContext &task;
 #ifdef LINEAGE
 	//! Current operator of this execution
-	shared_ptr<LineageOp> current_lop;
+	shared_ptr<OperatorLineage> current_lop;
 #endif
 };
 

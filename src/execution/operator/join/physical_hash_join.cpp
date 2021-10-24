@@ -255,6 +255,9 @@ void PhysicalHashJoin::GetChunkInternal(ExecutionContext &context, DataChunk &ch
 				// check if we need to scan any unmatched tuples from the RHS for the full/right outer join
 				sink.hash_table->ScanFullOuter(chunk, sink.ht_scan_state);
 			}
+#ifdef LINEAGE
+			lineage_op->MarkChunkNext();
+#endif
 			return;
 		} else {
 #if STANDARD_VECTOR_SIZE >= 128
@@ -265,15 +268,27 @@ void PhysicalHashJoin::GetChunkInternal(ExecutionContext &context, DataChunk &ch
 					// chunk cache full: return it
 					chunk.Move(state->cached_chunk);
 					state->cached_chunk.Initialize(types);
+#ifdef LINEAGE
+					lineage_op->MarkChunkNext();
+#endif
 					return;
 				} else {
 					// chunk cache not full: probe again
 					chunk.Reset();
+#ifdef LINEAGE
+					lineage_op->MarkChunkMerging();
+#endif
 				}
 			} else {
+#ifdef LINEAGE
+				lineage_op->MarkChunkNext();
+#endif
 				return;
 			}
 #else
+#ifdef LINEAGE
+			lineage_op->MarkChunkNext();
+#endif
 			return;
 #endif
 		}

@@ -69,7 +69,7 @@ public:
 	// ID of this operator within the physical plan
 	idx_t id;
 	//! Lineage captured for this operator
-	shared_ptr<LineageOp> lineage_op;
+	shared_ptr<OperatorLineage> lineage_op;
 #endif
 
 public:

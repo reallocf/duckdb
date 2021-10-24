@@ -287,7 +287,6 @@ unique_ptr<QueryResult> ClientContext::ExecutePreparedStatement(ClientContextLoc
 	}
 #ifdef LINEAGE
 	if (trace_lineage) {
-		// Persist lineage
 		lineage_manager->CreateLineageTables(statement.plan.get());
 	}
 #endif

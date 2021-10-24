@@ -492,7 +492,7 @@ void ScanStructure::NextInnerJoin(DataChunk &keys, DataChunk &left, DataChunk &r
 #ifdef LINEAGE
 		auto lhs_lineage = make_unique<LineageDataUIntPtrArray>(move(key_locations_lineage), result_count);
 		auto rhs_lineage = make_unique<LineageSelVec>(move(result_vector), result_count);
-		lineage_probe_data = make_shared<LineageBinaryData>(move(lhs_lineage), move(rhs_lineage));
+		lineage_probe_data = make_shared<LineageBinary>(move(lhs_lineage), move(rhs_lineage));
 #endif
 		AdvancePointers();
 	}

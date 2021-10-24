@@ -32,14 +32,14 @@ SELECT * FROM queries_list;
 2	PRAGMA trace_lineage = "OFF";
 
 query III
-SELECT rowid, in_index, out_index FROM LINEAGE_1_FILTER_0_0
+SELECT rowid, in_index, out_index FROM LINEAGE_1_FILTER_1_0
 ----
 0	0	0
 1	1	1
-2	975	2
+2	1999	2
 
 
 # We don't capture anything for the SEQ_SCAN because nothing is filtered out
 query III
-SELECT rowid, in_index, out_index FROM LINEAGE_1_SEQ_SCAN_1_0
+SELECT rowid, in_index, out_index FROM LINEAGE_1_SEQ_SCAN_0_0
 ----

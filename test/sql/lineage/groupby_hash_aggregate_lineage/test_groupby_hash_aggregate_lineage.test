@@ -32,14 +32,14 @@ SELECT * FROM queries_list;
 2	PRAGMA trace_lineage = "OFF";
 
 query III
-select rowid, in_index, out_index from LINEAGE_1_HASH_GROUP_BY_0_1 as source;
+select rowid, in_index, out_index from LINEAGE_1_HASH_GROUP_BY_2_1 as source;
 ----
 0	0	0
 1	1	1
 2	2	2
 
 query III
-select rowid, in_index, out_index  from LINEAGE_1_HASH_GROUP_BY_0_0 as sink;
+select rowid, in_index, out_index  from LINEAGE_1_HASH_GROUP_BY_2_0 as sink;
 ----
 0	0	0
 1	1	1
