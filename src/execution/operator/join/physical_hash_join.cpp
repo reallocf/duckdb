@@ -191,7 +191,6 @@ public:
 	DataChunk join_keys;
 	ExpressionExecutor probe_executor;
 	unique_ptr<JoinHashTable::ScanStructure> scan_structure;
-	idx_t probe_idx = 0;
 };
 
 bool CanCacheType(const LogicalType &type) {

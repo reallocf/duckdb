@@ -12,7 +12,10 @@
 
 #include "duckdb/common/common.hpp"
 #ifdef LINEAGE
-#include "duckdb/execution/lineage/lineage.hpp"
+#include "duckdb/execution/lineage/lineage_data.hpp"
+#include "duckdb/execution/lineage/lineage_manager.hpp"
+#include "duckdb/execution/lineage/operator_lineage.hpp"
+#include "duckdb/execution/lineage/pipeline_lineage.hpp"
 #endif
 
 namespace duckdb {

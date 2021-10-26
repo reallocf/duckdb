@@ -142,9 +142,6 @@ query I
 SELECT lhs_address FROM LINEAGE_1_HASH_JOIN_2_1
 WHERE lhs_address NOT IN (SELECT out_address FROM LINEAGE_1_HASH_JOIN_2_0)
 ----
-4900184119
-4900184119
-4900184119
 
 query III
 select sink.in_index, probe.rhs_index, probe.out_index

@@ -34,9 +34,6 @@ public:
 	~Executor();
 
 	ClientContext &context;
-#ifdef LINEAGE
-  idx_t chunk_id;
-#endif
 
 public:
 	void Initialize(PhysicalOperator *physical_plan);
