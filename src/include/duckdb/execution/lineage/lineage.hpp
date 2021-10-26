@@ -36,11 +36,12 @@
 #endif
 
 namespace duckdb {
-class ChunkLineage;
 class ClientContext;
 class LineageData;
 class PhysicalOperator;
 class PipelineLineage;
+
+struct ChunkOffset;
 
 
 class LineageManager {
@@ -57,16 +58,11 @@ private:
 	idx_t query_id = 0;
 };
 
-struct ChunkOffset {
-	idx_t offset;
-	idx_t cutoff;
-};
-
 class PipelineLineage {
 public:
-	virtual void AddChunk(idx_t chunk_size, idx_t lineage_idx) = 0;
-	virtual shared_ptr<ChunkLineage> GetChildChunkLineage(idx_t lineage_idx) = 0;
-	virtual shared_ptr<ChunkLineage> GetChunkLineage() = 0;
+	virtual void AdjustChunkOffsets(idx_t chunk_size, idx_t lineage_idx) = 0;
+	virtual shared_ptr<ChunkOffset> GetChildChunkOffset(idx_t lineage_idx) = 0;
+	virtual shared_ptr<ChunkOffset> GetChunkOffset() = 0;
 	virtual ~PipelineLineage() {};
 };
 
@@ -74,35 +70,32 @@ class PipelineBreakerLineage : public PipelineLineage {
 public:
 	explicit PipelineBreakerLineage(const shared_ptr<PipelineLineage>& child_node) : child_node(child_node) {}
 
-	void AddChunk(idx_t chunk_size, idx_t lineage_idx) override;
-	shared_ptr<ChunkLineage> GetChildChunkLineage(idx_t lineage_idx) override;
-	shared_ptr<ChunkLineage> GetChunkLineage() override;
+	void AdjustChunkOffsets(idx_t chunk_size, idx_t lineage_idx) override;
+	shared_ptr<ChunkOffset> GetChildChunkOffset(idx_t lineage_idx) override;
+	shared_ptr<ChunkOffset> GetChunkOffset() override;
 
 private:
 	shared_ptr<PipelineLineage> child_node;
-	shared_ptr<ChunkLineage> chunk_lineage;
+	shared_ptr<ChunkOffset> chunk_offset;
 };
 
 class PipelineJoinLineage : public PipelineLineage {
 public:
 	PipelineJoinLineage(const shared_ptr<PipelineLineage>& build_child_node, const shared_ptr<PipelineLineage>& probe_child_node) :
-	      build_child_node(build_child_node), probe_child_node(probe_child_node),
-	      merging(false), next(true) {}
+	      build_child_node(build_child_node), probe_child_node(probe_child_node), next(false) {}
 
-	void AddChunk(idx_t chunk_size, idx_t lineage_idx) override;
-	shared_ptr<ChunkLineage> GetChildChunkLineage(idx_t lineage_idx) override;
-	shared_ptr<ChunkLineage> GetChunkLineage() override;
+	void AdjustChunkOffsets(idx_t chunk_size, idx_t lineage_idx) override;
+	shared_ptr<ChunkOffset> GetChildChunkOffset(idx_t lineage_idx) override;
+	shared_ptr<ChunkOffset> GetChunkOffset() override;
 
 	// Chunk Management
-	void MarkChunkMerging();
-	void MarkChunkNext();
+	void MarkChunkReturned();
 
 private:
 	shared_ptr<PipelineLineage> build_child_node;
 	shared_ptr<PipelineLineage> probe_child_node;
-	shared_ptr<ChunkLineage> chunk_lineage;
+	shared_ptr<ChunkOffset> chunk_offset;
 
-	bool merging;
 	bool next;
 };
 
@@ -113,39 +106,33 @@ public:
 		SetChunkId(0);
 	}
 
-	void AddChunk(idx_t chunk_size, idx_t lineage_idx) override;
-	shared_ptr<ChunkLineage> GetChildChunkLineage(idx_t lineage_idx) override;
-	shared_ptr<ChunkLineage> GetChunkLineage() override;
+	void AdjustChunkOffsets(idx_t chunk_size, idx_t lineage_idx) override;
+	shared_ptr<ChunkOffset> GetChildChunkOffset(idx_t lineage_idx) override;
+	shared_ptr<ChunkOffset> GetChunkOffset() override;
 
 	void SetChunkId(idx_t id);
 
 private:
-	shared_ptr<ChunkLineage> chunk_lineage;
-	shared_ptr<ChunkLineage> filter_chunk_lineage;
+	shared_ptr<ChunkOffset> chunk_offset;
+	shared_ptr<ChunkOffset> filter_chunk_offset;
 };
 
 class PipelineSingleLineage : public PipelineLineage {
 public:
 	explicit PipelineSingleLineage(shared_ptr<PipelineLineage> child_node) : child_node(move(child_node)) {}
 
-	void AddChunk(idx_t chunk_size, idx_t lineage_idx) override;
-	shared_ptr<ChunkLineage> GetChildChunkLineage(idx_t lineage_idx) override;
-	shared_ptr<ChunkLineage> GetChunkLineage() override;
+	void AdjustChunkOffsets(idx_t chunk_size, idx_t lineage_idx) override;
+	shared_ptr<ChunkOffset> GetChildChunkOffset(idx_t lineage_idx) override;
+	shared_ptr<ChunkOffset> GetChunkOffset() override;
 
 private:
 	shared_ptr<PipelineLineage> child_node;
-	shared_ptr<ChunkLineage> chunk_lineage;
+	shared_ptr<ChunkOffset> chunk_offset;
 };
 
-class ChunkLineage {
-public:
-	ChunkLineage() : chunk_offset(0), chunk_size(0) {}
-
-	void AddOffset(ChunkOffset offset);
-
-	idx_t chunk_offset;
-	idx_t chunk_size;
-	vector<ChunkOffset> offsets;
+struct ChunkOffset {
+	idx_t offset;
+	idx_t size;
 };
 
 struct LineageProcessStruct {
@@ -156,7 +143,7 @@ struct LineageProcessStruct {
 struct LineageDataWithOffset {
 	// TODO does this need to have a shared_ptr wrapper?
 	shared_ptr<LineageData> data;
-	shared_ptr<ChunkLineage> chunk_lineage;
+	shared_ptr<ChunkOffset> chunk_lineage;
 };
 
 class OperatorLineage {
@@ -168,9 +155,7 @@ public:
 	void FinishedProcessing();
 	shared_ptr<PipelineLineage> GetPipelineLineage();
 	// leaky...
-	void MarkChunkMerging();
-	// leaky...
-	void MarkChunkNext();
+	void MarkChunkReturned();
 	LineageProcessStruct Process(const vector<LogicalType>& types, idx_t count_so_far, DataChunk &insert_chunk);
 	// leaky...
 	void SetChunkId(idx_t idx);
@@ -188,7 +173,7 @@ class LineageData {
 public:
 	virtual idx_t Count() = 0;
 	virtual void Debug() = 0;
-	virtual data_ptr_t Process(vector<ChunkOffset> offsets) = 0;
+	virtual data_ptr_t Process(idx_t offset) = 0;
 	virtual idx_t Size() = 0;
 	virtual ~LineageData() {};
 };
@@ -204,7 +189,7 @@ public:
 
 	idx_t Count() override;
 	void Debug() override;
-	data_ptr_t Process(vector<ChunkOffset> offsets) override;
+	data_ptr_t Process(idx_t offset) override;
 	idx_t Size() override;
 
 private:
@@ -222,7 +207,7 @@ public:
 
 	idx_t Count() override;
 	void Debug() override;
-	data_ptr_t Process(vector<ChunkOffset> offsets) override;
+	data_ptr_t Process(idx_t offset) override;
 	idx_t Size() override;
 
 private:
@@ -240,7 +225,7 @@ public:
 
 	idx_t Count() override;
 	void Debug() override;
-	data_ptr_t Process(vector<ChunkOffset> offsets) override;
+	data_ptr_t Process(idx_t offset) override;
 	idx_t Size() override;
 
 private:
@@ -258,7 +243,7 @@ public:
 
 	idx_t Count() override;
 	void Debug() override;
-	data_ptr_t Process(vector<ChunkOffset> offsets) override;
+	data_ptr_t Process(idx_t offset) override;
 	idx_t Size() override;
 
 private:
@@ -278,7 +263,7 @@ public:
 
 	idx_t Count() override;
 	void Debug() override;
-	data_ptr_t Process(vector<ChunkOffset> offsets) override;
+	data_ptr_t Process(idx_t offset) override;
 	idx_t Size() override;
 
 private:
@@ -300,7 +285,7 @@ public:
 
 	idx_t Count() override;
 	void Debug() override;
-	data_ptr_t Process(vector<ChunkOffset> offsets) override;
+	data_ptr_t Process(idx_t offset) override;
 	idx_t Size() override;
 
 private:

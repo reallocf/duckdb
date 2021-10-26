@@ -256,7 +256,7 @@ void PhysicalHashJoin::GetChunkInternal(ExecutionContext &context, DataChunk &ch
 				sink.hash_table->ScanFullOuter(chunk, sink.ht_scan_state);
 			}
 #ifdef LINEAGE
-			lineage_op->MarkChunkNext();
+			lineage_op->MarkChunkReturned();
 #endif
 			return;
 		} else {
@@ -269,19 +269,16 @@ void PhysicalHashJoin::GetChunkInternal(ExecutionContext &context, DataChunk &ch
 					chunk.Move(state->cached_chunk);
 					state->cached_chunk.Initialize(types);
 #ifdef LINEAGE
-					lineage_op->MarkChunkNext();
+					lineage_op->MarkChunkReturned();
 #endif
 					return;
 				} else {
 					// chunk cache not full: probe again
 					chunk.Reset();
-#ifdef LINEAGE
-					lineage_op->MarkChunkMerging();
-#endif
 				}
 			} else {
 #ifdef LINEAGE
-				lineage_op->MarkChunkNext();
+				lineage_op->MarkChunkReturned();
 #endif
 				return;
 			}

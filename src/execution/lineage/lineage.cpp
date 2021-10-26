@@ -212,168 +212,147 @@ void LineageManager::LogQuery(const string& input_query) {
 
 // PipelineBreakerLineage
 
-void PipelineBreakerLineage::AddChunk(idx_t chunk_size, idx_t lineage_idx) {
+void PipelineBreakerLineage::AdjustChunkOffsets(idx_t chunk_size, idx_t lineage_idx) {
 	if (lineage_idx == LINEAGE_SOURCE) {
 		idx_t offset;
-		if (chunk_lineage == nullptr) {
+		if (chunk_offset == nullptr) {
 			offset = 0;
 		} else {
-			offset = chunk_lineage->chunk_offset + chunk_lineage->chunk_size;
+			offset = chunk_offset->offset + chunk_offset->size;
 		}
-		ChunkOffset chunk_offset = ChunkOffset{offset, chunk_size};
-		chunk_lineage = make_shared<ChunkLineage>();
-		chunk_lineage->AddOffset(chunk_offset);
+		chunk_offset = make_shared<ChunkOffset>();
+		chunk_offset->offset = offset;
+		chunk_offset->size = chunk_size;
 	} else {
 		// We don't care about the sink's offset since it's never used
 	}
 }
 
-shared_ptr<ChunkLineage> PipelineBreakerLineage::GetChildChunkLineage(idx_t lineage_idx) {
+shared_ptr<ChunkOffset> PipelineBreakerLineage::GetChildChunkOffset(idx_t lineage_idx) {
 	if (lineage_idx == LINEAGE_SINK) {
-		return child_node->GetChunkLineage();
+		return child_node->GetChunkOffset();
 	} else {
 		// For source, adjust by how many we've output so far TODO is this right?
-		return chunk_lineage;
+		return chunk_offset;
 	}
 }
 
-shared_ptr<ChunkLineage> PipelineBreakerLineage::GetChunkLineage() {
-	return chunk_lineage;
+shared_ptr<ChunkOffset> PipelineBreakerLineage::GetChunkOffset() {
+	return chunk_offset;
 }
 
 // PipelineJoinLineage
 
-void PipelineJoinLineage::AddChunk(idx_t chunk_size, idx_t lineage_idx) {
+void PipelineJoinLineage::AdjustChunkOffsets(idx_t chunk_size, idx_t lineage_idx) {
 	if (lineage_idx == LINEAGE_PROBE) {
 		idx_t offset;
-		if (chunk_lineage == nullptr) {
+		idx_t size;
+		if (chunk_offset == nullptr) {
 			offset = 0;
+			size = chunk_size;
 		} else if (next) {
-			// If we've pulled from the next chunk, adjust offset based on the current chunk
-			offset = chunk_lineage->chunk_offset + chunk_lineage->chunk_size;
+			// If we've just pushed to the parent operator, adjust offset based on the current chunk
+			offset = chunk_offset->offset + chunk_offset->size;
+			size = chunk_size;
 			next = false;
 		} else {
-			// If we haven't pulled from the next chunk, offset remains the same
-			offset = chunk_lineage->chunk_offset;
+			// If we haven't pushed to the parent operator, offset remains the same (chunk merge)
+			offset = chunk_offset->offset;
+			size = chunk_offset->size + chunk_size;
 		}
-		ChunkOffset chunk_offset = ChunkOffset{offset, chunk_size};
-		if (merging) {
-			// If merging, we add the offset without overriding the chunk_lineage, so that the chunks are grouped together
-			// Set merging to false - if multiple merges happen simultaneously then MarkChunkMerging() will need to be called again
-			merging = false;
-		} else {
-			// Replace chunk_lineage like normal
-			chunk_lineage = make_shared<ChunkLineage>();
-		}
-		chunk_lineage->AddOffset(chunk_offset);
+		chunk_offset = make_shared<ChunkOffset>();
+		chunk_offset->offset = offset;
+		chunk_offset->size = size;
 	} else {
 		// We don't care about the build's offset since it's never used
 	}
 }
 
-shared_ptr<ChunkLineage> PipelineJoinLineage::GetChildChunkLineage(idx_t lineage_idx) {
+shared_ptr<ChunkOffset> PipelineJoinLineage::GetChildChunkOffset(idx_t lineage_idx) {
 	if (lineage_idx == LINEAGE_BUILD) {
-		return build_child_node->GetChunkLineage();
+		return build_child_node->GetChunkOffset();
 	} else {
-		return probe_child_node->GetChunkLineage();
+		return probe_child_node->GetChunkOffset();
 	}
 }
 
-shared_ptr<ChunkLineage> PipelineJoinLineage::GetChunkLineage() {
+shared_ptr<ChunkOffset> PipelineJoinLineage::GetChunkOffset() {
 	// Only ever called on the probe side, since build side is consumed by itself
-	return chunk_lineage;
+	return chunk_offset;
 }
 
-void PipelineJoinLineage::MarkChunkMerging() {
-	merging = true;
-}
-
-void PipelineJoinLineage::MarkChunkNext() {
+void PipelineJoinLineage::MarkChunkReturned() {
 	next = true;
 }
 
 // PipelineScanLineage
 
-void PipelineScanLineage::AddChunk(idx_t chunk_size, idx_t lineage_idx) {
+void PipelineScanLineage::AdjustChunkOffsets(idx_t chunk_size, idx_t lineage_idx) {
 	D_ASSERT(lineage_idx == LINEAGE_UNARY);
 	idx_t offset;
-	if (filter_chunk_lineage == nullptr) {
+	if (filter_chunk_offset == nullptr) {
 		offset = 0;
 	} else {
-		offset = filter_chunk_lineage->chunk_offset + filter_chunk_lineage->chunk_size;
+		offset = filter_chunk_offset->offset + filter_chunk_offset->size;
 	}
-	ChunkOffset chunk_offset = ChunkOffset{offset, chunk_size};
-	filter_chunk_lineage = make_shared<ChunkLineage>();
-	filter_chunk_lineage->AddOffset(chunk_offset);
+	filter_chunk_offset = make_shared<ChunkOffset>();
+	filter_chunk_offset->offset = offset;
+	filter_chunk_offset->size = chunk_size;
 }
 
-shared_ptr<ChunkLineage> PipelineScanLineage::GetChildChunkLineage(idx_t lineage_idx) {
+shared_ptr<ChunkOffset> PipelineScanLineage::GetChildChunkOffset(idx_t lineage_idx) {
 	// Child lineage for Scan is adjusting the pushed down filter based on what chunk we're in
 	D_ASSERT(lineage_idx == LINEAGE_UNARY);
-	return chunk_lineage;
+	return chunk_offset;
 }
 
-shared_ptr<ChunkLineage> PipelineScanLineage::GetChunkLineage() {
-	if (filter_chunk_lineage == nullptr) {
+shared_ptr<ChunkOffset> PipelineScanLineage::GetChunkOffset() {
+	if (filter_chunk_offset == nullptr) {
 		// TODO is this right?
-		return chunk_lineage;
+		return chunk_offset;
 	} else {
-		return filter_chunk_lineage;
+		return filter_chunk_offset;
 	}
 }
 
 void PipelineScanLineage::SetChunkId(idx_t id) {
-	ChunkOffset offset = ChunkOffset{id * STANDARD_VECTOR_SIZE, STANDARD_VECTOR_SIZE};
-	chunk_lineage = make_shared<ChunkLineage>();
-	chunk_lineage->AddOffset(offset);
+	chunk_offset = make_shared<ChunkOffset>();
+	chunk_offset->offset = id * STANDARD_VECTOR_SIZE;
+	chunk_offset->size = STANDARD_VECTOR_SIZE;
 }
 
 // PipelineSingleLineage
 
-void PipelineSingleLineage::AddChunk(idx_t chunk_size, idx_t lineage_idx) {
+void PipelineSingleLineage::AdjustChunkOffsets(idx_t chunk_size, idx_t lineage_idx) {
 	D_ASSERT(lineage_idx == LINEAGE_UNARY);
 	idx_t offset;
-	if (chunk_lineage == nullptr) {
+	if (chunk_offset == nullptr) {
 		offset = 0;
 	} else {
-		offset = chunk_lineage->chunk_offset + chunk_lineage->chunk_size;
+		offset = chunk_offset->offset + chunk_offset->size;
 	}
-	ChunkOffset chunk_offset = ChunkOffset{offset, chunk_size};
-	chunk_lineage = make_shared<ChunkLineage>();
-	chunk_lineage->AddOffset(chunk_offset);
+	chunk_offset = make_shared<ChunkOffset>();
+	chunk_offset->offset = offset;
+	chunk_offset->size = chunk_size;
 }
 
-shared_ptr<ChunkLineage> PipelineSingleLineage::GetChildChunkLineage(idx_t lineage_idx) {
+shared_ptr<ChunkOffset> PipelineSingleLineage::GetChildChunkOffset(idx_t lineage_idx) {
 	D_ASSERT(lineage_idx == LINEAGE_UNARY);
-	return child_node->GetChunkLineage();
+	return child_node->GetChunkOffset();
 }
 
-shared_ptr<ChunkLineage> PipelineSingleLineage::GetChunkLineage() {
-	return chunk_lineage;
-}
-
-// ChunkLineage
-
-void ChunkLineage::AddOffset(ChunkOffset offset) {
-	if (offsets.empty()) {
-		chunk_offset = offset.offset;
-		chunk_size = offset.cutoff;
-	} else {
-		// Adjust offset to account for prior chunkoffsets
-		offset.cutoff += chunk_size;
-		chunk_size = offset.cutoff;
-	}
-	offsets.push_back(offset);
+shared_ptr<ChunkOffset> PipelineSingleLineage::GetChunkOffset() {
+	return chunk_offset;
 }
 
 // OperatorLineage
 
 void OperatorLineage::Capture(const shared_ptr<LineageData>& datum, idx_t lineage_idx) {
 	// Prepare this vector's chunk to be passed on to future operators
-	pipeline_lineage->AddChunk(datum->Count(), lineage_idx);
+	pipeline_lineage->AdjustChunkOffsets(datum->Count(), lineage_idx);
 
 	// Capture this vector
-	shared_ptr<ChunkLineage> child_chunk_lineage = pipeline_lineage->GetChildChunkLineage(lineage_idx);
+	shared_ptr<ChunkOffset> child_chunk_lineage = pipeline_lineage->GetChildChunkOffset(lineage_idx);
 	D_ASSERT(child_chunk_lineage != nullptr);
 	data[lineage_idx].push_back(LineageDataWithOffset{datum, child_chunk_lineage});
 }
@@ -387,16 +366,8 @@ shared_ptr<PipelineLineage> OperatorLineage::GetPipelineLineage() {
 	return pipeline_lineage;
 }
 
-void OperatorLineage::MarkChunkMerging() {
-	dynamic_cast<PipelineJoinLineage *>(pipeline_lineage.get())->MarkChunkMerging();
-}
-
-void OperatorLineage::MarkChunkNext() {
-	dynamic_cast<PipelineJoinLineage *>(pipeline_lineage.get())->MarkChunkNext();
-}
-
-vector<ChunkOffset> BuildZeroOffset(idx_t size) {
-	return { ChunkOffset{0, size} };
+void OperatorLineage::MarkChunkReturned() {
+	dynamic_cast<PipelineJoinLineage *>(pipeline_lineage.get())->MarkChunkReturned();
 }
 
 LineageProcessStruct OperatorLineage::Process(const vector<LogicalType>& types, idx_t count_so_far,
@@ -411,8 +382,8 @@ LineageProcessStruct OperatorLineage::Process(const vector<LogicalType>& types, 
 				LineageDataWithOffset this_data = data[0][data_idx];
 				idx_t res_count = this_data.data->Count();
 
-				Vector lhs_payload(types[0], this_data.data->Process(BuildZeroOffset(res_count))); // TODO is this right?
-				Vector rhs_payload(types[1], this_data.data->Process(this_data.chunk_lineage->offsets));
+				Vector lhs_payload(types[0], this_data.data->Process(0)); // TODO is this right?
+				Vector rhs_payload(types[1], this_data.data->Process(this_data.chunk_lineage->offset));
 
 				insert_chunk.SetCardinality(res_count);
 				insert_chunk.data[0].Reference(lhs_payload);
@@ -426,7 +397,7 @@ LineageProcessStruct OperatorLineage::Process(const vector<LogicalType>& types, 
 				LineageDataWithOffset this_data = data[LINEAGE_UNARY][data_idx];
 				idx_t res_count = this_data.data->Count();
 
-				Vector payload(types[0], this_data.data->Process(this_data.chunk_lineage->offsets));
+				Vector payload(types[0], this_data.data->Process(this_data.chunk_lineage->offset));
 
 				insert_chunk.SetCardinality(res_count);
 				insert_chunk.data[0].Reference(payload);
@@ -445,7 +416,7 @@ LineageProcessStruct OperatorLineage::Process(const vector<LogicalType>& types, 
 					LineageDataWithOffset this_data = data[LINEAGE_BUILD][data_idx];
 					idx_t res_count = data[0][data_idx].data->Count();
 
-					Vector payload(types[1], this_data.data->Process(this_data.chunk_lineage->offsets));
+					Vector payload(types[1], this_data.data->Process(this_data.chunk_lineage->offset));
 
 					insert_chunk.SetCardinality(res_count);
 					insert_chunk.data[0].Sequence(count_so_far, 1);
@@ -457,8 +428,8 @@ LineageProcessStruct OperatorLineage::Process(const vector<LogicalType>& types, 
 					LineageDataWithOffset this_data = data[LINEAGE_PROBE][data_idx];
 					idx_t res_count = this_data.data->Count();
 
-					Vector lhs_payload(types[0], this_data.data->Process(BuildZeroOffset(res_count)));
-					Vector rhs_payload(types[1], this_data.data->Process(this_data.chunk_lineage->offsets));
+					Vector lhs_payload(types[0], this_data.data->Process(0));
+					Vector rhs_payload(types[1], this_data.data->Process(this_data.chunk_lineage->offset));
 
 					insert_chunk.SetCardinality(res_count);
 					insert_chunk.data[0].Reference(lhs_payload);
@@ -473,7 +444,7 @@ LineageProcessStruct OperatorLineage::Process(const vector<LogicalType>& types, 
 					LineageDataWithOffset this_data = data[LINEAGE_SINK][data_idx];
 					idx_t res_count = this_data.data->Count();
 
-					Vector payload(types[1], this_data.data->Process(this_data.chunk_lineage->offsets));
+					Vector payload(types[1], this_data.data->Process(this_data.chunk_lineage->offset));
 
 					insert_chunk.SetCardinality(res_count);
 					insert_chunk.data[0].Sequence(count_so_far, 1);
@@ -484,7 +455,7 @@ LineageProcessStruct OperatorLineage::Process(const vector<LogicalType>& types, 
 					LineageDataWithOffset this_data = data[LINEAGE_SOURCE][data_idx];
 					idx_t res_count = this_data.data->Count();
 
-					Vector payload(types[0], this_data.data->Process(this_data.chunk_lineage->offsets));
+					Vector payload(types[0], this_data.data->Process(this_data.chunk_lineage->offset));
 
 					insert_chunk.SetCardinality(res_count);
 					insert_chunk.data[0].Reference(payload);
@@ -527,29 +498,11 @@ void LineageDataRowVector::Debug() {
 	std::cout << std::endl;
 }
 
-data_ptr_t LineageDataRowVector::Process(vector<ChunkOffset> offsets) {
-	if (offsets.size() == 1) {
-		// Fast case - iterate over tight loop
-		idx_t offset = offsets[0].offset;
-		for (idx_t i = 0; i < count; i++) {
-			vec[i] += offset;
-		}
-		return (data_ptr_t)vec.data();
-	} else {
-		// Merged case - need to adjust by different offset based on cutoff
-		idx_t offset_id = 0;
-		for (idx_t i = 0; i < count; i++) {
-			// Compiler throws a warning here, but I think it should be safe since I believe all RowVectors contain
-			// positive values
-			// Also this Process currently only is used in IndexJoins where there aren't any Merges
-			while (vec[i] > offsets[offset_id].cutoff) {
-				offset_id++;
-			}
-			vec[i] += offsets[offset_id].offset;
-			offset_id = 0;
-		}
-		return (data_ptr_t)vec.data();
+data_ptr_t LineageDataRowVector::Process(idx_t offset) {
+	for (idx_t i = 0; i < count; i++) {
+		vec[i] += offset;
 	}
+	return (data_ptr_t)vec.data();
 }
 
 idx_t LineageDataRowVector::Size() {
@@ -571,26 +524,11 @@ void LineageDataUIntPtrArray::Debug() {
 	std::cout << std::endl;
 }
 
-data_ptr_t LineageDataUIntPtrArray::Process(vector<ChunkOffset> offsets) {
-	if (offsets.size() == 1) {
-		// Fast case - iterate over tight loop
-		idx_t offset = offsets[0].offset;
-		for (idx_t i = 0; i < count; i++) {
-			vec[i] += offset;
-		}
-		return (data_ptr_t)vec.get();
-	} else {
-		// Merged case - need to adjust by different offset based on cutoff
-		idx_t offset_id = 0;
-		for (idx_t i = 0; i < count; i++) {
-			while (vec[i] > offsets[offset_id].cutoff) {
-				offset_id++;
-			}
-			vec[i] += offsets[offset_id].offset;
-			offset_id = 0;
-		}
-		return (data_ptr_t)vec.get();
+data_ptr_t LineageDataUIntPtrArray::Process(idx_t offset) {
+	for (idx_t i = 0; i < count; i++) {
+		vec[i] += offset;
 	}
+	return (data_ptr_t)vec.get();
 }
 
 idx_t LineageDataUIntPtrArray::Size() {
@@ -612,26 +550,11 @@ void LineageDataUInt32Array::Debug() {
 	std::cout << std::endl;
 }
 
-data_ptr_t LineageDataUInt32Array::Process(vector<ChunkOffset> offsets) {
-	if (offsets.size() == 1) {
-		// Fast case - iterate over tight loop
-		idx_t offset = offsets[0].offset;
-		for (idx_t i = 0; i < count; i++) {
-			vec[i] += offset;
-		}
-		return (data_ptr_t)vec.get();
-	} else {
-		// Merged case - need to adjust by different offset based on cutoff
-		idx_t offset_id = 0;
-		for (idx_t i = 0; i < count; i++) {
-			while (vec[i] > offsets[offset_id].cutoff) {
-				offset_id++;
-			}
-			vec[i] += offsets[offset_id].offset;
-			offset_id = 0;
-		}
-		return (data_ptr_t)vec.get();
+data_ptr_t LineageDataUInt32Array::Process(idx_t offset) {
+	for (idx_t i = 0; i < count; i++) {
+		vec[i] += offset;
 	}
+	return (data_ptr_t)vec.get();
 }
 
 idx_t LineageDataUInt32Array::Size() {
@@ -653,27 +576,11 @@ void LineageSelVec::Debug() {
 	std::cout << std::endl;
 }
 
-data_ptr_t LineageSelVec::Process(vector<ChunkOffset> offsets) {
-	if (offsets.size() == 1) {
-		// Fast case - iterate over tight loop
-		idx_t offset = offsets[0].offset;
-		for (idx_t i = 0; i < count; i++) {
-			*(vec.data() + i) += offset;
-		}
-		return (data_ptr_t)vec.data();
-	} else {
-		// Merged case - need to adjust by different offset based on cutoff
-		idx_t offset_id = 0;
-		for (idx_t i = 0; i < count; i++) {
-			sel_t val = *(vec.data() + i);
-			while (val > offsets[offset_id].cutoff) {
-				offset_id++;
-			}
-			*(vec.data() + i) += offsets[offset_id].offset;
-			offset_id = 0;
-		}
-		return (data_ptr_t)vec.data();
+data_ptr_t LineageSelVec::Process(idx_t offset) {
+	for (idx_t i = 0; i < count; i++) {
+		*(vec.data() + i) += offset;
 	}
+	return (data_ptr_t)vec.data();
 }
 
 idx_t LineageSelVec::Size() {
@@ -691,25 +598,11 @@ void LineageRange::Debug() {
 	std::cout << "LineageRange - Start: " << start << " End: " << end << std::endl;
 }
 
-data_ptr_t LineageRange::Process(vector<ChunkOffset> offsets) {
+data_ptr_t LineageRange::Process(idx_t offset) {
 	// Lazily convert lineage range to selection vector
 	if (vec.empty()) {
-		if (offsets.size() == 1) {
-			// Fast case - iterate over tight loop
-			idx_t offset = offsets[0].offset;
-			for (idx_t i = start; i < end; i++) {
-				vec.push_back(i + offset);
-			}
-		} else {
-			// Merged case - need to adjust by different offset based on cutoff
-			idx_t offset_id = 0;
-			for (idx_t i = start; i < end; i++) {
-				while (i > offsets[offset_id].cutoff) {
-					offset_id++;
-				}
-				vec.push_back(i + offsets[offset_id].offset);
-				offset_id = 0;
-			}
+		for (idx_t i = start; i < end; i++) {
+			vec.push_back(i + offset);
 		}
 	}
 	return (data_ptr_t)vec.data();
@@ -731,13 +624,13 @@ void LineageBinary::Debug() {
 	right->Debug();
 }
 
-data_ptr_t LineageBinary::Process(vector<ChunkOffset> offsets) {
+data_ptr_t LineageBinary::Process(idx_t offset) {
 	if (switch_on_left) {
 		switch_on_left = !switch_on_left;
-		return left->Process(offsets);
+		return left->Process(offset);
 	} else {
 		switch_on_left = !switch_on_left;
-		return right->Process(offsets);
+		return right->Process(offset);
 	}
 }
 
