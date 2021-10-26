@@ -284,7 +284,7 @@ void PhysicalHashJoin::GetChunkInternal(ExecutionContext &context, DataChunk &ch
 			}
 #else
 #ifdef LINEAGE
-			lineage_op->MarkChunkNext();
+			lineage_op->MarkChunkReturned();
 #endif
 			return;
 #endif

@@ -5,7 +5,6 @@
 statement ok
 CREATE TABLE t1(i INTEGER);
 
-# TODO doesn't seem to capture all of hash join parent's lineage (filter) when range(1030,2084) - will explore in another test
 statement ok
 INSERT INTO t1 VALUES (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0);
 INSERT INTO t1 SELECT i FROM range(1030,1040) tbl(i);

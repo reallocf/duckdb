@@ -353,7 +353,6 @@ void OperatorLineage::Capture(const shared_ptr<LineageData>& datum, idx_t lineag
 
 	// Capture this vector
 	shared_ptr<ChunkOffset> child_chunk_lineage = pipeline_lineage->GetChildChunkOffset(lineage_idx);
-	D_ASSERT(child_chunk_lineage != nullptr);
 	data[lineage_idx].push_back(LineageDataWithOffset{datum, child_chunk_lineage});
 }
 
