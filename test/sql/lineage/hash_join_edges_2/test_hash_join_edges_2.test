@@ -1,0 +1,360 @@
+# name: test/sql/lineage/hash_join/test_hash_join_edges_2.test
+# description: Test Even More Hash Joins Edge Cases
+# group: [hash_join_edges_2]
+
+statement ok
+CREATE TABLE t1(i INTEGER);
+
+statement ok
+INSERT INTO t1 VALUES (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0);
+INSERT INTO t1 SELECT i FROM range(1030,2084) tbl(i);
+INSERT INTO t1 VALUES (0);
+
+statement ok
+CREATE TABLE t2(i INTEGER);
+
+statement ok
+INSERT INTO t2 SELECT i FROM range(0,1030) tbl(i);
+INSERT INTO t2 SELECT i FROM range(0,1030) tbl(i);
+INSERT INTO t2 SELECT i FROM range(0,1030) tbl(i);
+
+statement ok
+PRAGMA trace_lineage = "ON"
+
+query II
+select t1.i, t2.i from t1 inner join t2 on (t1.i = t2.i) where t1.i + t2.i = 0
+----
+0	0
+0	0
+0	0
+0	0
+0	0
+0	0
+0	0
+0	0
+0	0
+0	0
+0	0
+0	0
+0	0
+0	0
+0	0
+0	0
+0	0
+0	0
+0	0
+0	0
+0	0
+0	0
+0	0
+0	0
+0	0
+0	0
+0	0
+0	0
+0	0
+0	0
+0	0
+0	0
+0	0
+0	0
+0	0
+0	0
+0	0
+0	0
+0	0
+0	0
+0	0
+0	0
+0	0
+0	0
+0	0
+0	0
+0	0
+0	0
+0	0
+0	0
+0	0
+0	0
+0	0
+0	0
+0	0
+0	0
+0	0
+0	0
+0	0
+0	0
+0	0
+0	0
+0	0
+0	0
+0	0
+0	0
+0	0
+0	0
+0	0
+0	0
+0	0
+0	0
+0	0
+0	0
+0	0
+0	0
+0	0
+0	0
+0	0
+0	0
+0	0
+0	0
+0	0
+0	0
+0	0
+0	0
+0	0
+0	0
+0	0
+0	0
+0	0
+0	0
+0	0
+0	0
+0	0
+0	0
+0	0
+0	0
+0	0
+0	0
+0	0
+0	0
+
+query II
+select query_id, query from queries_list;
+----
+1	select t1.i, t2.i from t1 inner join t2 on (t1.i = t2.i) where t1.i + t2.i = 0
+2	select query_id, query from queries_list;
+
+
+statement ok
+PRAGMA trace_lineage = "OFF";
+
+# This test fails due to a few addresses not being captured during build TODO fix
+query I
+SELECT lhs_address FROM LINEAGE_1_HASH_JOIN_2_1
+WHERE lhs_address NOT IN (SELECT out_address FROM LINEAGE_1_HASH_JOIN_2_0)
+----
+
+query III
+select sink.in_index, probe.rhs_index, probe.out_index
+from LINEAGE_1_HASH_JOIN_2_1 AS probe
+join LINEAGE_1_HASH_JOIN_2_0 AS sink ON sink.out_address = probe.lhs_address
+order by out_index asc
+----
+43	0	0
+32	0	1
+31	0	2
+30	0	3
+29	0	4
+28	0	5
+27	0	6
+26	0	7
+25	0	8
+24	0	9
+23	0	10
+22	0	11
+21	0	12
+20	0	13
+19	0	14
+18	0	15
+17	0	16
+16	0	17
+15	0	18
+14	0	19
+13	0	20
+12	0	21
+11	0	22
+10	0	23
+9	0	24
+8	0	25
+7	0	26
+6	0	27
+5	0	28
+4	0	29
+3	0	30
+2	0	31
+1	0	32
+0	0	33
+43	1030	34
+32	1030	35
+31	1030	36
+30	1030	37
+29	1030	38
+28	1030	39
+27	1030	40
+26	1030	41
+25	1030	42
+24	1030	43
+23	1030	44
+22	1030	45
+21	1030	46
+20	1030	47
+19	1030	48
+18	1030	49
+17	1030	50
+16	1030	51
+15	1030	52
+14	1030	53
+13	1030	54
+12	1030	55
+11	1030	56
+10	1030	57
+9	1030	58
+8	1030	59
+7	1030	60
+6	1030	61
+5	1030	62
+4	1030	63
+3	1030	64
+2	1030	65
+1	1030	66
+0	1030	67
+43	2060	68
+32	2060	69
+31	2060	70
+30	2060	71
+29	2060	72
+28	2060	73
+27	2060	74
+26	2060	75
+25	2060	76
+24	2060	77
+23	2060	78
+22	2060	79
+21	2060	80
+20	2060	81
+19	2060	82
+18	2060	83
+17	2060	84
+16	2060	85
+15	2060	86
+14	2060	87
+13	2060	88
+12	2060	89
+11	2060	90
+10	2060	91
+9	2060	92
+8	2060	93
+7	2060	94
+6	2060	95
+5	2060	96
+4	2060	97
+3	2060	98
+2	2060	99
+1	2060	100
+0	2060	101
+
+# Confirm that the operator after a merge is handled correctly
+query III
+SELECT rowid, in_index, out_index FROM LINEAGE_1_FILTER_3_0
+----
+0	0	0
+1	1	1
+2	2	2
+3	3	3
+4	4	4
+5	5	5
+6	6	6
+7	7	7
+8	8	8
+9	9	9
+10	10	10
+11	11	11
+12	12	12
+13	13	13
+14	14	14
+15	15	15
+16	16	16
+17	17	17
+18	18	18
+19	19	19
+20	20	20
+21	21	21
+22	22	22
+23	23	23
+24	24	24
+25	25	25
+26	26	26
+27	27	27
+28	28	28
+29	29	29
+30	30	30
+31	31	31
+32	32	32
+33	33	33
+34	34	34
+35	35	35
+36	36	36
+37	37	37
+38	38	38
+39	39	39
+40	40	40
+41	41	41
+42	42	42
+43	43	43
+44	44	44
+45	45	45
+46	46	46
+47	47	47
+48	48	48
+49	49	49
+50	50	50
+51	51	51
+52	52	52
+53	53	53
+54	54	54
+55	55	55
+56	56	56
+57	57	57
+58	58	58
+59	59	59
+60	60	60
+61	61	61
+62	62	62
+63	63	63
+64	64	64
+65	65	65
+66	66	66
+67	67	67
+68	68	68
+69	69	69
+70	70	70
+71	71	71
+72	72	72
+73	73	73
+74	74	74
+75	75	75
+76	76	76
+77	77	77
+78	78	78
+79	79	79
+80	80	80
+81	81	81
+82	82	82
+83	83	83
+84	84	84
+85	85	85
+86	86	86
+87	87	87
+88	88	88
+89	89	89
+90	90	90
+91	91	91
+92	92	92
+93	93	93
+94	94	94
+95	95	95
+96	96	96
+97	97	97
+98	98	98
+99	99	99
+100	100	100
+101	101	101

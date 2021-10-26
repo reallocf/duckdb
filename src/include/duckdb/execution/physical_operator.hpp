@@ -66,8 +66,10 @@ public:
 	//! The extimated cardinality of this physical operator
 	idx_t estimated_cardinality;
 #ifdef LINEAGE
-  // ID of this operator within the physical plan
-  idx_t id;
+	// ID of this operator within the physical plan
+	idx_t id;
+	//! Lineage captured for this operator
+	shared_ptr<OperatorLineage> lineage_op;
 #endif
 
 public:

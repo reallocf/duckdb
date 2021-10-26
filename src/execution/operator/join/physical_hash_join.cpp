@@ -131,7 +131,7 @@ void PhysicalHashJoin::Sink(ExecutionContext &context, GlobalOperatorState &stat
 	auto &sink = (HashJoinGlobalState &)state;
 	auto &lstate = (HashJoinLocalState &)lstate_p;
 #ifdef LINEAGE
-  context.setCurrent(id);
+	context.SetCurrentLineageOp(lineage_op);
 #endif
 	// resolve the join keys for the right chunk
 	lstate.build_executor.Execute(input, lstate.join_keys);
@@ -235,14 +235,12 @@ void PhysicalHashJoin::GetChunkInternal(ExecutionContext &context, DataChunk &ch
 		return;
 	}
 
-#ifdef LINEAGE
-  vector<shared_ptr<LineageOp>> cached_lop_per_chunk;
-#endif
 	do {
 		ProbeHashTable(context, chunk, state);
 #ifdef LINEAGE
-    if (state->scan_structure && state->scan_structure->lop)
-      cached_lop_per_chunk.push_back(state->scan_structure->lop);
+		if (state->scan_structure && state->scan_structure->lineage_probe_data) {
+			lineage_op->Capture(state->scan_structure->lineage_probe_data, LINEAGE_PROBE);
+		}
 #endif
 		if (chunk.size() == 0) {
 #if STANDARD_VECTOR_SIZE >= 128
@@ -250,15 +248,15 @@ void PhysicalHashJoin::GetChunkInternal(ExecutionContext &context, DataChunk &ch
 				// finished probing but cached data remains, return cached chunk
 				chunk.Move(state->cached_chunk);
 				state->cached_chunk.Initialize(types);
-#ifdef LINEAGE
-        context.lineage->RegisterDataPerOp(id, make_shared<LineageOpCollection>(cached_lop_per_chunk));
-#endif
 			} else
 #endif
 			    if (IsRightOuterJoin(join_type)) {
 				// check if we need to scan any unmatched tuples from the RHS for the full/right outer join
 				sink.hash_table->ScanFullOuter(chunk, sink.ht_scan_state);
 			}
+#ifdef LINEAGE
+			lineage_op->MarkChunkReturned();
+#endif
 			return;
 		} else {
 #if STANDARD_VECTOR_SIZE >= 128
@@ -270,7 +268,7 @@ void PhysicalHashJoin::GetChunkInternal(ExecutionContext &context, DataChunk &ch
 					chunk.Move(state->cached_chunk);
 					state->cached_chunk.Initialize(types);
 #ifdef LINEAGE
-        context.lineage->RegisterDataPerOp(id, make_shared<LineageOpCollection>(cached_lop_per_chunk));
+					lineage_op->MarkChunkReturned();
 #endif
 					return;
 				} else {
@@ -279,13 +277,13 @@ void PhysicalHashJoin::GetChunkInternal(ExecutionContext &context, DataChunk &ch
 				}
 			} else {
 #ifdef LINEAGE
-        context.lineage->RegisterDataPerOp(id, make_shared<LineageOpCollection>(cached_lop_per_chunk));
+				lineage_op->MarkChunkReturned();
 #endif
 				return;
 			}
 #else
 #ifdef LINEAGE
-        context.lineage->RegisterDataPerOp(id, make_shared<LineageOpCollection>(cached_lop_per_chunk));
+			lineage_op->MarkChunkReturned();
 #endif
 			return;
 #endif

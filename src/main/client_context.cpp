@@ -55,6 +55,10 @@ ClientContext::ClientContext(shared_ptr<DatabaseInstance> database)
 	random_engine.seed(rd());
 
 	progress_bar = make_unique<ProgressBar>(&executor, wait_time);
+
+#ifdef LINEAGE
+	lineage_manager = make_unique<LineageManager>(*this);
+#endif
 }
 
 ClientContext::~ClientContext() {
@@ -239,12 +243,18 @@ unique_ptr<QueryResult> ClientContext::ExecutePreparedStatement(ClientContextLoc
 		progress_bar->Initialize(wait_time);
 		progress_bar->Start();
 	}
-	// store the physical plan in the context for calls to Fetch()
-	executor.Initialize(statement.plan.get());
 
 #ifdef LINEAGE
-  if (trace_lineage) executor.lineage_manager->logQuery(query);
+	if (trace_lineage) {
+		// Log query for later lineage lookup
+		lineage_manager->LogQuery(query);
+	}
+	// Always annotate plan with lineage - lineage is always captured even if it isn't persisted TODO is this right?
+	lineage_manager->AnnotatePlan(statement.plan.get());
 #endif
+
+	// store the physical plan in the context for calls to Fetch()
+	executor.Initialize(statement.plan.get());
 
 	auto types = executor.GetTypes();
 
@@ -275,6 +285,11 @@ unique_ptr<QueryResult> ClientContext::ExecutePreparedStatement(ClientContextLoc
 #endif
 		result->collection.Append(*chunk);
 	}
+#ifdef LINEAGE
+	if (trace_lineage) {
+		lineage_manager->CreateLineageTables(statement.plan.get());
+	}
+#endif
 	if (enable_progress_bar) {
 		progress_bar->Stop();
 	}

@@ -28,24 +28,24 @@ PRAGMA trace_lineage = "OFF";
 query II
 SELECT * FROM queries_list;
 ----
-9	select t1.i, avg(t1.j) from t1 GROUP BY t1.i
-11	PRAGMA trace_lineage = "OFF";
+1	select t1.i, avg(t1.j) from t1 GROUP BY t1.i
+2	PRAGMA trace_lineage = "OFF";
 
-query IIII
-select rowid, out_chunk_id, out_index, group_id from HASH_GROUP_BY_9_0_PROBE;
+query III
+select rowid, in_index, out_index from LINEAGE_1_HASH_GROUP_BY_2_1 as source;
 ----
-0	0	0	0
-1	0	1	1
-2	0	2	2
+0	0	0
+1	1	1
+2	2	2
 
-query IIII
-select rowid, out_chunk_id, in_index, group_id  from HASH_GROUP_BY_9_0_SINK;
+query III
+select rowid, in_index, out_index  from LINEAGE_1_HASH_GROUP_BY_2_0 as sink;
 ----
-0	0	0	0
-1	0	1	1
-2	0	2	0
-3	0	3	2
-4	0	4	1
-5	0	5	0
-6	0	6	2
-7	0	7	1
+0	0	0
+1	1	1
+2	2	0
+3	3	2
+4	4	1
+5	5	0
+6	6	2
+7	7	1

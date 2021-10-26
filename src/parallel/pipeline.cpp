@@ -88,10 +88,6 @@ void Pipeline::Execute(TaskContext &task) {
 
 	ThreadContext thread(client);
 	ExecutionContext context(client, thread, task);
-#ifdef LINEAGE
-  // Accumelate per thread, then push them all to global memory for lineage
-  vector<shared_ptr<LineageContext>> lineage_per_thread;
-#endif
 	try {
 		auto state = child->GetOperatorState();
 		auto lstate = sink->GetLocalSinkState(context);
@@ -99,9 +95,6 @@ void Pipeline::Execute(TaskContext &task) {
 		DataChunk intermediate;
 		child->InitializeChunk(intermediate);
 		while (true) {
-#ifdef LINEAGE
-      if (!context.lineage) context.lineage = make_unique<LineageContext>();
-#endif
 			child->GetChunk(context, intermediate, state.get());
 			thread.profiler.StartOperator(sink);
 			if (intermediate.size() == 0) {
@@ -109,14 +102,6 @@ void Pipeline::Execute(TaskContext &task) {
 				break;
 			}
 			sink->Sink(context, *sink_state, *lstate, intermediate);
-#ifdef LINEAGE
-      if (client.trace_lineage && context.lineage && !context.lineage->isEmpty()) {
-        context.lineage->chunk_id = chunk_id++;
-        // lineage_per_thread.push_back(move(context.lineage));
-        executor.lineage_manager->Persist(child, context.lineage, false);
-        executor.lineage_manager->Persist(sink, context.lineage, true);
-      }
-#endif
 			thread.profiler.EndOperator(nullptr);
 		}
 		child->FinalizeOperatorState(*state, context);
@@ -126,11 +111,6 @@ void Pipeline::Execute(TaskContext &task) {
 		executor.PushError("Unknown exception in pipeline!");
 	} // LCOV_EXCL_STOP
 	executor.Flush(thread);
-#ifdef LINEAGE
-  // use lock to serialize access to global lineage manager
-  // lock_guard<mutex> elock(executor.executor_lock);
-  // executor.lineage_manager->AddLocalSinkLineage(sink, lineage_per_thread);
-#endif
 }
 
 void Pipeline::FinishTask() {

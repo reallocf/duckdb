@@ -68,6 +68,10 @@ void StorageManager::Initialize() {
 		// initialize default functions
 		BuiltinFunctions builtin(*con.context, catalog);
 		builtin.Initialize();
+#ifdef LINEAGE
+		// Create query table for later lineage query referencing
+		con.context->lineage_manager->CreateQueryTable();
+#endif
 	}
 
 	// commit transactions

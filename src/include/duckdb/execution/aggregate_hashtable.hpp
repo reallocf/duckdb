@@ -114,7 +114,7 @@ public:
 	constexpr static uint8_t HASH_WIDTH = sizeof(hash_t);
 
 #ifdef LINEAGE
-  unique_ptr<LineageSelVec> lineage_data;
+	unique_ptr<LineageSelVec> lineage_data;
 #endif
 
 private:
