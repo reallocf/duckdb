@@ -137,7 +137,6 @@ select query_id, query from queries_list;
 statement ok
 PRAGMA trace_lineage = "OFF";
 
-# This test fails due to a few addresses not being captured during build TODO fix
 query I
 SELECT lhs_address FROM LINEAGE_1_HASH_JOIN_2_1
 WHERE lhs_address NOT IN (SELECT out_address FROM LINEAGE_1_HASH_JOIN_2_0)
@@ -149,7 +148,7 @@ from LINEAGE_1_HASH_JOIN_2_1 AS probe
 join LINEAGE_1_HASH_JOIN_2_0 AS sink ON sink.out_address = probe.lhs_address
 order by out_index asc
 ----
-43	0	0
+1087	0	0
 32	0	1
 31	0	2
 30	0	3
@@ -183,7 +182,7 @@ order by out_index asc
 2	0	31
 1	0	32
 0	0	33
-43	1030	34
+1087	1030	34
 32	1030	35
 31	1030	36
 30	1030	37
@@ -217,7 +216,7 @@ order by out_index asc
 2	1030	65
 1	1030	66
 0	1030	67
-43	2060	68
+1087	2060	68
 32	2060	69
 31	2060	70
 30	2060	71

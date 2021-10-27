@@ -75,7 +75,7 @@ LineageProcessStruct OperatorLineage::Process(const vector<LogicalType>& types, 
 					LineageDataWithOffset this_data = data[LINEAGE_BUILD][data_idx];
 					idx_t res_count = data[0][data_idx].data->Count();
 
-					Vector payload(types[1], this_data.data->Process(this_data.offset));
+					Vector payload(types[1], this_data.data->Process(0));
 
 					insert_chunk.SetCardinality(res_count);
 					insert_chunk.data[0].Sequence(count_so_far, 1);
