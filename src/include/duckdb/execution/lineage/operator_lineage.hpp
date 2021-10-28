@@ -34,13 +34,14 @@
 #endif
 
 namespace duckdb {
+enum class PhysicalOperatorType : uint8_t;
 struct LineageDataWithOffset;
 struct LineageProcessStruct;
 
 class OperatorLineage {
 public:
-	explicit OperatorLineage(shared_ptr<PipelineLineage> pipeline_lineage) :
-	      pipeline_lineage(move(pipeline_lineage))  {}
+	explicit OperatorLineage(shared_ptr<PipelineLineage> pipeline_lineage, PhysicalOperatorType type) :
+	      pipeline_lineage(move(pipeline_lineage)), type(type)  {}
 
 	void Capture(const shared_ptr<LineageData>& datum, idx_t lineage_idx);
 	void FinishedProcessing();
@@ -58,12 +59,7 @@ private:
 	std::vector<LineageDataWithOffset> data[2];
 	idx_t finished_idx = 0;
 	idx_t data_idx = 0;
-};
-
-struct LineageDataWithOffset {
-	// TODO does this need to have a shared_ptr wrapper?
-	shared_ptr<LineageData> data;
-	idx_t offset;
+	PhysicalOperatorType type;
 };
 
 struct LineageProcessStruct {

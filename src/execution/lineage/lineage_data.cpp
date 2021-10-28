@@ -106,6 +106,25 @@ idx_t LineageSelVec::Size() {
 	return count * sizeof(vec.get_index(0));
 }
 
+vector<LineageDataWithOffset> LineageSelVec::Divide() {
+	vector<LineageDataWithOffset> res(count / STANDARD_VECTOR_SIZE + 1);
+	for (idx_t i = 0; i < count / STANDARD_VECTOR_SIZE + 1; i++) {
+		idx_t this_offset = i * STANDARD_VECTOR_SIZE;
+		idx_t this_count = STANDARD_VECTOR_SIZE;
+		if (this_offset + STANDARD_VECTOR_SIZE > count) {
+			this_count = count - this_offset;
+		}
+		buffer_ptr<SelectionData> this_data = make_buffer<SelectionData>(this_count);
+		move(
+		    vec.sel_data().get()->owned_data.get() + this_offset,
+		    vec.sel_data().get()->owned_data.get() + this_offset + this_count,
+		    this_data.get()->owned_data.get()
+		);
+		res[i] = {make_shared<LineageSelVec>(SelectionVector(this_data), this_count), this_offset};
+	}
+	return res;
+}
+
 
 // LineageRange
 

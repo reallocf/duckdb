@@ -102,10 +102,18 @@ private:
 	RowDataBlock ConcatenateBlocks(RowDataCollection &row_data);
 	//! Sorts the data in the newly created SortedBlock
 	void SortInMemory();
+#ifdef LINEAGE
+	//! Re-order the local state after sorting
+	void ReOrder(GlobalSortState &gstate, SelectionVector *lineage_sel);
+	//! Re-order a SortedData object after sorting
+	void ReOrder(SortedData &sd, data_ptr_t sorting_ptr, RowDataCollection &heap, GlobalSortState &gstate,
+	             SelectionVector *lineage_sel);
+#else
 	//! Re-order the local state after sorting
 	void ReOrder(GlobalSortState &gstate);
 	//! Re-order a SortedData object after sorting
 	void ReOrder(SortedData &sd, data_ptr_t sorting_ptr, RowDataCollection &heap, GlobalSortState &gstate);
+#endif
 
 public:
 	//! Whether this local state has been initialized
@@ -125,6 +133,11 @@ public:
 	unique_ptr<RowDataCollection> payload_heap;
 	//! Sorted data
 	vector<unique_ptr<SortedBlock>> sorted_blocks;
+
+#ifdef LINEAGE
+	//! Captured lineage for this local sort
+	shared_ptr<LineageSelVec> lineage;
+#endif
 
 private:
 	//! Selection vector and addresses for scattering the data to rows
