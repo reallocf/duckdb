@@ -403,11 +403,11 @@ void ManageLineage::Persist(PhysicalOperator *op, shared_ptr<LineageContext> lin
       TableCatalogEntry * table = Catalog::GetCatalog(context).GetEntry<TableCatalogEntry>(context,  DEFAULT_SCHEMA, tablename + "_SINK");
       DataChunk insert_chunk;
       insert_chunk.Initialize(table->GetTypes());
-      idx_t count = dynamic_cast<LineageDataArray<uintptr_t>&>(*sink_lop->data).count;
+      idx_t count = dynamic_cast<LineageDataArray<data_t>&>(*sink_lop->data).count;
       insert_chunk.SetCardinality(count);
 
       // build side - group RHS to unique HT address
-      Vector sink_payload(table->GetTypes()[0], (data_ptr_t)&dynamic_cast<LineageDataArray<uintptr_t>&>(*sink_lop->data).vec[0]);
+      Vector sink_payload(table->GetTypes()[0], (data_ptr_t)&dynamic_cast<LineageDataArray<data_t>&>(*sink_lop->data).vec[0]);
       Vector chunk_ids(Value::Value::INTEGER(lineage->chunk_id));
 
       insert_chunk.data[0].Reference(sink_payload);
@@ -432,11 +432,18 @@ void ManageLineage::Persist(PhysicalOperator *op, shared_ptr<LineageContext> lin
         DataChunk insert_chunk;
         insert_chunk.Initialize(table->GetTypes());
         insert_chunk.SetCardinality(count);
+        Vector rhs_payload(table->GetTypes()[1]);
 
         // probe - LHS
         Vector lhs_payload(table->GetTypes()[0], (data_ptr_t)&dynamic_cast<LineageSelVec&>(*local_op.data_lhs).vec[0]);
         // build side - RHS
-        Vector rhs_payload(table->GetTypes()[1], (data_ptr_t)&dynamic_cast<LineageDataArray<uintptr_t>&>(*local_op.data_rhs).vec[0]);
+        if (local_op.data_rhs) {
+          Vector temp(table->GetTypes()[1], (data_ptr_t)&dynamic_cast<LineageDataArray<uintptr_t>&>(*local_op.data_rhs).vec[0]);
+          rhs_payload.Reference(temp);
+        } else {
+          rhs_payload.SetVectorType(VectorType::CONSTANT_VECTOR);
+          ConstantVector::SetNull(rhs_payload, true);
+        }
         Vector chunk_ids(Value::Value::INTEGER(lineage->chunk_id));
         idx_t probe_idx = dynamic_cast<LineageSelVec&>(*local_op.data_lhs).offset;
         Vector probe_idx_vec(Value::Value::INTEGER(probe_idx));
