@@ -510,18 +510,30 @@ void ScanStructure::ScanKeyMatches(DataChunk &keys) {
 	// for every pointer, we keep chasing pointers and doing comparisons.
 	// this results in a boolean array indicating whether or not the tuple has a match
 	SelectionVector match_sel(STANDARD_VECTOR_SIZE), no_match_sel(STANDARD_VECTOR_SIZE);
+#ifdef LINEAGE
+  unique_ptr<uintptr_t[]> key_locations_lineage(new uintptr_t[STANDARD_VECTOR_SIZE]);
+  idx_t key_location_count = 0;
+#endif
 	while (this->count > 0) {
 		// resolve the predicates for the current set of pointers
 		idx_t match_count = ResolvePredicates(keys, match_sel, &no_match_sel);
 		idx_t no_match_count = this->count - match_count;
-
+    auto ptrs = FlatVector::GetData<uintptr_t>(this->pointers);
 		// mark each of the matches as found
 		for (idx_t i = 0; i < match_count; i++) {
 			found_match[match_sel.get_index(i)] = true;
+#ifdef LINEAGE
+      key_locations_lineage[key_location_count++] = ptrs[match_sel.get_index(i)];
+#endif
 		}
 		// continue searching for the ones where we did not find a match yet
 		AdvancePointers(no_match_sel, no_match_count);
 	}
+#ifdef LINEAGE
+  lop = make_shared<LineageOpBinary>();
+  auto lineage_build = make_unique<LineageDataArray<uintptr_t>>(move(key_locations_lineage), key_location_count);
+  lop->setRHS(move(lineage_build));
+#endif
 }
 
 template <bool MATCH>
@@ -545,6 +557,11 @@ void ScanStructure::NextSemiOrAntiJoin(DataChunk &keys, DataChunk &left, DataChu
 	} else {
 		D_ASSERT(result.size() == 0);
 	}
+
+#ifdef LINEAGE
+  auto lineage_probe = make_unique<LineageSelVec>(move(sel), result_count, probe_idx);
+  lop->setLHS(move(lineage_probe));
+#endif
 }
 
 void ScanStructure::NextSemiJoin(DataChunk &keys, DataChunk &left, DataChunk &result) {

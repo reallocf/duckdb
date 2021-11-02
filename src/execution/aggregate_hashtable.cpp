@@ -458,7 +458,7 @@ idx_t GroupedAggregateHashTable::FindOrCreateGroupsInternal(DataChunk &groups, V
 				ht_entry_ptr->page_offset = payload_page_offset++;
 
 #ifdef LINEAGE
-        sel_lineage.set_index(index, ht_entry_ptr->page_offset);
+        sel_lineage.set_index(index, ht_entry_ptr->page_offset+((ht_entry_ptr->page_nr-1)*tuples_per_block));
 #endif
 				// update selection lists for outer loops
 				empty_vector.set_index(new_entry_count++, index);
@@ -477,7 +477,7 @@ idx_t GroupedAggregateHashTable::FindOrCreateGroupsInternal(DataChunk &groups, V
 					auto page_offset = ht_entry_ptr->page_offset * tuple_size;
 					addresses_ptr[index] = page_ptr + page_offset;
 #ifdef LINEAGE
-          sel_lineage.set_index(index, ht_entry_ptr->page_offset);
+          sel_lineage.set_index(index, ht_entry_ptr->page_offset+((ht_entry_ptr->page_nr-1)*tuples_per_block));
 #endif
 
 				} else {
@@ -675,7 +675,7 @@ idx_t GroupedAggregateHashTable::Scan(idx_t &scan_position, DataChunk &result) {
 	auto read_ptr = payload_hds_ptrs[chunk_idx++];
 	for (idx_t i = 0; i < this_n; i++) {
 #ifdef LINEAGE
-    sel_lineage.set_index(i, chunk_offset/tuple_size);
+    sel_lineage.set_index(i, scan_position+i);
 #endif
 		data_pointers[i] = read_ptr + chunk_offset;
 		chunk_offset += tuple_size;
@@ -685,11 +685,6 @@ idx_t GroupedAggregateHashTable::Scan(idx_t &scan_position, DataChunk &result) {
 		}
 	}
 
-#ifdef LINEAGE
-  // this tells us, which group an output index map to
-  auto lop = make_shared<LineageOpUnary>(make_shared<LineageDataArray<sel_t>>(move(sel_lineage.sel_data()->owned_data), this_n));
-  context.lineage->RegisterDataPerOp(context.getCurrent(),  move(lop));
-#endif
 	result.SetCardinality(this_n);
 	// fetch the group columns (ignoring the final hash column
 	const auto group_cols = layout.ColumnCount() - 1;
@@ -701,6 +696,11 @@ idx_t GroupedAggregateHashTable::Scan(idx_t &scan_position, DataChunk &result) {
 	}
 
 	RowOperations::FinalizeStates(layout, addresses, result, group_cols);
+#ifdef LINEAGE
+  // this tells us, which group an output index map to
+  auto lop = make_shared<LineageOpUnary>(make_shared<LineageDataArray<sel_t>>(move(sel_lineage.sel_data()->owned_data), this_n));
+  context.lineage->RegisterDataPerOp(context.getCurrent(),  move(lop));
+#endif
 
 	scan_position += this_n;
 	return this_n;
