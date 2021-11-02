@@ -428,24 +428,38 @@ void ManageLineage::Persist(PhysicalOperator *op, shared_ptr<LineageContext> lin
       std::set<int> probe_idx_set;
       for (idx_t i = 0; i < probe_lop->op.size(); ++i) {
         auto local_op = dynamic_cast<LineageOpBinary&>(*probe_lop->op[i]);
-        idx_t count = dynamic_cast<LineageSelVec&>(*local_op.data_lhs).count;
+        idx_t count = 0;
         DataChunk insert_chunk;
         insert_chunk.Initialize(table->GetTypes());
-        insert_chunk.SetCardinality(count);
         Vector rhs_payload(table->GetTypes()[1]);
+        Vector lhs_payload(table->GetTypes()[0]); // probe - LHS
+        idx_t probe_idx = -1;
+        if (local_op.data_lhs) {
+          Vector temp(table->GetTypes()[0], (data_ptr_t)&dynamic_cast<LineageSelVec&>(*local_op.data_lhs).vec[0]);
+          lhs_payload.Reference(temp);
+          count = dynamic_cast<LineageSelVec&>(*local_op.data_lhs).count;
+          probe_idx = dynamic_cast<LineageSelVec&>(*local_op.data_lhs).offset;
+        } else {
+          lhs_payload.SetVectorType(VectorType::CONSTANT_VECTOR);
+          ConstantVector::SetNull(lhs_payload, true);
+        }
 
-        // probe - LHS
-        Vector lhs_payload(table->GetTypes()[0], (data_ptr_t)&dynamic_cast<LineageSelVec&>(*local_op.data_lhs).vec[0]);
         // build side - RHS
         if (local_op.data_rhs) {
-          Vector temp(table->GetTypes()[1], (data_ptr_t)&dynamic_cast<LineageDataArray<uintptr_t>&>(*local_op.data_rhs).vec[0]);
-          rhs_payload.Reference(temp);
+          if (!local_op.data_lhs) {
+            Vector temp(table->GetTypes()[1], (data_ptr_t)&dynamic_cast<LineageDataArray<data_t>&>(*local_op.data_rhs).vec[0]);
+            count = dynamic_cast<LineageDataArray<data_t>&>(*local_op.data_rhs).count;
+            rhs_payload.Reference(temp);
+          } else {
+            Vector temp(table->GetTypes()[1], (data_ptr_t)&dynamic_cast<LineageDataArray<uintptr_t>&>(*local_op.data_rhs).vec[0]);
+            rhs_payload.Reference(temp);
+          }
         } else {
           rhs_payload.SetVectorType(VectorType::CONSTANT_VECTOR);
           ConstantVector::SetNull(rhs_payload, true);
         }
+        insert_chunk.SetCardinality(count);
         Vector chunk_ids(Value::Value::INTEGER(lineage->chunk_id));
-        idx_t probe_idx = dynamic_cast<LineageSelVec&>(*local_op.data_lhs).offset;
         Vector probe_idx_vec(Value::Value::INTEGER(probe_idx));
 
         insert_chunk.data[0].Reference(lhs_payload);
@@ -467,9 +481,7 @@ void ManageLineage::Persist(PhysicalOperator *op, shared_ptr<LineageContext> lin
         lineage->chunk_id = chunk_id;
       }
 
-      Persist(op->children[1].get(), lineage, is_sink);
     }
-    break;
   }
   case PhysicalOperatorType::INDEX_JOIN: {
     // CREATE TABLE INDEX_JOIN (lhs_value INT, rhs_value BIGINT, in_index INT, out_chunk_id INT)
@@ -496,7 +508,7 @@ void ManageLineage::Persist(PhysicalOperator *op, shared_ptr<LineageContext> lin
   }
   default:
     for (idx_t i = 0; i < op->children.size(); ++i)
-      Persist(op->children[i].get(), lineage, is_sink);
+      Persist(op->children[i].get(), lineage, is_sink, lindex);
   }
 }
 

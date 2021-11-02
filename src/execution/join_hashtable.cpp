@@ -510,10 +510,6 @@ void ScanStructure::ScanKeyMatches(DataChunk &keys) {
 	// for every pointer, we keep chasing pointers and doing comparisons.
 	// this results in a boolean array indicating whether or not the tuple has a match
 	SelectionVector match_sel(STANDARD_VECTOR_SIZE), no_match_sel(STANDARD_VECTOR_SIZE);
-#ifdef LINEAGE
-  unique_ptr<uintptr_t[]> key_locations_lineage(new uintptr_t[STANDARD_VECTOR_SIZE]);
-  idx_t key_location_count = 0;
-#endif
 	while (this->count > 0) {
 		// resolve the predicates for the current set of pointers
 		idx_t match_count = ResolvePredicates(keys, match_sel, &no_match_sel);
@@ -522,18 +518,10 @@ void ScanStructure::ScanKeyMatches(DataChunk &keys) {
 		// mark each of the matches as found
 		for (idx_t i = 0; i < match_count; i++) {
 			found_match[match_sel.get_index(i)] = true;
-#ifdef LINEAGE
-      key_locations_lineage[key_location_count++] = ptrs[match_sel.get_index(i)];
-#endif
 		}
 		// continue searching for the ones where we did not find a match yet
 		AdvancePointers(no_match_sel, no_match_count);
 	}
-#ifdef LINEAGE
-  lop = make_shared<LineageOpBinary>();
-  auto lineage_build = make_unique<LineageDataArray<uintptr_t>>(move(key_locations_lineage), key_location_count);
-  lop->setRHS(move(lineage_build));
-#endif
 }
 
 template <bool MATCH>
@@ -543,8 +531,15 @@ void ScanStructure::NextSemiOrAntiJoin(DataChunk &keys, DataChunk &left, DataChu
 	// create the selection vector from the matches that were found
 	SelectionVector sel(STANDARD_VECTOR_SIZE);
 	idx_t result_count = 0;
+#ifdef LINEAGE
+	unique_ptr<uintptr_t[]> key_locations_lineage(new uintptr_t[STANDARD_VECTOR_SIZE]);
+	auto ptrs = FlatVector::GetData<uintptr_t>(this->pointers);
+#endif
 	for (idx_t i = 0; i < keys.size(); i++) {
 		if (found_match[i] == MATCH) {
+#ifdef LINEAGE
+			key_locations_lineage[result_count] = ptrs[i];
+#endif
 			// part of the result
 			sel.set_index(result_count++, i);
 		}
@@ -554,14 +549,16 @@ void ScanStructure::NextSemiOrAntiJoin(DataChunk &keys, DataChunk &left, DataChu
 		// we only return the columns on the left side
 		// reference the columns of the left side from the result
 		result.Slice(left, sel, result_count);
+#ifdef LINEAGE
+		lop = make_shared<LineageOpBinary>();
+		auto lineage_build = make_unique<LineageDataArray<uintptr_t>>(move(key_locations_lineage), result_count);
+		lop->setRHS(move(lineage_build));
+		auto lineage_probe = make_unique<LineageSelVec>(move(sel), result_count, probe_idx);
+		lop->setLHS(move(lineage_probe));
+#endif
 	} else {
 		D_ASSERT(result.size() == 0);
 	}
-
-#ifdef LINEAGE
-  auto lineage_probe = make_unique<LineageSelVec>(move(sel), result_count, probe_idx);
-  lop->setLHS(move(lineage_probe));
-#endif
 }
 
 void ScanStructure::NextSemiJoin(DataChunk &keys, DataChunk &left, DataChunk &result) {
@@ -607,14 +604,26 @@ void ScanStructure::ConstructMarkJoinResult(DataChunk &join_keys, DataChunk &chi
 			}
 		}
 	}
+#ifdef LINEAGE
+	unique_ptr<uintptr_t[]> key_locations_lineage(new uintptr_t[child.size()]);
+	auto ptrs = FlatVector::GetData<uintptr_t>(this->pointers);
+#endif
 	// now set the remaining entries to either true or false based on whether a match was found
 	if (found_match) {
 		for (idx_t i = 0; i < child.size(); i++) {
 			bool_result[i] = found_match[i];
+#ifdef LINEAGE
+			key_locations_lineage[i] = ptrs[i];
+#endif
 		}
 	} else {
 		memset(bool_result, 0, sizeof(bool) * child.size());
 	}
+#ifdef LINEAGE
+	lop = make_shared<LineageOpBinary>();
+	auto lineage_build = make_unique<LineageDataArray<uintptr_t>>(move(key_locations_lineage), child.size());
+	lop->setRHS(move(lineage_build));
+#endif
 	// if the right side contains NULL values, the result of any FALSE becomes NULL
 	if (ht.has_null) {
 		for (idx_t i = 0; i < child.size(); i++) {
@@ -634,6 +643,11 @@ void ScanStructure::NextMarkJoin(DataChunk &keys, DataChunk &input, DataChunk &r
 	ScanKeyMatches(keys);
 	if (ht.correlated_mark_join_info.correlated_types.empty()) {
 		ConstructMarkJoinResult(keys, input, result);
+#ifdef LINEAGE
+		SelectionVector lhs_sel(0, keys.size());
+		auto lineage_probe = make_unique<LineageSelVec>(move(lhs_sel), keys.size(), probe_idx);
+		lop->setLHS(move(lineage_probe));
+#endif
 	} else {
 		auto &info = ht.correlated_mark_join_info;
 		// there are correlated columns
@@ -736,6 +750,11 @@ void ScanStructure::NextSingleJoin(DataChunk &keys, DataChunk &input, DataChunk 
 	idx_t result_count = 0;
 	SelectionVector result_sel(STANDARD_VECTOR_SIZE);
 	SelectionVector match_sel(STANDARD_VECTOR_SIZE), no_match_sel(STANDARD_VECTOR_SIZE);
+#ifdef LINEAGE
+	auto ptrs = FlatVector::GetData<uintptr_t>(pointers);
+	unique_ptr<uintptr_t[]> key_locations_lineage(new uintptr_t[input.size()]);
+#endif
+
 	while (this->count > 0) {
 		// resolve the predicates for the current set of pointers
 		idx_t match_count = ResolvePredicates(keys, match_sel, &no_match_sel);
@@ -746,6 +765,9 @@ void ScanStructure::NextSingleJoin(DataChunk &keys, DataChunk &input, DataChunk 
 			// found a match for this index
 			auto index = match_sel.get_index(i);
 			found_match[index] = true;
+#ifdef LINEAGE
+			key_locations_lineage[result_count] = ptrs[index];
+#endif
 			result_sel.set_index(result_count++, index);
 		}
 		// continue searching for the ones where we did not find a match yet
@@ -769,12 +791,24 @@ void ScanStructure::NextSingleJoin(DataChunk &keys, DataChunk &input, DataChunk 
 		GatherResult(vector, result_sel, result_sel, result_count, i + ht.condition_types.size());
 	}
 	result.SetCardinality(input.size());
+#ifdef LINEAGE
+	lop = make_shared<LineageOpBinary>();
+	auto lineage_build = make_unique<LineageDataArray<uintptr_t>>(move(key_locations_lineage), result_count);
+	lop->setRHS(move(lineage_build));
+	SelectionVector lhs_sel(0, input.size());
+	auto lineage_probe = make_unique<LineageSelVec>(move(lhs_sel), input.size(), probe_idx);
+	lop->setLHS(move(lineage_probe));
+#endif
 
 	// like the SEMI, ANTI and MARK join types, the SINGLE join only ever does one pass over the HT per input chunk
 	finished = true;
 }
 
+#ifdef LINEAGE
+void JoinHashTable::ScanFullOuter(ExecutionContext &context, DataChunk &result, JoinHTScanState &state) {
+#else
 void JoinHashTable::ScanFullOuter(DataChunk &result, JoinHTScanState &state) {
+#endif
 	// scan the HT starting from the current position and check which rows from the build side did not find a match
 	Vector addresses(LogicalType::POINTER);
 	auto key_locations = FlatVector::GetData<data_ptr_t>(addresses);
@@ -819,6 +853,15 @@ void JoinHashTable::ScanFullOuter(DataChunk &result, JoinHTScanState &state) {
 			const auto col_offset = layout.GetOffsets()[col_no];
 			RowOperations::Gather(addresses, sel_vector, vector, sel_vector, found_entries, col_offset, col_no);
 		}
+
+#ifdef LINEAGE
+		auto lop = make_shared<LineageOpBinary>();
+		auto lineage_build = make_shared<LineageDataArray<data_t>>(move(addresses.GetBuffer()->data), found_entries);
+		lop->setRHS(move(lineage_build));
+		vector<shared_ptr<LineageOp>> cached_lop_per_chunk;
+		cached_lop_per_chunk.push_back(move(lop));
+		context.lineage->RegisterDataPerOp(context.getCurrent(),  make_shared<LineageOpCollection>(cached_lop_per_chunk));
+#endif
 	}
 }
 
