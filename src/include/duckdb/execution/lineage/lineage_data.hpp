@@ -32,6 +32,12 @@ public:
 	virtual ~LineageData() {};
 };
 
+struct LineageDataWithOffset {
+	// TODO does this need to have a shared_ptr wrapper?
+	shared_ptr<LineageData> data;
+	idx_t offset;
+};
+
 // TODO get templating working like before - that would be better
 class LineageDataRowVector : public LineageData {
 public:
@@ -99,6 +105,9 @@ public:
 	void Debug() override;
 	data_ptr_t Process(idx_t offset) override;
 	idx_t Size() override;
+
+	// TODO should this be a func shared across all LineageData?
+	vector<LineageDataWithOffset> Divide();
 
 private:
 	SelectionVector vec;

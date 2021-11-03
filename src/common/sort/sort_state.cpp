@@ -149,6 +149,9 @@ void LocalSortState::Sort(GlobalSortState &global_sort_state) {
 	if (radix_sorting_data->count == 0) {
 		return;
 	}
+#ifdef LINEAGE
+	idx_t count = radix_sorting_data->count;
+#endif
 	// Move all data to a single SortedBlock
 	sorted_blocks.emplace_back(make_unique<SortedBlock>(*buffer_manager, global_sort_state));
 	auto &sb = *sorted_blocks.back();
@@ -166,8 +169,15 @@ void LocalSortState::Sort(GlobalSortState &global_sort_state) {
 	sb.payload_data->data_blocks.push_back(move(payload_block));
 	// Now perform the actual sort
 	SortInMemory();
+#ifdef LINEAGE
+	SelectionVector lineage_sel = SelectionVector(count);
+	// Re-order before the merge sort
+	ReOrder(global_sort_state, &lineage_sel);
+	lineage = make_shared<LineageSelVec>(lineage_sel, count);
+#else
 	// Re-order before the merge sort
 	ReOrder(global_sort_state);
+#endif
 }
 
 RowDataBlock LocalSortState::ConcatenateBlocks(RowDataCollection &row_data) {
@@ -189,7 +199,12 @@ RowDataBlock LocalSortState::ConcatenateBlocks(RowDataCollection &row_data) {
 	return new_block;
 }
 
+#ifdef LINEAGE
+void LocalSortState::ReOrder(SortedData &sd, data_ptr_t sorting_ptr, RowDataCollection &heap, GlobalSortState &gstate,
+                             SelectionVector *lineage_sel) {
+#else
 void LocalSortState::ReOrder(SortedData &sd, data_ptr_t sorting_ptr, RowDataCollection &heap, GlobalSortState &gstate) {
+#endif
 	auto &unordered_data_block = sd.data_blocks.back();
 	const idx_t &count = unordered_data_block.count;
 	auto unordered_data_handle = buffer_manager->Pin(unordered_data_block.block);
@@ -204,6 +219,9 @@ void LocalSortState::ReOrder(SortedData &sd, data_ptr_t sorting_ptr, RowDataColl
 	const idx_t sorting_entry_size = gstate.sort_layout.entry_size;
 	for (idx_t i = 0; i < count; i++) {
 		idx_t index = Load<idx_t>(sorting_ptr);
+#ifdef LINEAGE
+		lineage_sel->set_index(i, index);
+#endif
 		memcpy(ordered_data_ptr, unordered_data_ptr + index * row_width, row_width);
 		ordered_data_ptr += row_width;
 		sorting_ptr += sorting_entry_size;
@@ -244,16 +262,28 @@ void LocalSortState::ReOrder(SortedData &sd, data_ptr_t sorting_ptr, RowDataColl
 	}
 }
 
+#ifdef LINEAGE
+void LocalSortState::ReOrder(GlobalSortState &gstate, SelectionVector *lineage_sel) {
+#else
 void LocalSortState::ReOrder(GlobalSortState &gstate) {
+#endif
 	auto &sb = *sorted_blocks.back();
 	auto sorting_handle = buffer_manager->Pin(sb.radix_sorting_data.back().block);
 	const data_ptr_t sorting_ptr = sorting_handle->Ptr() + gstate.sort_layout.comparison_size;
 	// Re-order variable size sorting columns
 	if (!gstate.sort_layout.all_constant) {
+#ifdef LINEAGE
+		ReOrder(*sb.blob_sorting_data, sorting_ptr, *blob_sorting_heap, gstate, lineage_sel);
+#else
 		ReOrder(*sb.blob_sorting_data, sorting_ptr, *blob_sorting_heap, gstate);
+#endif
 	}
 	// And the payload
+#ifdef LINEAGE
+	ReOrder(*sb.payload_data, sorting_ptr, *payload_heap, gstate, lineage_sel);
+#else
 	ReOrder(*sb.payload_data, sorting_ptr, *payload_heap, gstate);
+#endif
 }
 
 GlobalSortState::GlobalSortState(BufferManager &buffer_manager, const vector<BoundOrderByNode> &orders,

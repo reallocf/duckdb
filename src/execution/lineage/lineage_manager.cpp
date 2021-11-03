@@ -21,7 +21,8 @@ shared_ptr<PipelineLineage> GetPipelineLineageNodeForOp(PhysicalOperator *op) {
 		return make_shared<PipelineSingleLineage>(op->children[0]->lineage_op->GetPipelineLineage());
 	}
 	case PhysicalOperatorType::PERFECT_HASH_GROUP_BY:
-	case PhysicalOperatorType::HASH_GROUP_BY: {
+	case PhysicalOperatorType::HASH_GROUP_BY:
+	case PhysicalOperatorType::ORDER_BY: {
 		return make_shared<PipelineBreakerLineage>(op->children[0]->lineage_op->GetPipelineLineage());
 	}
 	case PhysicalOperatorType::INDEX_JOIN:
@@ -45,7 +46,7 @@ idx_t PlanAnnotator(PhysicalOperator *op, idx_t counter) {
 		counter = PlanAnnotator(op->children[i].get(), counter);
 	}
 	op->id = counter;
-	op->lineage_op = make_shared<OperatorLineage>(GetPipelineLineageNodeForOp(op));
+	op->lineage_op = make_shared<OperatorLineage>(GetPipelineLineageNodeForOp(op), op->type);
 	return counter + 1;
 }
 
@@ -65,7 +66,8 @@ vector<vector<ColumnDefinition>> GetTableColumnTypes(PhysicalOperator *op) {
 	switch (op->type) {
 	case PhysicalOperatorType::LIMIT:
 	case PhysicalOperatorType::FILTER:
-	case PhysicalOperatorType::TABLE_SCAN: {
+	case PhysicalOperatorType::TABLE_SCAN:
+	case PhysicalOperatorType::ORDER_BY: {
 		// schema: [INTEGER in_index, INTEGER out_index]
 		vector<ColumnDefinition> table_columns;
 		table_columns.emplace_back("in_index", LogicalType::INTEGER);

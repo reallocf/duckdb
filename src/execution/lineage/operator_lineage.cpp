@@ -31,17 +31,63 @@ void OperatorLineage::MarkChunkReturned() {
 
 LineageProcessStruct OperatorLineage::Process(const vector<LogicalType>& types, idx_t count_so_far,
                                               DataChunk &insert_chunk) {
-	if (data[1].empty()) {
-		// Non-Pipeline Breaker
-		if (data[0].size() > data_idx) {
-			if (dynamic_cast<LineageBinary *>(data[LINEAGE_UNARY][0].data.get()) != nullptr) {
-				// Index Join
-				// schema: [INTEGER lhs_index, BIGINT rhs_index, INTEGER out_index]
+	if (data[finished_idx].size() > data_idx) {
+		switch (this->type) {
+		case PhysicalOperatorType::INDEX_JOIN: {
+			// Index Join
+			// schema: [INTEGER lhs_index, BIGINT rhs_index, INTEGER out_index]
 
-				LineageDataWithOffset this_data = data[0][data_idx];
+			LineageDataWithOffset this_data = data[0][data_idx];
+			idx_t res_count = this_data.data->Count();
+
+			Vector lhs_payload(types[0], this_data.data->Process(0)); // TODO is this right?
+			Vector rhs_payload(types[1], this_data.data->Process(this_data.offset));
+
+			insert_chunk.SetCardinality(res_count);
+			insert_chunk.data[0].Reference(lhs_payload);
+			insert_chunk.data[1].Reference(rhs_payload);
+			insert_chunk.data[2].Sequence(count_so_far, 1);
+			count_so_far += res_count;
+			break;
+		}
+		case PhysicalOperatorType::FILTER:
+		case PhysicalOperatorType::LIMIT:
+		case PhysicalOperatorType::TABLE_SCAN: {
+			// Seq Scan, Filter, Limit, etc...
+			// schema: [INTEGER in_index, INTEGER out_index]
+
+			LineageDataWithOffset this_data = data[LINEAGE_UNARY][data_idx];
+			idx_t res_count = this_data.data->Count();
+
+			Vector payload(types[0], this_data.data->Process(this_data.offset));
+
+			insert_chunk.SetCardinality(res_count);
+			insert_chunk.data[0].Reference(payload);
+			insert_chunk.data[1].Sequence(count_so_far, 1);
+			count_so_far += res_count;
+			break;
+		}
+		case PhysicalOperatorType::HASH_JOIN: {
+			// Hash Join - other joins too?
+			if (finished_idx == LINEAGE_BUILD) {
+				// schema1: [INTEGER in_index, INTEGER out_address] TODO remove this one now that no chunking?
+
+				LineageDataWithOffset this_data = data[LINEAGE_BUILD][data_idx];
+				idx_t res_count = data[0][data_idx].data->Count();
+
+				Vector payload(types[1], this_data.data->Process(0));
+
+				insert_chunk.SetCardinality(res_count);
+				insert_chunk.data[0].Sequence(count_so_far, 1);
+				insert_chunk.data[1].Reference(payload);
+				count_so_far += res_count;
+			} else {
+				// schema2: [INTEGER lhs_address, INTEGER rhs_index, INTEGER out_index]
+
+				LineageDataWithOffset this_data = data[LINEAGE_PROBE][data_idx];
 				idx_t res_count = this_data.data->Count();
 
-				Vector lhs_payload(types[0], this_data.data->Process(0)); // TODO is this right?
+				Vector lhs_payload(types[0], this_data.data->Process(0));
 				Vector rhs_payload(types[1], this_data.data->Process(this_data.offset));
 
 				insert_chunk.SetCardinality(res_count);
@@ -49,11 +95,46 @@ LineageProcessStruct OperatorLineage::Process(const vector<LogicalType>& types, 
 				insert_chunk.data[1].Reference(rhs_payload);
 				insert_chunk.data[2].Sequence(count_so_far, 1);
 				count_so_far += res_count;
-			} else {
-				// Seq Scan, Filter, Limit, etc...
-				// schema: [INTEGER in_index, INTEGER out_index]
+			}
+			break;
+		}
+		case PhysicalOperatorType::ORDER_BY: {
+			// schema: [INTEGER in_index, INTEGER out_index]
+			LineageDataWithOffset this_data = data[LINEAGE_UNARY][data_idx];
+			idx_t res_count = this_data.data->Count();
 
-				LineageDataWithOffset this_data = data[LINEAGE_UNARY][data_idx];
+			if (res_count > STANDARD_VECTOR_SIZE) {
+				D_ASSERT(data_idx == 0);
+				data[LINEAGE_UNARY] = dynamic_cast<LineageSelVec *>(this_data.data.get())->Divide();
+				this_data = data[LINEAGE_UNARY][0];
+				res_count = this_data.data->Count();
+			}
+
+			Vector payload(types[1], this_data.data->Process(0));
+
+			insert_chunk.SetCardinality(res_count);
+			insert_chunk.data[0].Sequence(count_so_far, 1);
+			insert_chunk.data[1].Reference(payload);
+			count_so_far += res_count;
+			break;
+		}
+		case PhysicalOperatorType::HASH_GROUP_BY:
+		case PhysicalOperatorType::PERFECT_HASH_GROUP_BY: {
+			// Hash Aggregate / Perfect Hash Aggregate
+			// schema for both: [INTEGER in_index, INTEGER out_index]
+			if (finished_idx == LINEAGE_SINK) {
+				LineageDataWithOffset this_data = data[LINEAGE_SINK][data_idx];
+				idx_t res_count = this_data.data->Count();
+
+				Vector payload(types[1], this_data.data->Process(this_data.offset));
+
+				insert_chunk.SetCardinality(res_count);
+				insert_chunk.data[0].Sequence(count_so_far, 1);
+				insert_chunk.data[1].Reference(payload);
+				count_so_far += res_count;
+			} else {
+				// TODO: can we remove this one for Hash Aggregate?
+				LineageDataWithOffset this_data = data[LINEAGE_SOURCE][data_idx];
 				idx_t res_count = this_data.data->Count();
 
 				Vector payload(types[0], this_data.data->Process(this_data.offset));
@@ -63,65 +144,11 @@ LineageProcessStruct OperatorLineage::Process(const vector<LogicalType>& types, 
 				insert_chunk.data[1].Sequence(count_so_far, 1);
 				count_so_far += res_count;
 			}
+			break;
 		}
-	} else {
-		// Pipeline Breaker
-		if (data[finished_idx].size() > data_idx) {
-			if (dynamic_cast<LineageBinary *>(data[LINEAGE_PROBE][0].data.get()) != nullptr) {
-				// Hash Join - other joins too?
-				if (finished_idx == LINEAGE_BUILD) {
-					// schema1: [INTEGER in_index, INTEGER out_address] TODO remove this one now that no chunking?
-
-					LineageDataWithOffset this_data = data[LINEAGE_BUILD][data_idx];
-					idx_t res_count = data[0][data_idx].data->Count();
-
-					Vector payload(types[1], this_data.data->Process(0));
-
-					insert_chunk.SetCardinality(res_count);
-					insert_chunk.data[0].Sequence(count_so_far, 1);
-					insert_chunk.data[1].Reference(payload);
-					count_so_far += res_count;
-				} else {
-					// schema2: [INTEGER lhs_address, INTEGER rhs_index, INTEGER out_index]
-
-					LineageDataWithOffset this_data = data[LINEAGE_PROBE][data_idx];
-					idx_t res_count = this_data.data->Count();
-
-					Vector lhs_payload(types[0], this_data.data->Process(0));
-					Vector rhs_payload(types[1], this_data.data->Process(this_data.offset));
-
-					insert_chunk.SetCardinality(res_count);
-					insert_chunk.data[0].Reference(lhs_payload);
-					insert_chunk.data[1].Reference(rhs_payload);
-					insert_chunk.data[2].Sequence(count_so_far, 1);
-					count_so_far += res_count;
-				}
-			} else {
-				// Hash Aggregate / Perfect Hash Aggregate
-				// schema for both: [INTEGER in_index, INTEGER out_index]
-				if (finished_idx == LINEAGE_SINK) {
-					LineageDataWithOffset this_data = data[LINEAGE_SINK][data_idx];
-					idx_t res_count = this_data.data->Count();
-
-					Vector payload(types[1], this_data.data->Process(this_data.offset));
-
-					insert_chunk.SetCardinality(res_count);
-					insert_chunk.data[0].Sequence(count_so_far, 1);
-					insert_chunk.data[1].Reference(payload);
-					count_so_far += res_count;
-				} else {
-					// TODO: can we remove this one for Hash Aggregate?
-					LineageDataWithOffset this_data = data[LINEAGE_SOURCE][data_idx];
-					idx_t res_count = this_data.data->Count();
-
-					Vector payload(types[0], this_data.data->Process(this_data.offset));
-
-					insert_chunk.SetCardinality(res_count);
-					insert_chunk.data[0].Reference(payload);
-					insert_chunk.data[1].Sequence(count_so_far, 1);
-					count_so_far += res_count;
-				}
-			}
+		default:
+			// We must capture lineage for everything getting processed
+			D_ASSERT(false);
 		}
 	}
 	data_idx++;
