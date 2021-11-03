@@ -109,7 +109,7 @@ print(con.execute("select * from seq_scan_9_7").fetchdf())
 
 pipeline6 = """
 CREATE TABLE pipeline6 AS (SELECT  group_id as out_rowid,  pip5.in_rowid as rowid_customer, pip4.in_rowid as rowid_orders, p4.lhs_value+(1024*seq5.in_chunk_id) as rowid_lineitem,
-pip3.in_rowid_lhs+(1024*seq7.in_chunk_id) as rowid_suplier, pip2.in_rowid_lhs+(1024*seq9.in_chunk_id) as rowid_nation
+pip3.in_rowid_lhs+(1024*seq7.in_chunk_id) as rowid_supplier, pip2.in_rowid_lhs+(1024*seq9.in_chunk_id) as rowid_nation
 FROM hash_join_2_7_probe p2, hash_group_by_0_7_sink gb, pipeline5 pip5,
 hash_join_3_7_probe as p3, pipeline4 pip4, hash_join_4_7_probe as p4, seq_scan_5_7 as seq5, pipeline3 as pip3, seq_scan_7_7 as seq7, pipeline2 as pip2, seq_scan_9_7 as seq9
 WHERE p2.out_index=gb.in_index
@@ -125,9 +125,13 @@ AND p4.rhs_address=pip3.rhs_address
 AND pip3.probe_idx=seq7.out_chunk_id
 AND pip3.in_rowid_rhs=pip2.rhs_address
 AND seq9.out_chunk_id=pip2.probe_idx
-and group_id=4
+and group_id=0
 )
 """
 execute(pipeline6)
 print(con.execute("SELECT * FROM pipeline6").fetchdf())
-print(con.execute("SELECT n_name FROM pipeline6, nation where rowid_nation=nation.rowid").fetchdf())
+# why group id=x?
+print(con.execute("""SELECT n_name, n_regionkey, s_nationkey, n_nationkey, l_suppkey, s_suppkey, l_orderkey, o_orderkey
+FROM pipeline6, nation, orders,  supplier, lineitem
+where rowid_orders=orders.rowid and rowid_supplier=supplier.rowid and rowid_lineitem=lineitem.rowid and rowid_nation=nation.rowid""").fetchdf())
+# polynomial: 

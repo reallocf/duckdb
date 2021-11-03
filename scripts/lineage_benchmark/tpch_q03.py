@@ -22,7 +22,7 @@ def execute(Q):
 
 con = duckdb.connect(database=':memory:', read_only=False)
 
-con.execute("CALL dbgen(sf=1);")
+con.execute("CALL dbgen(sf=0.01);")
 con.execute("PRAGMA enable_profiling;")
 con.execute("PRAGMA trace_lineage='ON'")
 
