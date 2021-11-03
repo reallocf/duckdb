@@ -113,7 +113,7 @@ void PhysicalTableScan::GetChunkInternal(ExecutionContext &context, DataChunk &c
 }
 
 string PhysicalTableScan::GetName() const {
-	return StringUtil::Upper(function.name);
+	return StringUtil::Upper(function.name) + "_" + std::to_string(id);
 }
 
 string PhysicalTableScan::ParamsToString() const {

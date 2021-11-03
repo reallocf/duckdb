@@ -127,7 +127,7 @@ void LineageManager::CreateLineageTables(PhysicalOperator *op) {
 	for (idx_t i = 0; i < table_column_types.size(); i++) {
 		// Example: LINEAGE_1_HASH_JOIN_3_0
 		string table_name = "LINEAGE_" + to_string(query_id) + "_"
-							+ op->GetName() + "_" + to_string(op->id) + "_" + to_string(i);
+							+ op->GetName() + "_" + to_string(i);
 
 		// Create Table
 		auto info = make_unique<CreateTableInfo>();
