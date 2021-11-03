@@ -243,7 +243,7 @@ void PhysicalHashJoin::GetChunkInternal(ExecutionContext &context, DataChunk &ch
 		ProbeHashTable(context, chunk, state);
 #ifdef LINEAGE
     if (state->scan_structure && state->scan_structure->lop)
-      cached_lop_per_chunk.push_back(state->scan_structure->lop);
+      cached_lop_per_chunk.push_back(move(state->scan_structure->lop));
 #endif
 		if (chunk.size() == 0) {
 #if STANDARD_VECTOR_SIZE >= 128
@@ -258,7 +258,12 @@ void PhysicalHashJoin::GetChunkInternal(ExecutionContext &context, DataChunk &ch
 #endif
 			    if (IsRightOuterJoin(join_type)) {
 				// check if we need to scan any unmatched tuples from the RHS for the full/right outer join
+#ifdef LINEAGE
+				context.setCurrent(id);
+				sink.hash_table->ScanFullOuter(context, chunk, sink.ht_scan_state);
+#else
 				sink.hash_table->ScanFullOuter(chunk, sink.ht_scan_state);
+#endif
 			}
 			return;
 		} else {
