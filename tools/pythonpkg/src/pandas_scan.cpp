@@ -130,7 +130,11 @@ int PandasScanFunction::PandasProgress(ClientContext &context, const FunctionDat
 	return percentage;
 }
 
+#ifdef LINEAGE
+void PandasScanFunction::PandasScanFuncParallel(ExecutionContext &context, const FunctionData *bind_data,
+#else
 void PandasScanFunction::PandasScanFuncParallel(ClientContext &context, const FunctionData *bind_data,
+#endif
                                                 FunctionOperatorData *operator_state, DataChunk *input,
                                                 DataChunk &output, ParallelState *parallel_state_p) {
 	//! FIXME: Have specialized parallel function from pandas scan here
