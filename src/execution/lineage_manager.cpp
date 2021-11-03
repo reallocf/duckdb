@@ -6,10 +6,12 @@
 #include "duckdb/parser/statement/create_statement.hpp"
 #include "duckdb/parser/parsed_data/create_table_info.hpp"
 #include "duckdb/planner/parsed_data/bound_create_table_info.hpp"
+#include "duckdb/execution/operator/join/physical_delim_join.hpp"
 
 namespace duckdb {
 class PhysicalOperator;
 class LineageContext;
+class PhysicalDelimJoin;
 
 
 void ManageLineage::Reset() {
@@ -49,6 +51,13 @@ void ManageLineage::AnnotatePlan(PhysicalOperator *op) {
 #ifdef LINEAGE_DEBUG
   std::cout << op->GetName() << " " << op->id << std::endl;
 #endif
+ switch (op->type)
+  case PhysicalOperatorType::DELIM_JOIN: {
+	  AnnotatePlan( dynamic_cast<PhysicalDelimJoin *>(op)->join.get());
+	  AnnotatePlan( (PhysicalOperator *)dynamic_cast<PhysicalDelimJoin *>(op)->distinct.get());
+	  for (idx_t i = 0; i < dynamic_cast<PhysicalDelimJoin *>(op)->delim_scans.size(); ++i)
+		  AnnotatePlan( dynamic_cast<PhysicalDelimJoin *>(op)->delim_scans[i]);
+  }
   for (idx_t i = 0; i < op->children.size(); ++i)
     AnnotatePlan(op->children[i].get());
 }
@@ -190,9 +199,9 @@ void ManageLineage::CreateLineageTables(PhysicalOperator *op) {
     info->columns.push_back(ColumnDefinition("out_chunk_id", LogicalType::INTEGER));
     bound_create_info = binder->BindCreateTableInfo(move(info));
     catalog.CreateTable(context, bound_create_info.get());
-
-    CreateLineageTables(op->children[0].get());
-		break;
+    for (idx_t i = 0; i < op->children.size(); ++i)
+      CreateLineageTables(op->children[i].get());
+    break;
   }
   case PhysicalOperatorType::INDEX_JOIN: {
     // CREATE TABLE INDEX_JOIN (lhs_value INT, rhs_value BIGINT, in_index INT, out_chunk_id INT)
@@ -244,9 +253,14 @@ void ManageLineage::CreateLineageTables(PhysicalOperator *op) {
     info->columns.push_back(ColumnDefinition("out_chunk_id", LogicalType::INTEGER));
     bound_create_info = binder->BindCreateTableInfo(move(info));
     catalog.CreateTable(context, bound_create_info.get());
-
+    for (idx_t i = 0; i < op->children.size(); ++i)
+      CreateLineageTables(op->children[i].get());
+    break;
+  } case PhysicalOperatorType::DELIM_JOIN: {
+	  std::cout << dynamic_cast<PhysicalDelimJoin *>(op)->join.get()->ToString() << std::endl;
+	  CreateLineageTables( dynamic_cast<PhysicalDelimJoin *>(op)->join.get());
+	  CreateLineageTables( (PhysicalOperator *)dynamic_cast<PhysicalDelimJoin *>(op)->distinct.get());
     CreateLineageTables(op->children[0].get());
-    CreateLineageTables(op->children[1].get());
     break;
   } default:
     for (idx_t i = 0; i < op->children.size(); ++i)
@@ -296,7 +310,7 @@ void ManageLineage::Persist(PhysicalOperator *op, shared_ptr<LineageContext> lin
     insert_chunk.data[2].Reference(out_chunk_ids);
 
     table->Persist(*table, context, insert_chunk);
-    Persist(op->children[0].get(), move(lineage), is_sink);
+    Persist(op->children[0].get(), move(lineage), is_sink, lindex);
     break;
   }
   case PhysicalOperatorType::TABLE_SCAN: {
@@ -504,6 +518,11 @@ void ManageLineage::Persist(PhysicalOperator *op, shared_ptr<LineageContext> lin
 
     table->Persist(*table, context, insert_chunk);
     Persist(op->children[0].get(), move(lineage), is_sink);
+    break;
+  } case PhysicalOperatorType::DELIM_JOIN: {
+	  Persist( dynamic_cast<PhysicalDelimJoin *>(op)->join.get(), lineage, is_sink, lindex);
+	  Persist( (PhysicalOperator *)dynamic_cast<PhysicalDelimJoin *>(op)->distinct.get(), lineage, is_sink, lindex);
+    Persist(op->children[0].get(), lineage, is_sink, lindex);
     break;
   }
   default:
