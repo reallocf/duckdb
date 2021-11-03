@@ -8,6 +8,7 @@
 namespace duckdb {
 
 void OperatorLineage::Capture(const shared_ptr<LineageData>& datum, idx_t lineage_idx) {
+	if (!trace_lineage) return;
 	// Prepare this vector's chunk to be passed on to future operators
 	pipeline_lineage->AdjustChunkOffsets(datum->Count(), lineage_idx);
 
@@ -126,7 +127,7 @@ LineageProcessStruct OperatorLineage::Process(const vector<LogicalType>& types, 
 				LineageDataWithOffset this_data = data[LINEAGE_SINK][data_idx];
 				idx_t res_count = this_data.data->Count();
 
-				Vector payload(types[1], this_data.data->Process(this_data.offset));
+				Vector payload(types[1], this_data.data->Process(0));
 
 				insert_chunk.SetCardinality(res_count);
 				insert_chunk.data[0].Sequence(count_so_far, 1);

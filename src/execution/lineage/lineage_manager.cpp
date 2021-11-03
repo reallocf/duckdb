@@ -41,12 +41,13 @@ shared_ptr<PipelineLineage> GetPipelineLineageNodeForOp(PhysicalOperator *op) {
 }
 
 // Iterate through in Postorder to ensure that children have PipelineLineageNodes set before parents
-idx_t PlanAnnotator(PhysicalOperator *op, idx_t counter) {
+idx_t PlanAnnotator(PhysicalOperator *op, idx_t counter, bool trace_lineage) {
 	for (idx_t i = 0; i < op->children.size(); i++) {
-		counter = PlanAnnotator(op->children[i].get(), counter);
+		counter = PlanAnnotator(op->children[i].get(), counter, trace_lineage);
 	}
 	op->id = counter;
 	op->lineage_op = make_shared<OperatorLineage>(GetPipelineLineageNodeForOp(op), op->type);
+	op->lineage_op->trace_lineage = trace_lineage;
 	return counter + 1;
 }
 
@@ -55,8 +56,8 @@ idx_t PlanAnnotator(PhysicalOperator *op, idx_t counter) {
  * two operators with the same type, give them a unique ID starting
  * from the zero and incrementing it for the lowest levels of the tree
  */
-void LineageManager::AnnotatePlan(PhysicalOperator *op) {
-	PlanAnnotator(op, 0);
+void LineageManager::AnnotatePlan(PhysicalOperator *op, bool trace_lineage) {
+	PlanAnnotator(op, 0, trace_lineage);
 }
 
 // Get the column types for this operator
