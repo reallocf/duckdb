@@ -524,8 +524,15 @@ void ScanStructure::NextSemiOrAntiJoin(DataChunk &keys, DataChunk &left, DataChu
 	// create the selection vector from the matches that were found
 	SelectionVector sel(STANDARD_VECTOR_SIZE);
 	idx_t result_count = 0;
+#ifdef LINEAGE
+	unique_ptr<uintptr_t[]> key_locations_lineage(new uintptr_t[STANDARD_VECTOR_SIZE]);
+	auto ptrs = FlatVector::GetData<uintptr_t>(this->pointers);
+#endif
 	for (idx_t i = 0; i < keys.size(); i++) {
 		if (found_match[i] == MATCH) {
+#ifdef LINEAGE
+			key_locations_lineage[result_count] = ptrs[i];
+#endif
 			// part of the result
 			sel.set_index(result_count++, i);
 		}
@@ -535,6 +542,11 @@ void ScanStructure::NextSemiOrAntiJoin(DataChunk &keys, DataChunk &left, DataChu
 		// we only return the columns on the left side
 		// reference the columns of the left side from the result
 		result.Slice(left, sel, result_count);
+#ifdef LINEAGE
+		auto lhs_lineage = make_unique<LineageDataUIntPtrArray>(move(key_locations_lineage), result_count);
+		auto rhs_lineage = make_unique<LineageSelVec>(move(sel), result_count);
+		lineage_probe_data = make_shared<LineageBinary>(move(lhs_lineage), move(rhs_lineage));
+#endif
 	} else {
 		D_ASSERT(result.size() == 0);
 	}
