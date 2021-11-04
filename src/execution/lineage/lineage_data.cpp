@@ -28,6 +28,31 @@ idx_t LineageDataRowVector::Size() {
 	return count * sizeof(vec[0]);
 }
 
+// LineageDataVectorBufferArray
+
+idx_t LineageDataVectorBufferArray::Count() {
+	return count;
+}
+
+void LineageDataVectorBufferArray::Debug() {
+	std::cout << "LineageDataVectorBufferArray " << " " << typeid(vec).name() << std::endl;
+	for (idx_t i = 0; i < count; i++) {
+		std::cout << " (" << i << " -> " << vec[i] << ") ";
+	}
+	std::cout << std::endl;
+}
+
+data_ptr_t LineageDataVectorBufferArray::Process(idx_t offset) {
+	for (idx_t i = 0; i < count; i++) {
+		vec[i] += offset;
+	}
+	return (data_ptr_t)vec.get();
+}
+
+idx_t LineageDataVectorBufferArray::Size() {
+	return count * sizeof(vec[0]);
+}
+
 
 // LineageDataUIntPtrArray
 

@@ -57,6 +57,24 @@ private:
 	idx_t count;
 };
 
+class LineageDataVectorBufferArray : public LineageData {
+public:
+	LineageDataVectorBufferArray(unique_ptr<data_t[]> vec_p, idx_t count) : vec(move(vec_p)), count(count) {
+#ifdef LINEAGE_DEBUG
+		Debug();
+#endif
+	}
+
+	idx_t Count() override;
+	void Debug() override;
+	data_ptr_t Process(idx_t offset) override;
+	idx_t Size() override;
+
+private:
+	unique_ptr<data_t[]> vec;
+	idx_t count;
+};
+
 class LineageDataUIntPtrArray : public LineageData {
 public:
 	LineageDataUIntPtrArray(unique_ptr<uintptr_t[]> vec_p, idx_t count) : vec(move(vec_p)), count(count) {

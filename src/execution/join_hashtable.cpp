@@ -236,9 +236,7 @@ void JoinHashTable::Build(DataChunk &keys, DataChunk &payload) {
 	                       added_count);
 #ifdef LINEAGE
 	// log lineage data that maps input to output ht payload entries
-	unique_ptr<uintptr_t[]> key_locations_lineage(new uintptr_t[added_count]);
-	std::copy(key_locations, key_locations + added_count, (data_ptr_t*)key_locations_lineage.get());
-	auto lineage_data = make_shared<LineageDataUIntPtrArray>(move(key_locations_lineage), added_count);
+	auto lineage_data = make_shared<LineageDataVectorBufferArray>(move(addresses.GetBuffer()->data), added_count);
 	// todo: handle the case when hash index key is null -> need to store current_sel
 	//       and store offset from address for hashtable payload instead of pointer value itself
 	context.GetCurrentLineageOp()->Capture(move(lineage_data), LINEAGE_BUILD);
