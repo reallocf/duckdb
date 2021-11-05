@@ -9,11 +9,14 @@ namespace duckdb {
 
 void OperatorLineage::Capture(const shared_ptr<LineageData>& datum, idx_t lineage_idx) {
 	if (!trace_lineage) return;
-	// Prepare this vector's chunk to be passed on to future operators
-	pipeline_lineage->AdjustChunkOffsets(datum->Count(), lineage_idx);
+	idx_t offset = 0;
+	if (pipeline_lineage) {
+		// Prepare this vector's chunk to be passed on to future operators
+		pipeline_lineage->AdjustChunkOffsets(datum->Count(), lineage_idx);
 
-	// Capture this vector
-	idx_t offset = pipeline_lineage->GetChildChunkOffset(lineage_idx);
+		// Capture this vector
+		offset = pipeline_lineage->GetChildChunkOffset(lineage_idx);
+	}
 	data[lineage_idx].push_back(LineageDataWithOffset{datum, offset});
 }
 

@@ -724,6 +724,10 @@ void ScanStructure::NextSingleJoin(DataChunk &keys, DataChunk &input, DataChunk 
 	idx_t result_count = 0;
 	SelectionVector result_sel(STANDARD_VECTOR_SIZE);
 	SelectionVector match_sel(STANDARD_VECTOR_SIZE), no_match_sel(STANDARD_VECTOR_SIZE);
+#ifdef LINEAGE
+	auto ptrs = FlatVector::GetData<uintptr_t>(pointers);
+	unique_ptr<uintptr_t[]> key_locations_lineage(new uintptr_t[input.size()]);
+#endif
 	while (this->count > 0) {
 		// resolve the predicates for the current set of pointers
 		idx_t match_count = ResolvePredicates(keys, match_sel, &no_match_sel);
@@ -734,6 +738,9 @@ void ScanStructure::NextSingleJoin(DataChunk &keys, DataChunk &input, DataChunk 
 			// found a match for this index
 			auto index = match_sel.get_index(i);
 			found_match[index] = true;
+#ifdef LINEAGE
+			key_locations_lineage[result_count] = ptrs[index];
+#endif
 			result_sel.set_index(result_count++, index);
 		}
 		// continue searching for the ones where we did not find a match yet
@@ -757,7 +764,12 @@ void ScanStructure::NextSingleJoin(DataChunk &keys, DataChunk &input, DataChunk 
 		GatherResult(vector, result_sel, result_sel, result_count, i + ht.condition_types.size());
 	}
 	result.SetCardinality(input.size());
-
+#ifdef LINEAGE
+	SelectionVector lhs_sel(0, input.size());
+	auto lhs_lineage = make_unique<LineageDataUIntPtrArray>(move(key_locations_lineage), result_count);
+	auto rhs_lineage = make_unique<LineageSelVec>(move(lhs_sel),  input.size());
+	lineage_probe_data = make_shared<LineageBinary>(move(lhs_lineage), move(rhs_lineage));
+#endif
 	// like the SEMI, ANTI and MARK join types, the SINGLE join only ever does one pass over the HT per input chunk
 	finished = true;
 }
