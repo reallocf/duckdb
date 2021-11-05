@@ -122,7 +122,7 @@ void LineageSelVec::Debug() {
 
 data_ptr_t LineageSelVec::Process(idx_t offset) {
 	for (idx_t i = 0; i < count; i++) {
-		*(vec.data() + i) += offset;
+		*(vec.data() + i) += offset + in_offset;
 	}
 	return (data_ptr_t)vec.data();
 }
