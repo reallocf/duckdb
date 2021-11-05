@@ -24,6 +24,7 @@ shared_ptr<PipelineLineage> GetPipelineLineageNodeForOp(PhysicalOperator *op) {
 	case PhysicalOperatorType::FILTER: {
 		return make_shared<PipelineSingleLineage>(op->children[0]->lineage_op->GetPipelineLineage());
 	}
+	case PhysicalOperatorType::SIMPLE_AGGREGATE:
 	case PhysicalOperatorType::PERFECT_HASH_GROUP_BY:
 	case PhysicalOperatorType::HASH_GROUP_BY:
 	case PhysicalOperatorType::ORDER_BY: {
