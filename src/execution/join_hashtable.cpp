@@ -595,14 +595,27 @@ void ScanStructure::ConstructMarkJoinResult(DataChunk &join_keys, DataChunk &chi
 			}
 		}
 	}
+#ifdef LINEAGE
+	unique_ptr<uintptr_t[]> key_locations_lineage(new uintptr_t[child.size()]);
+	auto ptrs = FlatVector::GetData<uintptr_t>(this->pointers);
+#endif
 	// now set the remaining entries to either true or false based on whether a match was found
 	if (found_match) {
 		for (idx_t i = 0; i < child.size(); i++) {
 			bool_result[i] = found_match[i];
+#ifdef LINEAGE
+			key_locations_lineage[i] = found_match[i];
+#endif
 		}
 	} else {
 		memset(bool_result, 0, sizeof(bool) * child.size());
 	}
+#ifdef LINEAGE
+	SelectionVector lhs_sel(0, child.size());
+	auto lhs_lineage = make_unique<LineageDataUIntPtrArray>(move(key_locations_lineage), child.size());
+	auto rhs_lineage = make_unique<LineageSelVec>(move(lhs_sel), child.size());
+	lineage_probe_data = make_shared<LineageBinary>(move(lhs_lineage), move(rhs_lineage));
+#endif
 	// if the right side contains NULL values, the result of any FALSE becomes NULL
 	if (ht.has_null) {
 		for (idx_t i = 0; i < child.size(); i++) {
