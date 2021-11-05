@@ -11,19 +11,12 @@ CALL dbgen(sf=0.01);
 statement ok
 PRAGMA trace_lineage = "ON";
 
-query III
-SELECT l_orderkey, o_orderdate, o_shippriority FROM orders,lineitem WHERE l_orderkey = o_orderkey AND o_orderdate < CAST('1995-03-15' AS date) AND l_shipdate > CAST('1995-03-15' AS date) limit 10
+query I
+SELECT sum(l_extendedprice) / 7.0 AS avg_yearly FROM lineitem,   part WHERE p_partkey = l_partkey AND p_container = 'MED BOX'    AND l_quantity < (   SELECT   0.2 * avg(l_quantity)   FROM  lineitem  WHERE l_partkey = p_partkey);
+#SELECT p_brand, p_type, p_size, count(DISTINCT ps_suppkey) AS supplier_cnt FROM partsupp, part WHERE p_partkey = ps_partkey AND p_brand <> 'Brand#45' AND p_type NOT LIKE 'MEDIUM POLISHED%'  AND p_size IN (49, 14, 23, 45, 19, 3, 36, 9) AND ps_suppkey NOT IN ( SELECT  s_suppkey   FROM supplier    WHERE  s_comment LIKE '%Customer%Complaints%') GROUP BY p_brand, p_type, p_size ORDER BY supplier_cnt DESC, p_brand, p_type, p_size;
+#SELECT c_count, count(*) AS custdist FROM ( SELECT c_custkey, count(o_orderkey)  FROM customer  LEFT OUTER JOIN orders ON c_custkey = o_custkey   AND o_comment NOT LIKE '%special%requests%' GROUP BY c_custkey) AS c_orders (c_custkey,   c_count) GROUP BY  c_count ORDER BY  custdist DESC, c_count DESC;
 ----
-577	1994-12-19	0
-577	1994-12-19	0
-742	1994-12-23	0
-930	1994-12-17	0
-930	1994-12-17	0
-998	1994-11-26	0
-998	1994-11-26	0
-359	1994-12-19	0
-386	1995-01-25	0
-386	1995-01-25	0
+51286.374286
 
 statement ok
 PRAGMA trace_lineage = "OFF";
@@ -31,14 +24,55 @@ PRAGMA trace_lineage = "OFF";
 query II
 SELECT * FROM queries_list;
 ----
-1	SELECT l_orderkey, o_orderdate, o_shippriority FROM orders,lineitem WHERE l_orderkey = o_orderkey AND o_orderdate < CAST('1995-03-15' AS date) AND l_shipdate > CAST('1995-03-15' AS date) limit 10
+1	SELECT sum(l_extendedprice) / 7.0 AS avg_yearly FROM lineitem,   part WHERE p_partkey = l_partkey AND p_container = 'MED BOX'    AND l_quantity < (   SELECT   0.2 * avg(l_quantity)   FROM  lineitem  WHERE l_partkey = p_partkey);
 2	PRAGMA trace_lineage = "OFF";
 
-
-query IIII
-SELECT rowid, lhs_address, rhs_index, out_index FROM LINEAGE_1_HASH_JOIN_2_1 as probe
+query I
+pragma show_tables;
 ----
+LINEAGE_1_FILTER_14_0
+LINEAGE_1_HASH_GROUP_BY_8_0
+LINEAGE_1_HASH_GROUP_BY_8_1
+LINEAGE_1_HASH_JOIN_12_0
+LINEAGE_1_HASH_JOIN_12_1
+LINEAGE_1_HASH_JOIN_5_0
+LINEAGE_1_HASH_JOIN_5_1
+LINEAGE_1_HASH_JOIN_7_0
+LINEAGE_1_HASH_JOIN_7_1
+LINEAGE_1_PERFECT_HASH_GROUP_BY_3_0
+LINEAGE_1_PERFECT_HASH_GROUP_BY_3_1
+LINEAGE_1_SEQ_SCAN_10_0
+LINEAGE_1_SEQ_SCAN_11_0
+LINEAGE_1_SEQ_SCAN_1_0
+customer
+lineitem
+nation
+orders
+part
+partsupp
+queries_list
+region
+supplier
 
-query III
-SELECT rowid, in_index, out_index, out_index FROM LINEAGE_1_SEQ_SCAN_3_0
+statement ok
+create table pipeline1 as (SELECT  sink.in_index as lineitem_rowid, probe.out_index FROM LINEAGE_1_PERFECT_HASH_GROUP_BY_3_0 sink, LINEAGE_1_PERFECT_HASH_GROUP_BY_3_1 probe where sink.out_index=probe.in_index and probe.out_index=678)
+
+
+statement ok
+create table pipeline2 as (SELECT probe.rhs_index as lineitem2_rowid, seq11.in_index as part_rowid, probe.out_index FROM LINEAGE_1_SEQ_SCAN_11_0 as seq11, LINEAGE_1_HASH_JOIN_12_0 as sink, LINEAGE_1_HASH_JOIN_12_1 as probe where sink.out_address=probe.lhs_address and sink.in_index=seq11.out_index)
+
+statement ok
+create table pipeline3 as (SELECT lineitem2_rowid, part_rowid, sink.out_index FROM LINEAGE_1_HASH_GROUP_BY_8_0 as sink, pipeline2 where sink.in_index=pipeline2.out_index)
+
+statement ok
+create table pipeline4 as (SELECT lineitem2_rowid, lineitem_rowid, part_rowid, probe.out_index as out_index FROM  pipeline3,  pipeline1, LINEAGE_1_HASH_JOIN_5_1 as probe, LINEAGE_1_HASH_JOIN_5_0 as sink where sink.out_address=probe.lhs_address and pipeline1.out_index=probe.rhs_index and pipeline3.out_index=sink.in_index)
+
+#select p_partkey, part_rowid, l1.l_partkey, lineitem2_rowid, l2.l_partkey, lineitem_rowid from lineitem as l1, lineitem as l2, part, pipeline4 where l1.rowid=lineitem2_rowid and l2.rowid=lineitem_rowid and part.rowid=part_rowid
+
+statement ok
+CREATE TABLE pipeline5 AS (SELECT probe_input.lineitem2_rowid as probe_input_lineitem2_rowid, probe_input.part_rowid as probe_input_part_rowid, sink_input.lineitem2_rowid as sink_input_lineitem2_rowid, sink_input.lineitem_rowid as sink_input_lineitem_rowid, sink_input.part_rowid as  sink_input_part_rowid, probe.out_index FROM pipeline2 as probe_input, pipeline4 as sink_input, LINEAGE_1_HASH_JOIN_7_0 as sink, LINEAGE_1_HASH_JOIN_7_1 as probe where sink.out_address=probe.lhs_address and sink.in_index=sink_input.out_index and probe_input.out_index=probe.rhs_index)
+
+query IIIII
+select l1.l_partkey, l2.l_partkey, l3.l_partkey, p1.p_partkey, p2.p_partkey from lineitem as l1, lineitem as l2, lineitem as l3, part as p1, part as p2, LINEAGE_1_FILTER_14_0, pipeline5 where LINEAGE_1_FILTER_14_0.in_index=pipeline5.out_index and probe_input_lineitem2_rowid=l1.rowid and probe_input_part_rowid=p1.rowid and sink_input_lineitem2_rowid=l2.rowid and sink_input_lineitem_rowid=l3.rowid and p2.rowid=sink_input_part_rowid limit 1
 ----
+679	679	679	679	679
