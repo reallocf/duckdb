@@ -101,7 +101,7 @@ void PhysicalLimit::GetChunkInternal(ExecutionContext &context, DataChunk &chunk
 
 #ifdef LINEAGE
 	auto lineage_start = orig_offset == 0 ? offset : 0;
-	auto lineage_end = MinValue<idx_t>((offset + limit) - orig_offset, state->current_offset);
+	auto lineage_end = lineage_start + chunk.size();
     lineage_op.get()->Capture(make_shared<LineageRange>(lineage_start, lineage_end), LINEAGE_UNARY);
 #endif
 }
