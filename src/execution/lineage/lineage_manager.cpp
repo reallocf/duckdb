@@ -32,6 +32,7 @@ shared_ptr<PipelineLineage> GetPipelineLineageNodeForOp(PhysicalOperator *op) {
 			return make_shared<PipelineBreakerLineage>(op->children[0]->lineage_op->GetPipelineLineage());
 		return nullptr;
 	}
+	case PhysicalOperatorType::PIECEWISE_MERGE_JOIN:
 	case PhysicalOperatorType::INDEX_JOIN:
 	case PhysicalOperatorType::HASH_JOIN: {
 		return make_shared<PipelineJoinLineage>(op->children[1]->lineage_op->GetPipelineLineage(),
@@ -105,6 +106,15 @@ vector<vector<ColumnDefinition>> GetTableColumnTypes(PhysicalOperator *op) {
 		source_table_columns.emplace_back("in_index", LogicalType::INTEGER);
 		source_table_columns.emplace_back("out_index", LogicalType::INTEGER);
 		res.emplace_back(move(source_table_columns));
+		break;
+	}
+	case PhysicalOperatorType::PIECEWISE_MERGE_JOIN: {
+		// schema: [INTEGER lhs_index, BIGINT rhs_index, INTEGER out_index]
+		vector<ColumnDefinition> table_columns;
+		table_columns.emplace_back("lhs_index", LogicalType::INTEGER);
+		table_columns.emplace_back("rhs_index", LogicalType::INTEGER);
+		table_columns.emplace_back("out_index", LogicalType::INTEGER);
+		res.emplace_back(move(table_columns));
 		break;
 	}
 	case PhysicalOperatorType::INDEX_JOIN: {

@@ -113,7 +113,7 @@ private:
 
 class LineageSelVec : public LineageData {
 public:
-	LineageSelVec(const SelectionVector& vec_p, idx_t count) : vec(vec_p), count(count) {
+	LineageSelVec(const SelectionVector& vec_p, idx_t count, idx_t in_offset=0) : vec(vec_p), count(count), in_offset(in_offset) {
 #ifdef LINEAGE_DEBUG
 		Debug();
 #endif
@@ -130,6 +130,7 @@ public:
 private:
 	SelectionVector vec;
 	idx_t count;
+	idx_t in_offset;
 };
 
 // A Range of values where each successive number in the range indicates the lineage
