@@ -22,12 +22,8 @@ void PipelineBreakerLineage::AdjustChunkOffsets(idx_t chunk_size, idx_t lineage_
 }
 
 idx_t PipelineBreakerLineage::GetChildChunkOffset(idx_t lineage_idx) {
-	if (lineage_idx == LINEAGE_SINK) {
-		return child_node->GetChunkOffset();
-	} else {
-		// For source, adjust by how many we've output so far TODO is this right?
-		return chunk_offset->offset;
-	}
+	// We don't care about the child chunk offset for pipeline breaker
+	return 0;
 }
 
 idx_t PipelineBreakerLineage::GetChunkOffset() {
