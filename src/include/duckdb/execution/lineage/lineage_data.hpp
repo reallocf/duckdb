@@ -158,7 +158,6 @@ class LineageBinary : public LineageData {
 public:
 	LineageBinary(unique_ptr<LineageData> lhs, unique_ptr<LineageData> rhs) :
 	      left(move(lhs)), right(move(rhs)) {
-		D_ASSERT(left->Count() == right->Count());
 #ifdef LINEAGE_DEBUG
 		Debug();
 #endif
@@ -169,9 +168,9 @@ public:
 	data_ptr_t Process(idx_t offset) override;
 	idx_t Size() override;
 
-private:
 	unique_ptr<LineageData> left;
 	unique_ptr<LineageData> right;
+private:
 	bool switch_on_left = true;
 };
 

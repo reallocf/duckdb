@@ -179,26 +179,32 @@ idx_t LineageRange::Size() {
 // LineageBinary
 
 idx_t LineageBinary::Count() {
-	return left->Count();
+	if (left) return left->Count();
+	else return right->Count();
 }
 
 void LineageBinary::Debug() {
-	left->Debug();
-	right->Debug();
+	if (left) left->Debug();
+	if (right) right->Debug();
 }
 
 data_ptr_t LineageBinary::Process(idx_t offset) {
-	if (switch_on_left) {
+	if (switch_on_left && left) {
 		switch_on_left = !switch_on_left;
 		return left->Process(offset);
-	} else {
+	} else if (right) {
 		switch_on_left = !switch_on_left;
 		return right->Process(offset);
+	} else {
+		return nullptr;
 	}
 }
 
 idx_t LineageBinary::Size() {
-	return left->Size() + right->Size();
+	auto size = 0;
+	if (left) size += left->Size();
+	if (right) size += right->Size();
+	return size;
 }
 
 

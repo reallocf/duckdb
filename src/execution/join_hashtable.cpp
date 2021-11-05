@@ -773,8 +773,11 @@ void ScanStructure::NextSingleJoin(DataChunk &keys, DataChunk &input, DataChunk 
 	// like the SEMI, ANTI and MARK join types, the SINGLE join only ever does one pass over the HT per input chunk
 	finished = true;
 }
-
+#ifdef LINEAGE
+void JoinHashTable::ScanFullOuter(ExecutionContext &context, DataChunk &result, JoinHTScanState &state) {
+#else
 void JoinHashTable::ScanFullOuter(DataChunk &result, JoinHTScanState &state) {
+#endif
 	// scan the HT starting from the current position and check which rows from the build side did not find a match
 	Vector addresses(LogicalType::POINTER);
 	auto key_locations = FlatVector::GetData<data_ptr_t>(addresses);
@@ -819,6 +822,12 @@ void JoinHashTable::ScanFullOuter(DataChunk &result, JoinHTScanState &state) {
 			const auto col_offset = layout.GetOffsets()[col_no];
 			RowOperations::Gather(addresses, sel_vector, vector, sel_vector, found_entries, col_offset, col_no);
 		}
+#ifdef LINEAGE
+		auto lhs_lineage = make_unique<LineageDataVectorBufferArray>(move(addresses.GetBuffer()->data), found_entries);
+		auto lineage_data = make_shared<LineageBinary>(move(lhs_lineage), nullptr);
+		context.GetCurrentLineageOp()->Capture(lineage_data, LINEAGE_PROBE);
+		context.GetCurrentLineageOp()->MarkChunkReturned();
+#endif
 	}
 }
 
