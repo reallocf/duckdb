@@ -37,6 +37,7 @@ LineageProcessStruct OperatorLineage::Process(const vector<LogicalType>& types, 
                                               DataChunk &insert_chunk) {
 	if (data[finished_idx].size() > data_idx) {
 		switch (this->type) {
+		case PhysicalOperatorType::PIECEWISE_MERGE_JOIN:
 		case PhysicalOperatorType::INDEX_JOIN: {
 			// Index Join
 			// schema: [INTEGER lhs_index, BIGINT rhs_index, INTEGER out_index]
