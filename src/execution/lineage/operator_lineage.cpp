@@ -90,9 +90,24 @@ LineageProcessStruct OperatorLineage::Process(const vector<LogicalType>& types, 
 
 				LineageDataWithOffset this_data = data[LINEAGE_PROBE][data_idx];
 				idx_t res_count = this_data.data->Count();
+				Vector lhs_payload(types[0]);
+				Vector rhs_payload(types[1]);
 
-				Vector lhs_payload(types[0], this_data.data->Process(0));
-				Vector rhs_payload(types[1], this_data.data->Process(this_data.offset));
+				if (dynamic_cast<LineageBinary&>(*this_data.data).left == nullptr) {
+					lhs_payload.SetVectorType(VectorType::CONSTANT_VECTOR);
+					ConstantVector::SetNull(lhs_payload, true);
+				} else {
+					Vector temp(types[0],  this_data.data->Process(0));
+					lhs_payload.Reference(temp);
+				}
+
+				if (dynamic_cast<LineageBinary&>(*this_data.data).right == nullptr) {
+					rhs_payload.SetVectorType(VectorType::CONSTANT_VECTOR);
+					ConstantVector::SetNull(rhs_payload, true);
+				} else {
+					Vector temp(types[1],  this_data.data->Process(this_data.offset));
+					rhs_payload.Reference(temp);
+				}
 
 				insert_chunk.SetCardinality(res_count);
 				insert_chunk.data[0].Reference(lhs_payload);
@@ -141,7 +156,7 @@ LineageProcessStruct OperatorLineage::Process(const vector<LogicalType>& types, 
 				LineageDataWithOffset this_data = data[LINEAGE_SOURCE][data_idx];
 				idx_t res_count = this_data.data->Count();
 
-				Vector payload(types[0], this_data.data->Process(this_data.offset));
+				Vector payload(types[0], this_data.data->Process(0));
 
 				insert_chunk.SetCardinality(res_count);
 				insert_chunk.data[0].Reference(payload);
