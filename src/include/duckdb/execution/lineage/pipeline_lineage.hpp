@@ -33,21 +33,20 @@ public:
 
 class PipelineBreakerLineage : public PipelineLineage {
 public:
-	explicit PipelineBreakerLineage(const shared_ptr<PipelineLineage>& child_node) : child_node(child_node) {}
+	explicit PipelineBreakerLineage() {}
 
 	void AdjustChunkOffsets(idx_t chunk_size, idx_t lineage_idx) override;
 	idx_t GetChildChunkOffset(idx_t lineage_idx) override;
 	idx_t GetChunkOffset() override;
 
 private:
-	shared_ptr<PipelineLineage> child_node;
 	shared_ptr<ChunkOffset> chunk_offset;
 };
 
 class PipelineJoinLineage : public PipelineLineage {
 public:
-	PipelineJoinLineage(const shared_ptr<PipelineLineage>& build_child_node, const shared_ptr<PipelineLineage>& probe_child_node) :
-	      build_child_node(build_child_node), probe_child_node(probe_child_node), next(false) {}
+	PipelineJoinLineage(const shared_ptr<PipelineLineage>& probe_child_node) :
+	      probe_child_node(probe_child_node), next(false) {}
 
 	void AdjustChunkOffsets(idx_t chunk_size, idx_t lineage_idx) override;
 	idx_t GetChildChunkOffset(idx_t lineage_idx) override;
@@ -57,7 +56,6 @@ public:
 	void MarkChunkReturned();
 
 private:
-	shared_ptr<PipelineLineage> build_child_node;
 	shared_ptr<PipelineLineage> probe_child_node;
 	shared_ptr<ChunkOffset> chunk_offset;
 

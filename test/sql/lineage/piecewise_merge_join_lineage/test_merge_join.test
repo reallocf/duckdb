@@ -51,8 +51,3 @@ select lhs_index, rhs_index, out_index from LINEAGE_1_PIECEWISE_MERGE_JOIN_2_0;
 2	2	0
 0	2	1
 4	2	2
-
-# current output:
-#2	1026	0
-#0	1026	1
-#4	1026	2
