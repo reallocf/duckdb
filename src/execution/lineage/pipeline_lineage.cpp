@@ -60,11 +60,7 @@ void PipelineJoinLineage::AdjustChunkOffsets(idx_t chunk_size, idx_t lineage_idx
 }
 
 idx_t PipelineJoinLineage::GetChildChunkOffset(idx_t lineage_idx) {
-	if (lineage_idx == LINEAGE_BUILD) {
-		return build_child_node->GetChunkOffset();
-	} else {
-		return probe_child_node->GetChunkOffset();
-	}
+	return probe_child_node->GetChunkOffset();
 }
 
 idx_t PipelineJoinLineage::GetChunkOffset() {
