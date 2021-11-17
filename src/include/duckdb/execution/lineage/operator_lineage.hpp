@@ -53,6 +53,8 @@ public:
 	void SetChunkId(idx_t idx);
 	idx_t Size();
 
+public:
+	bool trace_lineage;
 private:
 	shared_ptr<PipelineLineage> pipeline_lineage;
 	// data[0] used by all ops; data[1] used by pipeline breakers

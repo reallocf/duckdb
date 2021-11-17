@@ -28,6 +28,31 @@ idx_t LineageDataRowVector::Size() {
 	return count * sizeof(vec[0]);
 }
 
+// LineageDataVectorBufferArray
+
+idx_t LineageDataVectorBufferArray::Count() {
+	return count;
+}
+
+void LineageDataVectorBufferArray::Debug() {
+	std::cout << "LineageDataVectorBufferArray " << " " << typeid(vec).name() << std::endl;
+	for (idx_t i = 0; i < count; i++) {
+		std::cout << " (" << i << " -> " << vec[i] << ") ";
+	}
+	std::cout << std::endl;
+}
+
+data_ptr_t LineageDataVectorBufferArray::Process(idx_t offset) {
+	for (idx_t i = 0; i < count; i++) {
+		vec[i] += offset;
+	}
+	return (data_ptr_t)vec.get();
+}
+
+idx_t LineageDataVectorBufferArray::Size() {
+	return count * sizeof(vec[0]);
+}
+
 
 // LineageDataUIntPtrArray
 
@@ -97,7 +122,7 @@ void LineageSelVec::Debug() {
 
 data_ptr_t LineageSelVec::Process(idx_t offset) {
 	for (idx_t i = 0; i < count; i++) {
-		*(vec.data() + i) += offset;
+		*(vec.data() + i) += offset + in_offset;
 	}
 	return (data_ptr_t)vec.data();
 }
@@ -154,26 +179,32 @@ idx_t LineageRange::Size() {
 // LineageBinary
 
 idx_t LineageBinary::Count() {
-	return left->Count();
+	if (left) return left->Count();
+	else return right->Count();
 }
 
 void LineageBinary::Debug() {
-	left->Debug();
-	right->Debug();
+	if (left) left->Debug();
+	if (right) right->Debug();
 }
 
 data_ptr_t LineageBinary::Process(idx_t offset) {
-	if (switch_on_left) {
+	if (switch_on_left && left) {
 		switch_on_left = !switch_on_left;
 		return left->Process(offset);
-	} else {
+	} else if (right) {
 		switch_on_left = !switch_on_left;
 		return right->Process(offset);
+	} else {
+		return nullptr;
 	}
 }
 
 idx_t LineageBinary::Size() {
-	return left->Size() + right->Size();
+	auto size = 0;
+	if (left) size += left->Size();
+	if (right) size += right->Size();
+	return size;
 }
 
 

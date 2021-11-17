@@ -57,6 +57,24 @@ private:
 	idx_t count;
 };
 
+class LineageDataVectorBufferArray : public LineageData {
+public:
+	LineageDataVectorBufferArray(unique_ptr<data_t[]> vec_p, idx_t count) : vec(move(vec_p)), count(count) {
+#ifdef LINEAGE_DEBUG
+		Debug();
+#endif
+	}
+
+	idx_t Count() override;
+	void Debug() override;
+	data_ptr_t Process(idx_t offset) override;
+	idx_t Size() override;
+
+private:
+	unique_ptr<data_t[]> vec;
+	idx_t count;
+};
+
 class LineageDataUIntPtrArray : public LineageData {
 public:
 	LineageDataUIntPtrArray(unique_ptr<uintptr_t[]> vec_p, idx_t count) : vec(move(vec_p)), count(count) {
@@ -95,7 +113,7 @@ private:
 
 class LineageSelVec : public LineageData {
 public:
-	LineageSelVec(const SelectionVector& vec_p, idx_t count) : vec(vec_p), count(count) {
+	LineageSelVec(const SelectionVector& vec_p, idx_t count, idx_t in_offset=0) : vec(vec_p), count(count), in_offset(in_offset) {
 #ifdef LINEAGE_DEBUG
 		Debug();
 #endif
@@ -112,6 +130,7 @@ public:
 private:
 	SelectionVector vec;
 	idx_t count;
+	idx_t in_offset;
 };
 
 // A Range of values where each successive number in the range indicates the lineage
@@ -140,7 +159,6 @@ class LineageBinary : public LineageData {
 public:
 	LineageBinary(unique_ptr<LineageData> lhs, unique_ptr<LineageData> rhs) :
 	      left(move(lhs)), right(move(rhs)) {
-		D_ASSERT(left->Count() == right->Count());
 #ifdef LINEAGE_DEBUG
 		Debug();
 #endif
@@ -151,9 +169,9 @@ public:
 	data_ptr_t Process(idx_t offset) override;
 	idx_t Size() override;
 
-private:
 	unique_ptr<LineageData> left;
 	unique_ptr<LineageData> right;
+private:
 	bool switch_on_left = true;
 };
 

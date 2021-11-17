@@ -8,11 +8,13 @@
 namespace duckdb {
 
 void OperatorLineage::Capture(const shared_ptr<LineageData>& datum, idx_t lineage_idx) {
+	if (!trace_lineage ) return;
 	// Prepare this vector's chunk to be passed on to future operators
 	pipeline_lineage->AdjustChunkOffsets(datum->Count(), lineage_idx);
 
 	// Capture this vector
 	idx_t offset = pipeline_lineage->GetChildChunkOffset(lineage_idx);
+
 	data[lineage_idx].push_back(LineageDataWithOffset{datum, offset});
 }
 
@@ -33,6 +35,7 @@ LineageProcessStruct OperatorLineage::Process(const vector<LogicalType>& types, 
                                               DataChunk &insert_chunk) {
 	if (data[finished_idx].size() > data_idx) {
 		switch (this->type) {
+		case PhysicalOperatorType::PIECEWISE_MERGE_JOIN:
 		case PhysicalOperatorType::INDEX_JOIN: {
 			// Index Join
 			// schema: [INTEGER lhs_index, BIGINT rhs_index, INTEGER out_index]
@@ -86,9 +89,24 @@ LineageProcessStruct OperatorLineage::Process(const vector<LogicalType>& types, 
 
 				LineageDataWithOffset this_data = data[LINEAGE_PROBE][data_idx];
 				idx_t res_count = this_data.data->Count();
+				Vector lhs_payload(types[0]);
+				Vector rhs_payload(types[1]);
 
-				Vector lhs_payload(types[0], this_data.data->Process(0));
-				Vector rhs_payload(types[1], this_data.data->Process(this_data.offset));
+				if (dynamic_cast<LineageBinary&>(*this_data.data).left == nullptr) {
+					lhs_payload.SetVectorType(VectorType::CONSTANT_VECTOR);
+					ConstantVector::SetNull(lhs_payload, true);
+				} else {
+					Vector temp(types[0],  this_data.data->Process(0));
+					lhs_payload.Reference(temp);
+				}
+
+				if (dynamic_cast<LineageBinary&>(*this_data.data).right == nullptr) {
+					rhs_payload.SetVectorType(VectorType::CONSTANT_VECTOR);
+					ConstantVector::SetNull(rhs_payload, true);
+				} else {
+					Vector temp(types[1],  this_data.data->Process(this_data.offset));
+					rhs_payload.Reference(temp);
+				}
 
 				insert_chunk.SetCardinality(res_count);
 				insert_chunk.data[0].Reference(lhs_payload);

@@ -1,0 +1,46 @@
+# name: test/sql/lineage/hash_join_variants_lineage/test_semi_hash_join.test
+# description: Test Semi Hash Joins
+# group: [hash_join_variants_lineage]
+
+statement ok
+CREATE TABLE t1(i INTEGER, j INTEGER);
+
+statement ok
+INSERT INTO t1 VALUES (3, 1),  (NULL, 2), (2, 3), (3, 4), (3, 8), (3, 7)
+
+statement ok
+CREATE TABLE t2(i INTEGER, k VARCHAR(10));
+
+statement ok
+INSERT INTO t2 VALUES (3, 'A'),   (2, 'B'), (3, 'C'), (1, 'D'), (3, 'E')
+
+statement ok
+PRAGMA trace_lineage = "ON"
+
+# standalone limit
+query II
+select * from t1 WHERE  EXISTS (SELECT  *  FROM t2 WHERE t2.i = t1.i)
+----
+3	1
+2	3
+3	4
+3	8
+3	7
+
+statement ok
+PRAGMA trace_lineage = "OFF"
+
+query II
+select query_id, query from queries_list;
+----
+1	select * from t1 WHERE  EXISTS (SELECT  *  FROM t2 WHERE t2.i = t1.i)
+2	PRAGMA trace_lineage = "OFF"
+
+query III
+select sink.in_index as build_index, rhs_index as probe_index, probe.out_index from LINEAGE_1_HASH_JOIN_2_1 AS probe, LINEAGE_1_HASH_JOIN_2_0 AS sink WHERE out_address=lhs_address ;
+----
+4	0	0
+1	2	1
+4	3	2
+4	4	3
+4	5	4

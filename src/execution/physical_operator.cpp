@@ -10,7 +10,7 @@
 namespace duckdb {
 
 string PhysicalOperator::GetName() const {
-	return PhysicalOperatorToString(type);
+	return PhysicalOperatorToString(type) + "_" + std::to_string(id);
 }
 
 string PhysicalOperator::ToString() const {

@@ -250,7 +250,7 @@ unique_ptr<QueryResult> ClientContext::ExecutePreparedStatement(ClientContextLoc
 		lineage_manager->LogQuery(query);
 	}
 	// Always annotate plan with lineage - lineage is always captured even if it isn't persisted TODO is this right?
-	lineage_manager->AnnotatePlan(statement.plan.get());
+	lineage_manager->AnnotatePlan(statement.plan.get(), trace_lineage);
 #endif
 
 	// store the physical plan in the context for calls to Fetch()

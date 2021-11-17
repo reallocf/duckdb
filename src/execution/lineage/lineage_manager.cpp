@@ -6,13 +6,17 @@
 #include "duckdb/parser/statement/create_statement.hpp"
 #include "duckdb/planner/binder.hpp"
 #include "duckdb/planner/parsed_data/bound_create_table_info.hpp"
+#include "duckdb/execution/operator/join/physical_delim_join.hpp"
 
 #include <utility>
 
 namespace duckdb {
+class PhysicalDelimJoin;
 
 shared_ptr<PipelineLineage> GetPipelineLineageNodeForOp(PhysicalOperator *op) {
 	switch (op->type) {
+	case PhysicalOperatorType::DELIM_SCAN:
+	case PhysicalOperatorType::CHUNK_SCAN:
 	case PhysicalOperatorType::TABLE_SCAN: {
 		return make_shared<PipelineScanLineage>();
 	}
@@ -20,15 +24,19 @@ shared_ptr<PipelineLineage> GetPipelineLineageNodeForOp(PhysicalOperator *op) {
 	case PhysicalOperatorType::FILTER: {
 		return make_shared<PipelineSingleLineage>(op->children[0]->lineage_op->GetPipelineLineage());
 	}
+	case PhysicalOperatorType::SIMPLE_AGGREGATE:
 	case PhysicalOperatorType::PERFECT_HASH_GROUP_BY:
 	case PhysicalOperatorType::HASH_GROUP_BY:
 	case PhysicalOperatorType::ORDER_BY: {
-		return make_shared<PipelineBreakerLineage>(op->children[0]->lineage_op->GetPipelineLineage());
+		return make_shared<PipelineBreakerLineage>();
 	}
+	case PhysicalOperatorType::PIECEWISE_MERGE_JOIN:
 	case PhysicalOperatorType::INDEX_JOIN:
 	case PhysicalOperatorType::HASH_JOIN: {
-		return make_shared<PipelineJoinLineage>(op->children[1]->lineage_op->GetPipelineLineage(),
-									 op->children[0]->lineage_op->GetPipelineLineage());
+		return make_shared<PipelineJoinLineage>(op->children[0]->lineage_op->GetPipelineLineage());
+	}
+	case PhysicalOperatorType::DELIM_JOIN: {
+		return make_shared<PipelineJoinLineage>(op->children[0]->lineage_op->GetPipelineLineage());
 	}
 	case PhysicalOperatorType::PROJECTION: {
 		// Pass through to last operator
@@ -41,12 +49,19 @@ shared_ptr<PipelineLineage> GetPipelineLineageNodeForOp(PhysicalOperator *op) {
 }
 
 // Iterate through in Postorder to ensure that children have PipelineLineageNodes set before parents
-idx_t PlanAnnotator(PhysicalOperator *op, idx_t counter) {
+idx_t PlanAnnotator(PhysicalOperator *op, idx_t counter, bool trace_lineage) {
+	if (op->type == PhysicalOperatorType::DELIM_JOIN) {
+		counter = PlanAnnotator( dynamic_cast<PhysicalDelimJoin *>(op)->join.get(), counter, trace_lineage);
+		counter = PlanAnnotator( (PhysicalOperator *)dynamic_cast<PhysicalDelimJoin *>(op)->distinct.get(), counter, trace_lineage);
+		for (idx_t i = 0; i < dynamic_cast<PhysicalDelimJoin *>(op)->delim_scans.size(); ++i)
+			counter = PlanAnnotator( dynamic_cast<PhysicalDelimJoin *>(op)->delim_scans[i], counter, trace_lineage);
+	}
 	for (idx_t i = 0; i < op->children.size(); i++) {
-		counter = PlanAnnotator(op->children[i].get(), counter);
+		counter = PlanAnnotator(op->children[i].get(), counter, trace_lineage);
 	}
 	op->id = counter;
 	op->lineage_op = make_shared<OperatorLineage>(GetPipelineLineageNodeForOp(op), op->type);
+	op->lineage_op->trace_lineage = trace_lineage;
 	return counter + 1;
 }
 
@@ -55,8 +70,8 @@ idx_t PlanAnnotator(PhysicalOperator *op, idx_t counter) {
  * two operators with the same type, give them a unique ID starting
  * from the zero and incrementing it for the lowest levels of the tree
  */
-void LineageManager::AnnotatePlan(PhysicalOperator *op) {
-	PlanAnnotator(op, 0);
+void LineageManager::AnnotatePlan(PhysicalOperator *op, bool trace_lineage) {
+	PlanAnnotator(op, 0, trace_lineage);
 }
 
 // Get the column types for this operator
@@ -87,6 +102,15 @@ vector<vector<ColumnDefinition>> GetTableColumnTypes(PhysicalOperator *op) {
 		source_table_columns.emplace_back("in_index", LogicalType::INTEGER);
 		source_table_columns.emplace_back("out_index", LogicalType::INTEGER);
 		res.emplace_back(move(source_table_columns));
+		break;
+	}
+	case PhysicalOperatorType::PIECEWISE_MERGE_JOIN: {
+		// schema: [INTEGER lhs_index, BIGINT rhs_index, INTEGER out_index]
+		vector<ColumnDefinition> table_columns;
+		table_columns.emplace_back("lhs_index", LogicalType::INTEGER);
+		table_columns.emplace_back("rhs_index", LogicalType::INTEGER);
+		table_columns.emplace_back("out_index", LogicalType::INTEGER);
+		res.emplace_back(move(table_columns));
 		break;
 	}
 	case PhysicalOperatorType::INDEX_JOIN: {
@@ -126,7 +150,7 @@ void LineageManager::CreateLineageTables(PhysicalOperator *op) {
 	for (idx_t i = 0; i < table_column_types.size(); i++) {
 		// Example: LINEAGE_1_HASH_JOIN_3_0
 		string table_name = "LINEAGE_" + to_string(query_id) + "_"
-							+ op->GetName() + "_" + to_string(op->id) + "_" + to_string(i);
+							+ op->GetName() + "_" + to_string(i);
 
 		// Create Table
 		auto info = make_unique<CreateTableInfo>();
@@ -154,6 +178,11 @@ void LineageManager::CreateLineageTables(PhysicalOperator *op) {
 			table->Persist(*table, context, insert_chunk);
 		}
 		op->lineage_op->FinishedProcessing();
+	}
+
+	if (op->type == PhysicalOperatorType::DELIM_JOIN) {
+		CreateLineageTables( dynamic_cast<PhysicalDelimJoin *>(op)->join.get());
+		CreateLineageTables( (PhysicalOperator *)dynamic_cast<PhysicalDelimJoin *>(op)->distinct.get());
 	}
 
 	// If the operator is unimplemented or doesn't materialize any lineage, it'll be skipped and we'll just
