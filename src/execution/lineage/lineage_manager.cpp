@@ -28,19 +28,15 @@ shared_ptr<PipelineLineage> GetPipelineLineageNodeForOp(PhysicalOperator *op) {
 	case PhysicalOperatorType::PERFECT_HASH_GROUP_BY:
 	case PhysicalOperatorType::HASH_GROUP_BY:
 	case PhysicalOperatorType::ORDER_BY: {
-		if (op->children.size())
-			return make_shared<PipelineBreakerLineage>(op->children[0]->lineage_op->GetPipelineLineage());
-		return nullptr;
+		return make_shared<PipelineBreakerLineage>();
 	}
 	case PhysicalOperatorType::PIECEWISE_MERGE_JOIN:
 	case PhysicalOperatorType::INDEX_JOIN:
 	case PhysicalOperatorType::HASH_JOIN: {
-		return make_shared<PipelineJoinLineage>(op->children[1]->lineage_op->GetPipelineLineage(),
-									 op->children[0]->lineage_op->GetPipelineLineage());
+		return make_shared<PipelineJoinLineage>(op->children[0]->lineage_op->GetPipelineLineage());
 	}
 	case PhysicalOperatorType::DELIM_JOIN: {
-		return make_shared<PipelineJoinLineage>(dynamic_cast<PhysicalDelimJoin *>(op)->join->children[1]->lineage_op->GetPipelineLineage(),
-		                                        op->children[0]->lineage_op->GetPipelineLineage());
+		return make_shared<PipelineJoinLineage>(op->children[0]->lineage_op->GetPipelineLineage());
 	}
 	case PhysicalOperatorType::PROJECTION: {
 		// Pass through to last operator
