@@ -15,6 +15,7 @@ parser.add_argument('notes', type=str,  help="run notes")
 parser.add_argument('--enable_lineage', action='store_true',  help="Enable trace_lineage")
 parser.add_argument('--show_tables', action='store_true',  help="list tables")
 parser.add_argument('--show_output', action='store_true',  help="query output")
+parser.add_argument('--perm', action='store_true',  help="use perm queries")
 parser.add_argument('--save_csv', action='store_true',  help="save result in csv")
 parser.add_argument('--sf', type=float, help="sf scale", default=1)
 parser.add_argument('--repeat', type=int, help="Repeat time for each query", default=5)
@@ -30,10 +31,13 @@ if args.enable_lineage:
     con.execute("PRAGMA trace_lineage='ON'")
 if args.profile:
     con.execute("PRAGMA enable_profiling;")
-
+    
+prefix = "extension/tpch/dbgen/queries/q"
+if args.perm:
+    prefix = "extension/tpch/dbgen/queries/perm/q"
 results = []
 for i in range(1, 23):
-    q = "extension/tpch/dbgen/queries/q"+str(i).zfill(2)+".sql"
+    q = prefix+str(i).zfill(2)+".sql"
     text_file = open(q, "r")
 
     #read whole file to a string

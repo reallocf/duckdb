@@ -6,15 +6,18 @@ import csv
 
 def execute(Q):
     start = timer()
-    df = con.execute(Q).fetchdf()
+    df = con.execute(Q)#.fetchdf()
     end = timer()
-    return df, end - start
+    return [], end - start
 
 parser = argparse.ArgumentParser(description='TPCH benchmarking script')
 parser.add_argument('notes', type=str,  help="run notes")
 parser.add_argument('--save_csv', action='store_true',  help="save result in csv")
 parser.add_argument('--repeat', type=int, help="Repeat time for each query", default=5)
 parser.add_argument('--enable_lineage', action='store_true',  help="Enable trace_lineage")
+parser.add_argument('--perm', action='store_true',  help="Use Perm Approach")
+parser.add_argument('--join', action='store_true',  help="Use Perm Apprach with join as solution for group by")
+parser.add_argument('--list', action='store_true',  help="Use Perm Apprach with list to compute aggregate")
 parser.add_argument('--show_output', action='store_true',  help="query output")
 args = parser.parse_args()
 results = []
@@ -35,6 +38,8 @@ for g in groups:
         if args.enable_lineage:
             con.execute("PRAGMA trace_lineage='ON'")
         q = "SELECT z  FROM zipf1 Order By z"
+        if args.perm:
+            q = "SELECT rowid, z FROM zipf1 Order By z"
         dur_acc = 0.0
         for j in range(args.repeat):
             df, duration = execute(q)
@@ -64,6 +69,8 @@ for g in groups:
         if args.enable_lineage:
             con.execute("PRAGMA trace_lineage='ON'")
         q = "SELECT z,v  FROM zipf1 where z=0"
+        if args.perm:
+            q = "SELECT rowid, z, v FROM zipf1 WHERE z=0"
         dur_acc = 0.0
         size = 0
         for j in range(args.repeat):
@@ -95,6 +102,12 @@ for g in groups:
         if args.enable_lineage:
             con.execute("PRAGMA trace_lineage='ON'")
         q = "SELECT z, count(*) FROM zipf1 GROUP BY z"
+        if args.perm:
+            q = "SELECT z, count(*), group_concat(rowid,',') FROM zipf1 GROUP BY z"
+        if args.perm and args.list:
+            q = "SELECT z, count(*), list(rowid) FROM zipf1 GROUP BY z"
+        if args.perm and args.join:
+            q = "SELECT z FROM (SELECT z, count(*) FROM zipf1 GROUP BY z) join zipf1 using (z)"
         dur_acc = 0.0
         for j in range(args.repeat):
             df, duration = execute(q)
@@ -126,6 +139,8 @@ for g in groups:
         con.execute("create table zipf1 as select * from zipf1_view")
         
         q = "SELECT * FROM gids, zipf1 WHERE gids.id=zipf1.z"
+        if args.perm:
+            q = "SELECT gids.rowid, zipf1.rowid, * FROM gids, zipf1 WHERE gids.id=zipf1.z"
         if args.enable_lineage:
             con.execute("PRAGMA trace_lineage='ON'")
 
@@ -165,6 +180,8 @@ for g in groups:
         con.execute("create table zipf1 as select * from zipf1_view")
         
         q = "SELECT * FROM zipf1, zipf2 WHERE zipf1.z=zipf2.z"
+        if args.perm:
+            q = "SELECT zipf1.rowid, zipf2.rowid, * FROM zipf1, zipf2 WHERE zipf1.z=zipf2.z"
         if args.enable_lineage:
             con.execute("PRAGMA trace_lineage='ON'")
 
