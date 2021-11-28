@@ -1,0 +1,41 @@
+# name: test/sql/lineage/simple_aggregate_lineage/test_simple_aggregate_lineage.test
+# description: Test Simple Aggregate Lineage
+# group: [simple_aggregate_lineage]
+
+statement ok
+PRAGMA trace_lineage = "OFF";
+
+statement ok
+CREATE TABLE t1(i VARCHAR(10), j INTEGER);
+
+statement ok
+INSERT INTO t1 VALUES ('Haneen', 2),  ('Omar', 2), ('Haneen', 4), ('Mohammed', 1), ('Omar', 1), ('Haneen', 3), ('Mohammed', 2), ('Omar', 1)
+
+statement ok
+PRAGMA trace_lineage = "ON";
+
+query III
+select MAX(t1.i), SUM(t1.j), SUM(t1.j + 10) from t1
+----
+Omar	16	96
+
+statement ok
+PRAGMA trace_lineage = "OFF";
+
+query II
+SELECT * FROM queries_list;
+----
+1	select MAX(t1.i), SUM(t1.j), SUM(t1.j + 10) from t1
+2	PRAGMA trace_lineage = "OFF";
+
+query IIII
+select in_index, agg_0, agg_1, agg_2 from LINEAGE_1_SIMPLE_AGGREGATE_2_AGG;
+----
+0	Haneen	2	12
+1	Omar	2	12
+2	Haneen	4	14
+3	Mohammed	1	11
+4	Omar	1	11
+5	Haneen	3	13
+6	Mohammed	2	12
+7	Omar	1	11

@@ -142,6 +142,10 @@ void PhysicalSimpleAggregate::Sink(ExecutionContext &context, GlobalOperatorStat
 		                                 payload_chunk.size());
 		payload_idx += payload_cnt;
 	}
+
+#ifdef LINEAGE
+	lineage_op->CaptureAggregateDataChunk(payload_chunk);
+#endif
 }
 
 //===--------------------------------------------------------------------===//
