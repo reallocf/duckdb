@@ -1105,17 +1105,17 @@ select in_index, out_index from LINEAGE_1_PERFECT_HASH_GROUP_BY_2_0 as sink;
 6	4
 7	5
 
-query I
-select agg_0 from LINEAGE_1_PERFECT_HASH_GROUP_BY_2_AGG
+query II
+select in_index, agg_0 from LINEAGE_1_PERFECT_HASH_GROUP_BY_2_AGG
 ----
-2
-2
-4
-1
-3
-2
-1
-1
+0	2
+1	2
+2	4
+3	1
+4	3
+5	2
+6	1
+7	1
 
 query II
 select sink.in_index, source.out_index
