@@ -34,6 +34,7 @@
 #endif
 
 namespace duckdb {
+struct DataChunkish;
 enum class PhysicalOperatorType : uint8_t;
 struct LineageDataWithOffset;
 struct LineageProcessStruct;
@@ -53,8 +54,13 @@ public:
 	void SetChunkId(idx_t idx);
 	idx_t Size();
 
+	// For capturing Monus data
+	void CaptureAggregateDataChunk(DataChunk &chunk);
+
 public:
 	bool trace_lineage;
+	// chunks to be written to aggregate table
+	std::vector<DataChunkish> agg_data;
 private:
 	shared_ptr<PipelineLineage> pipeline_lineage;
 	// data[0] used by all ops; data[1] used by pipeline breakers
@@ -67,6 +73,12 @@ private:
 struct LineageProcessStruct {
 	idx_t count_so_far;
 	bool still_processing;
+};
+
+struct DataChunkish {
+	vector<Vector> data;
+	vector<LogicalType> types;
+	idx_t size;
 };
 
 } // namespace duckdb

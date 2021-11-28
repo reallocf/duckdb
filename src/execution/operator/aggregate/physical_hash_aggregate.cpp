@@ -200,6 +200,8 @@ void PhysicalHashAggregate::Sink(ExecutionContext &context, GlobalOperatorState 
 #ifdef LINEAGE
 		// TODO: don't use gstate
 		lineage_op->Capture(move(gstate.finalized_hts[0]->lineage_data), LINEAGE_SINK);
+
+		lineage_op->CaptureAggregateDataChunk(aggregate_input_chunk);
 #endif
 		return;
 	}

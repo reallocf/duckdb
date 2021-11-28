@@ -15,12 +15,12 @@ statement ok
 PRAGMA trace_lineage = "ON";
 
 # standalone limit
-query II
-select t1.i, avg(t1.j) from t1 GROUP BY t1.i
+query IIII
+select t1.i, avg(t1.j), sum(t1.j + 1), max(t1.i) from t1 GROUP BY t1.i
 ----
-Haneen	3.000000
-Omar	1.333333
-Mohammed	1.500000
+Haneen	3.000000	12	Haneen
+Omar	1.333333	7	Omar
+Mohammed	1.500000	5	Mohammed
 
 statement ok
 PRAGMA trace_lineage = "OFF";
@@ -28,7 +28,7 @@ PRAGMA trace_lineage = "OFF";
 query II
 SELECT * FROM queries_list;
 ----
-1	select t1.i, avg(t1.j) from t1 GROUP BY t1.i
+1	select t1.i, avg(t1.j), sum(t1.j + 1), max(t1.i) from t1 GROUP BY t1.i
 2	PRAGMA trace_lineage = "OFF";
 
 query III
@@ -49,3 +49,15 @@ select rowid, in_index, out_index  from LINEAGE_1_HASH_GROUP_BY_2_0 as sink;
 5	5	0
 6	6	2
 7	7	1
+
+query III
+select agg_0, agg_1, agg_2 from LINEAGE_1_HASH_GROUP_BY_2_AGG;
+----
+2	3	Haneen
+2	3	Omar
+4	5	Haneen
+1	2	Mohammed
+1	2	Omar
+3	4	Haneen
+2	3	Mohammed
+1	2	Omar
