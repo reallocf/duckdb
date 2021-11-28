@@ -209,6 +209,39 @@ void LineageManager::CreateLineageTables(PhysicalOperator *op) {
 		CreateLineageTables( (PhysicalOperator *)dynamic_cast<PhysicalDelimJoin *>(op)->distinct.get());
 	}
 
+	if (op->type == PhysicalOperatorType::HASH_GROUP_BY || op->type == PhysicalOperatorType::PERFECT_HASH_GROUP_BY) {
+		// Example: LINEAGE_1_HASH_GROUP_BY_2_AGG
+		string table_name = "LINEAGE_" + to_string(query_id) + "_"
+							+ op->GetName() + "_AGG";
+
+		vector<LogicalType> types = op->lineage_op->agg_data[0].types;
+		if (!types.empty()) {
+			// Create Table
+			auto info = make_unique<CreateTableInfo>();
+			info->schema = DEFAULT_SCHEMA;
+			info->table = table_name;
+			info->on_conflict = OnCreateConflict::ERROR_ON_CONFLICT;
+			info->temporary = false;
+			for (idx_t col_i = 0; col_i < types.size(); col_i++) {
+				info->columns.emplace_back("agg_" + to_string(col_i), types[col_i]);
+			}
+			auto binder = Binder::CreateBinder(context);
+			auto bound_create_info = binder->BindCreateTableInfo(move(info));
+			auto &catalog = Catalog::GetCatalog(context);
+			TableCatalogEntry *table =
+				dynamic_cast<TableCatalogEntry *>(catalog.CreateTable(context, bound_create_info.get()));
+
+			// Persist Data
+			DataChunk insert_chunk;
+			insert_chunk.Initialize(types);
+			for (DataChunkish chunkish : op->lineage_op->agg_data) {
+				insert_chunk.data = move(chunkish.data);
+				insert_chunk.SetCardinality(chunkish.size);
+				table->Persist(*table, context, insert_chunk);
+			}
+		}
+	}
+
 	// If the operator is unimplemented or doesn't materialize any lineage, it'll be skipped and we'll just
 	// iterate through its children
 	for (idx_t i = 0; i < op->children.size(); i++) {
