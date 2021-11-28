@@ -209,7 +209,10 @@ void LineageManager::CreateLineageTables(PhysicalOperator *op) {
 		CreateLineageTables( (PhysicalOperator *)dynamic_cast<PhysicalDelimJoin *>(op)->distinct.get());
 	}
 
-	if (op->type == PhysicalOperatorType::HASH_GROUP_BY || op->type == PhysicalOperatorType::PERFECT_HASH_GROUP_BY) {
+	if (
+	    op->type == PhysicalOperatorType::HASH_GROUP_BY ||
+	    op->type == PhysicalOperatorType::PERFECT_HASH_GROUP_BY ||
+	    op->type == PhysicalOperatorType::SIMPLE_AGGREGATE) {
 		// Example: LINEAGE_1_HASH_GROUP_BY_2_AGG
 		string table_name = "LINEAGE_" + to_string(query_id) + "_"
 							+ op->GetName() + "_AGG";
