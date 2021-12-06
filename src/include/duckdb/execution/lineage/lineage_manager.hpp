@@ -32,6 +32,7 @@ class LineageManager {
 public:
 	explicit LineageManager(ClientContext &context) : context(context) {};
 
+	void EndToEndQuery(PhysicalOperator *op);
 	void AnnotatePlan(PhysicalOperator *op, bool trace_lineage);
 	void CreateLineageTables(PhysicalOperator *op);
 	void CreateQueryTable();
