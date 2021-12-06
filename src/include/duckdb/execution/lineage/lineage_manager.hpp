@@ -36,6 +36,7 @@ public:
 	void CreateLineageTables(PhysicalOperator *op);
 	void CreateQueryTable();
 	void LogQuery(const string& input_query);
+	string GetEndToEndQueryString(PhysicalOperator *op);
 
 private:
 	ClientContext &context;

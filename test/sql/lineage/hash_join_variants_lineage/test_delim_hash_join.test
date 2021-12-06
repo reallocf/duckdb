@@ -47,24 +47,27 @@ region
 supplier
 
 statement ok
-create table pipeline1 as (SELECT  sink.in_index as lineitem_rowid, probe.out_index FROM LINEAGE_1_PERFECT_HASH_GROUP_BY_3_0 sink, LINEAGE_1_PERFECT_HASH_GROUP_BY_3_1 probe where sink.out_index=probe.in_index and probe.out_index=678)
+create table end_to_end as (
+select temp_opio17.*, 0 as out_index
+FROM (  SELECT temp_12.*, LINEAGE_1_HASH_JOIN_12_1.rhs_index as lineitem_rowid_10, LINEAGE_1_SEQ_SCAN_11_0.in_index as part_rowid_11, 0 as out_index
+        from LINEAGE_1_FILTER_14_0, LINEAGE_1_HASH_JOIN_7_1 left join LINEAGE_1_HASH_JOIN_7_0 on (LINEAGE_1_HASH_JOIN_7_0.out_address=LINEAGE_1_HASH_JOIN_7_1.lhs_address)
+        left join (select temp_9.*, LINEAGE_1_HASH_JOIN_5_0.in_index as delimscan_rowid_9, LINEAGE_1_HASH_JOIN_5_1.out_index as temp12_out_index
+                    from LINEAGE_1_HASH_JOIN_5_0 left join LINEAGE_1_HASH_JOIN_5_1 on (LINEAGE_1_HASH_JOIN_5_0.out_address=LINEAGE_1_HASH_JOIN_5_1.lhs_address)
+                        left join (select LINEAGE_1_PERFECT_HASH_GROUP_BY_3_0.in_index as lineitem_rowid_1, LINEAGE_1_PERFECT_HASH_GROUP_BY_3_1.out_index as temp9_out_index
+                                    from LINEAGE_1_PERFECT_HASH_GROUP_BY_3_1, LINEAGE_1_PERFECT_HASH_GROUP_BY_3_0
+                                    where LINEAGE_1_PERFECT_HASH_GROUP_BY_3_1.in_index=LINEAGE_1_PERFECT_HASH_GROUP_BY_3_0.out_index
+                                    ) as temp_9 on (LINEAGE_1_HASH_JOIN_5_1.rhs_index=temp_9.temp9_out_index)
+                    ) as temp_12 on (LINEAGE_1_HASH_JOIN_7_0.in_index=temp_12.temp12_out_index),
+                    LINEAGE_1_HASH_JOIN_12_1, LINEAGE_1_HASH_JOIN_12_0, LINEAGE_1_SEQ_SCAN_11_0
+        where   LINEAGE_1_HASH_JOIN_7_1.out_index=LINEAGE_1_FILTER_14_0.in_index
+            and LINEAGE_1_HASH_JOIN_7_1.rhs_index=LINEAGE_1_HASH_JOIN_12_1.out_index
+            and LINEAGE_1_HASH_JOIN_12_0.out_address=LINEAGE_1_HASH_JOIN_12_1.lhs_address
+            and LINEAGE_1_HASH_JOIN_12_0.in_index=LINEAGE_1_SEQ_SCAN_11_0.out_index
+    ) as temp_opio17
+)
 
 
-statement ok
-create table pipeline2 as (SELECT probe.rhs_index as lineitem2_rowid, seq11.in_index as part_rowid, probe.out_index FROM LINEAGE_1_SEQ_SCAN_11_0 as seq11, LINEAGE_1_HASH_JOIN_12_0 as sink, LINEAGE_1_HASH_JOIN_12_1 as probe where sink.out_address=probe.lhs_address and sink.in_index=seq11.out_index)
-
-statement ok
-create table pipeline3 as (SELECT lineitem2_rowid, part_rowid, sink.out_index FROM LINEAGE_1_HASH_GROUP_BY_8_0 as sink, pipeline2 where sink.in_index=pipeline2.out_index)
-
-statement ok
-create table pipeline4 as (SELECT lineitem2_rowid, lineitem_rowid, part_rowid, probe.out_index as out_index FROM  pipeline3,  pipeline1, LINEAGE_1_HASH_JOIN_5_1 as probe, LINEAGE_1_HASH_JOIN_5_0 as sink where sink.out_address=probe.lhs_address and pipeline1.out_index=probe.rhs_index and pipeline3.out_index=sink.in_index)
-
-#select p_partkey, part_rowid, l1.l_partkey, lineitem2_rowid, l2.l_partkey, lineitem_rowid from lineitem as l1, lineitem as l2, part, pipeline4 where l1.rowid=lineitem2_rowid and l2.rowid=lineitem_rowid and part.rowid=part_rowid
-
-statement ok
-CREATE TABLE pipeline5 AS (SELECT probe_input.lineitem2_rowid as probe_input_lineitem2_rowid, probe_input.part_rowid as probe_input_part_rowid, sink_input.lineitem2_rowid as sink_input_lineitem2_rowid, sink_input.lineitem_rowid as sink_input_lineitem_rowid, sink_input.part_rowid as  sink_input_part_rowid, probe.out_index FROM pipeline2 as probe_input, pipeline4 as sink_input, LINEAGE_1_HASH_JOIN_7_0 as sink, LINEAGE_1_HASH_JOIN_7_1 as probe where sink.out_address=probe.lhs_address and sink.in_index=sink_input.out_index and probe_input.out_index=probe.rhs_index)
-
-query IIIII
-select l1.l_partkey, l2.l_partkey, l3.l_partkey, p1.p_partkey, p2.p_partkey from lineitem as l1, lineitem as l2, lineitem as l3, part as p1, part as p2, LINEAGE_1_FILTER_14_0, pipeline5 where LINEAGE_1_FILTER_14_0.in_index=pipeline5.out_index and probe_input_lineitem2_rowid=l1.rowid and probe_input_part_rowid=p1.rowid and sink_input_lineitem2_rowid=l2.rowid and sink_input_lineitem_rowid=l3.rowid and p2.rowid=sink_input_part_rowid limit 1
+query IIII
+select lineitem_rowid_10, part_rowid_11, p_partkey, l_partkey from end_to_end, lineitem, part where lineitem.rowid=lineitem_rowid_10 and part.rowid=part_rowid_11 limit 1
 ----
-679	679	679	679	679
+500	820	821	821

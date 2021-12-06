@@ -1106,9 +1106,7 @@ select in_index, out_index from LINEAGE_1_PERFECT_HASH_GROUP_BY_2_0 as sink;
 7	5
 
 query II
-select sink.in_index, source.out_index
-from LINEAGE_1_PERFECT_HASH_GROUP_BY_2_1 as source, LINEAGE_1_PERFECT_HASH_GROUP_BY_2_0 as sink
-where source.in_index=sink.out_index;
+select LINEAGE_1_PERFECT_HASH_GROUP_BY_2_0.in_index as t1_rowid_0, LINEAGE_1_PERFECT_HASH_GROUP_BY_2_1.out_index FROM LINEAGE_1_PERFECT_HASH_GROUP_BY_2_1, LINEAGE_1_PERFECT_HASH_GROUP_BY_2_0 where LINEAGE_1_PERFECT_HASH_GROUP_BY_2_1.in_index=LINEAGE_1_PERFECT_HASH_GROUP_BY_2_0.out_index
 ----
 0	0
 1	3
@@ -3188,9 +3186,11 @@ select in_index, out_index from LINEAGE_2_PERFECT_HASH_GROUP_BY_2_1 as source
 1030	1029
 
 query II
-select sink.in_index, source.out_index
-from LINEAGE_2_PERFECT_HASH_GROUP_BY_2_1 as source, LINEAGE_2_PERFECT_HASH_GROUP_BY_2_0 as sink
-where source.in_index=sink.out_index;
+select LINEAGE_2_PERFECT_HASH_GROUP_BY_2_0.in_index as t2_rowid_0,
+LINEAGE_2_PERFECT_HASH_GROUP_BY_2_1.out_index
+FROM LINEAGE_2_PERFECT_HASH_GROUP_BY_2_1,
+LINEAGE_2_PERFECT_HASH_GROUP_BY_2_0
+where LINEAGE_2_PERFECT_HASH_GROUP_BY_2_1.in_index=LINEAGE_2_PERFECT_HASH_GROUP_BY_2_0.out_index
 ----
 0	0
 1	1
