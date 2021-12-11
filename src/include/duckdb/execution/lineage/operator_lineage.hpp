@@ -34,7 +34,7 @@
 #endif
 
 namespace duckdb {
-struct DataChunkish;
+class DataChunkish;
 enum class PhysicalOperatorType : uint8_t;
 struct LineageDataWithOffset;
 struct LineageProcessStruct;
@@ -74,7 +74,10 @@ struct LineageProcessStruct {
 	bool still_processing;
 };
 
-struct DataChunkish {
+class DataChunkish {
+public:
+	explicit DataChunkish(DataChunk &chunk) : data(chunk.data), types(chunk.GetTypes()), size(chunk.size()) {}
+
 	vector<Vector> data;
 	vector<LogicalType> types;
 	idx_t size;
