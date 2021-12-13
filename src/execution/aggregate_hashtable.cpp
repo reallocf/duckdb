@@ -341,6 +341,10 @@ idx_t GroupedAggregateHashTable::AddChunk(DataChunk &groups, Vector &group_hashe
 		VectorOperations::AddInPlace(addresses, aggr.payload_size, payload.size());
 	}
 
+#ifdef LINEAGE
+	// this maps input to groups, we can use it later to map output to input
+	lineage_data = make_unique<LineageDataVectorBufferArray>(move(addresses.GetBuffer()->data),  groups.size());
+#endif
 	Verify();
 	return new_group_count;
 }
@@ -409,9 +413,6 @@ idx_t GroupedAggregateHashTable::FindOrCreateGroupsInternal(DataChunk &groups, V
 
 	// we start out with all entries [0, 1, 2, ..., groups.size()]
 	const SelectionVector *sel_vector = &FlatVector::INCREMENTAL_SELECTION_VECTOR;
-#ifdef LINEAGE
-	SelectionVector sel_lineage(groups.size());
-#endif
 
 	idx_t remaining_entries = groups.size();
 
@@ -457,9 +458,6 @@ idx_t GroupedAggregateHashTable::FindOrCreateGroupsInternal(DataChunk &groups, V
 				ht_entry_ptr->page_nr = payload_hds.size();
 				ht_entry_ptr->page_offset = payload_page_offset++;
 
-#ifdef LINEAGE
-				sel_lineage.set_index(index,ht_entry_ptr->page_offset+((ht_entry_ptr->page_nr-1)*tuples_per_block));
-#endif
 				// update selection lists for outer loops
 				empty_vector.set_index(new_entry_count++, index);
 				new_groups_out.set_index(new_group_count++, index);
@@ -476,9 +474,6 @@ idx_t GroupedAggregateHashTable::FindOrCreateGroupsInternal(DataChunk &groups, V
 					auto page_ptr = payload_hds_ptrs[ht_entry_ptr->page_nr - 1];
 					auto page_offset = ht_entry_ptr->page_offset * tuple_size;
 					addresses_ptr[index] = page_ptr + page_offset;
-#ifdef LINEAGE
-					sel_lineage.set_index(index, ht_entry_ptr->page_offset);
-#endif
 
 				} else {
 					no_match_vector.set_index(no_match_count++, index);
@@ -507,11 +502,6 @@ idx_t GroupedAggregateHashTable::FindOrCreateGroupsInternal(DataChunk &groups, V
 		sel_vector = &no_match_vector;
 		remaining_entries = no_match_count;
 	}
-
-#ifdef LINEAGE
-	// this maps input to groups, we can use it later to map output to input
-	lineage_data = make_unique<LineageSelVec>(move(sel_lineage), groups.size());
-#endif
 
 	return new_group_count;
 }
@@ -668,15 +658,8 @@ idx_t GroupedAggregateHashTable::Scan(idx_t &scan_position, DataChunk &result) {
 	auto chunk_offset = (scan_position % tuples_per_block) * tuple_size;
 	D_ASSERT(chunk_offset + tuple_size <= Storage::BLOCK_SIZE);
 
-#ifdef LINEAGE
-	SelectionVector lineage(this_n);
-#endif
-
 	auto read_ptr = payload_hds_ptrs[chunk_idx++];
 	for (idx_t i = 0; i < this_n; i++) {
-#ifdef LINEAGE
-		lineage.set_index(i,scan_position+i);
-#endif
 		data_pointers[i] = read_ptr + chunk_offset;
 		chunk_offset += tuple_size;
 		if (chunk_offset >= tuples_per_block * tuple_size) {
@@ -685,9 +668,6 @@ idx_t GroupedAggregateHashTable::Scan(idx_t &scan_position, DataChunk &result) {
 		}
 	}
 
-#ifdef LINEAGE
-	context.GetCurrentLineageOp()->Capture(make_shared<LineageSelVec>(move(lineage), this_n), LINEAGE_SOURCE);
-#endif
 	result.SetCardinality(this_n);
 	// fetch the group columns (ignoring the final hash column
 	const auto group_cols = layout.ColumnCount() - 1;
@@ -699,6 +679,11 @@ idx_t GroupedAggregateHashTable::Scan(idx_t &scan_position, DataChunk &result) {
 	}
 
 	RowOperations::FinalizeStates(layout, addresses, result, group_cols);
+#ifdef LINEAGE
+	// this maps input to groups, we can use it later to map output to input
+	auto scan_lineage = make_unique<LineageDataVectorBufferArray>(move(addresses.GetBuffer()->data),  result.size());
+ 	context.GetCurrentLineageOp()->Capture(move(scan_lineage), LINEAGE_SOURCE);
+#endif
 
 	scan_position += this_n;
 	return this_n;
