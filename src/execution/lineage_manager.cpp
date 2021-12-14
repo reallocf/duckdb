@@ -5,10 +5,12 @@
 #include "duckdb/parser/statement/create_statement.hpp"
 #include "duckdb/parser/parsed_data/create_table_info.hpp"
 #include "duckdb/planner/parsed_data/bound_create_table_info.hpp"
+#include "duckdb/execution/lineage_resource.hpp"
 
 namespace duckdb {
 class PhysicalOperator;
 class LineageContext;
+class LineageResource;
 
 
 void ManageLineage::Reset() {
@@ -51,6 +53,7 @@ void ManageLineage::setQuery(string input_query) {
         create_table_exists = true;
     }
 
+	LineageResource* lr = new LineageResource();
     string tablename = query_table;
     idx_t count = 1;
     TableCatalogEntry * table = Catalog::GetCatalog(context).GetEntry<TableCatalogEntry>(context,  DEFAULT_SCHEMA, tablename);
@@ -73,6 +76,9 @@ void ManageLineage::setQuery(string input_query) {
     // populate chunk
     insert_chunk.data[0].Reference(query_ids);
     insert_chunk.data[1].Reference(payload);
+	lr->assemble(insert_chunk);
+	shared_ptr<ChunkCollection> cc = lr->disperseAll();
+	cc->Print();
 
     table->Persist(*table, context, insert_chunk);
 }

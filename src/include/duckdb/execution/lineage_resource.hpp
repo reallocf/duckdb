@@ -15,13 +15,17 @@ class LineageResource{
 		const int MAX_CHUNK_SIZE_THRESHOLD = 8;
 	    const int MAX_DATA_CHUNK_THRESHOLD = 16;
 
-	    vector<DataChunk> chunks;
-
-	    void assemble(DataChunk chunk){
-		    chunks.push_back(chunk);
+	    LineageResource(){
+		    chunks = make_shared<ChunkCollection>();
 	    }
 
-	    vector<DataChunk> disperseAll(){
+	    static std::shared_ptr<ChunkCollection> chunks;
+
+	    void assemble(DataChunk &chunk){
+		    chunks->Append(chunk);
+	    }
+
+	    shared_ptr<ChunkCollection> disperseAll(){
 		    return chunks;
 	    }
 };

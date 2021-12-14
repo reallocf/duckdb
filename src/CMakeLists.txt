@@ -65,7 +65,7 @@ else()
       utf8proc
       hyperloglog)
 
-  add_library(duckdb SHARED ${ALL_OBJECT_FILES})
+  add_library(duckdb SHARED ${ALL_OBJECT_FILES} execution/lineage_resource_manager.cpp include/duckdb/execution/lineage_resource.hpp)
   target_link_libraries(duckdb ${DUCKDB_LINK_LIBS})
   link_threads(duckdb)
 
