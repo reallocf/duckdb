@@ -76,7 +76,10 @@ struct LineageProcessStruct {
 
 class DataChunkish {
 public:
-	explicit DataChunkish(DataChunk &chunk) : data(chunk.data), types(chunk.GetTypes()), size(chunk.size()) {}
+  explicit DataChunkish(DataChunk &chunk) : size(chunk.size()) {
+    types = move(chunk.GetTypes());
+    data = move(chunk.data);
+  }
 
 	vector<Vector> data;
 	vector<LogicalType> types;
