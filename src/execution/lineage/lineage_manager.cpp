@@ -216,7 +216,7 @@ void LineageManager::CreateLineageTables(PhysicalOperator *op) {
 		DataChunk insert_chunk;
 		insert_chunk.Initialize(types);
 		idx_t count_so_far = 0;
-		for (DataChunkish chunkish : op->lineage_op->agg_data) {
+		for (DataChunkish& chunkish : op->lineage_op->agg_data) {
 			insert_chunk.SetCardinality(chunkish.size);
 
 			// in_index
