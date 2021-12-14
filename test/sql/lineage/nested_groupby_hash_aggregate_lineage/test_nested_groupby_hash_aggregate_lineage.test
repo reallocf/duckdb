@@ -1,0 +1,43 @@
+# name: test/sql/lineage/groupby_lineage/test_nested_groupby_hash_aggregate_lineage.test
+# description: Test Group By linage -- hash aggregate
+# group: [nested_groupby_hash_aggregate_lineage]
+
+
+statement ok
+CREATE TABLE t1(A integer, B integer, C integer);
+
+statement ok
+INSERT INTO t1 VALUES (1, 1, 1) , (1, 1, 1),  (1, 1, 2),  (1, 1, 2),  (2, 2, 1),   (2, 3, 3),  (2, 2, 3), (2, 2, 1)
+
+
+# standalone limit
+query I
+select sum(v) from (select A, sum(v) as v from (select A, B, sum(v) as v from (select A, B, C, count(*) as v from t1 GROUP BY A, B, C)  group by A, B) group by A)
+----
+8
+
+
+query II
+select out_index, t1.rowid from (select ROW_NUMBER() OVER (ORDER BY (SELECT 1)) AS out_index, A, B, C, count(*) as v from t1 GROUP BY A, B, C) as sub join t1 using (A, B, C)
+----
+1	1
+2	3
+3	7
+4	6
+5	5
+1	0
+2	2
+3	4
+
+query II
+select * from (select ROW_NUMBER() OVER (ORDER BY (SELECT 1)) AS out_index, A, B, sum(v) as v from (select ROW_NUMBER() OVER (ORDER BY (SELECT 1)) AS out_index, A, B, C, count(*) as v from t1 GROUP BY A, B, C) group by A, B) as sub1 join (select ROW_NUMBER() OVER (ORDER BY (SELECT 1)) AS out_index, A, B, C, count(*) as v from t1 GROUP BY A, B, C) as sub2 using (A, B)
+# select out_index, t1.rowid from (select ROW_NUMBER() OVER (ORDER BY (SELECT 1)) AS out_index, A, B, C, count(*) as v from t1 GROUP BY A, B, C) as sub join t1 using (A, B, C)
+----
+1	1
+2	3
+3	7
+4	6
+5	5
+1	0
+2	2
+3	4

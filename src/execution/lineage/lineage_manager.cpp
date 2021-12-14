@@ -17,6 +17,7 @@ class PhysicalDelimJoin;
 shared_ptr<PipelineLineage> GetPipelineLineageNodeForOp(PhysicalOperator *op) {
 	switch (op->type) {
 	case PhysicalOperatorType::DELIM_SCAN:
+	case PhysicalOperatorType::DUMMY_SCAN:
 	case PhysicalOperatorType::CHUNK_SCAN:
 	case PhysicalOperatorType::TABLE_SCAN: {
 		return make_shared<PipelineScanLineage>();
@@ -28,11 +29,13 @@ shared_ptr<PipelineLineage> GetPipelineLineageNodeForOp(PhysicalOperator *op) {
 	case PhysicalOperatorType::SIMPLE_AGGREGATE:
 	case PhysicalOperatorType::PERFECT_HASH_GROUP_BY:
 	case PhysicalOperatorType::HASH_GROUP_BY:
+	case PhysicalOperatorType::WINDOW:
 	case PhysicalOperatorType::ORDER_BY: {
 		return make_shared<PipelineBreakerLineage>();
 	}
 	case PhysicalOperatorType::PIECEWISE_MERGE_JOIN:
 	case PhysicalOperatorType::INDEX_JOIN:
+	case PhysicalOperatorType::CROSS_PRODUCT:
 	case PhysicalOperatorType::HASH_JOIN: {
 		return make_shared<PipelineJoinLineage>(op->children[0]->lineage_op->GetPipelineLineage());
 	}
@@ -376,13 +379,16 @@ void LineageManager::EndToEndQuery(PhysicalOperator *op) {
  * from the zero and incrementing it for the lowest levels of the tree
  */
 void LineageManager::AnnotatePlan(PhysicalOperator *op, bool trace_lineage) {
+	std::cout << op->ToString() << std::endl;
+
 	PlanAnnotator(op, 0, trace_lineage);
 	std::cout << op->ToString() << std::endl;
+/*
 	if (trace_lineage) {
 		query Q = GetEndToEndQuery(op, 0);
 		std::cout << "select " << Q.in_select << ", " << Q.out_select << " FROM " << Q.from << " where " << Q.condition
 		          << std::endl;
-	}
+	}*/
 }
 
 // Get the column types for this operator
@@ -401,8 +407,7 @@ vector<vector<ColumnDefinition>> GetTableColumnTypes(PhysicalOperator *op) {
 		res.emplace_back(move(table_columns));
 		break;
 	}
-	case PhysicalOperatorType::PERFECT_HASH_GROUP_BY:
-	case PhysicalOperatorType::HASH_GROUP_BY: {
+	case PhysicalOperatorType::PERFECT_HASH_GROUP_BY: {
 		// sink schema: [INTEGER in_index, INTEGER out_index]
 		vector<ColumnDefinition> sink_table_columns;
 		sink_table_columns.emplace_back("in_index", LogicalType::INTEGER);
@@ -411,6 +416,19 @@ vector<vector<ColumnDefinition>> GetTableColumnTypes(PhysicalOperator *op) {
 		// source schema: [INTEGER in_index, INTEGER out_index]
 		vector<ColumnDefinition> source_table_columns;
 		source_table_columns.emplace_back("in_index", LogicalType::INTEGER);
+		source_table_columns.emplace_back("out_index", LogicalType::INTEGER);
+		res.emplace_back(move(source_table_columns));
+		break;
+	}
+	case PhysicalOperatorType::HASH_GROUP_BY: {
+		// sink schema: [INTEGER in_index, INTEGER out_index]
+		vector<ColumnDefinition> sink_table_columns;
+		sink_table_columns.emplace_back("in_index", LogicalType::INTEGER);
+		sink_table_columns.emplace_back("out_index", LogicalType::BIGINT);
+		res.emplace_back(move(sink_table_columns));
+		// source schema: [INTEGER in_index, INTEGER out_index]
+		vector<ColumnDefinition> source_table_columns;
+		source_table_columns.emplace_back("in_index", LogicalType::BIGINT);
 		source_table_columns.emplace_back("out_index", LogicalType::INTEGER);
 		res.emplace_back(move(source_table_columns));
 		break;

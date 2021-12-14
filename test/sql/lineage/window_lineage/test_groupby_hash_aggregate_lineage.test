@@ -1,6 +1,6 @@
-# name: test/sql/lineage/groupby_lineage/test_groupby_hash_aggregate_lineage.test
+# name: test/sql/lineage/groupby_lineage/test_window_lineage.test
 # description: Test Group By linage -- hash aggregate
-# group: [groupby_hash_aggregate_lineage]
+# group: [window_lineage]
 
 statement ok
 PRAGMA trace_lineage = "OFF";
@@ -16,11 +16,16 @@ PRAGMA trace_lineage = "ON";
 
 # standalone limit
 query II
-select t1.i, avg(t1.j) from t1 GROUP BY t1.i
+SELECT i, SUM(j) OVER () AS running_total FROM t1
 ----
-Haneen	3.000000
-Omar	1.333333
-Mohammed	1.500000
+Mohammed	3
+Omar	3
+Omar	3
+Haneen	9
+Omar	9
+Mohammed	9
+Haneen	12
+Haneen	16
 
 statement ok
 PRAGMA trace_lineage = "OFF";

@@ -15,6 +15,7 @@ void OperatorLineage::Capture(const shared_ptr<LineageData>& datum, idx_t lineag
 	// Capture this vector
 	idx_t offset = pipeline_lineage->GetChildChunkOffset(lineage_idx);
 
+	// here global + local chunk statistics
 	data[lineage_idx].push_back(LineageDataWithOffset{datum, offset});
 }
 

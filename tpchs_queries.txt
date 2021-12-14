@@ -1,0 +1,22 @@
+1. group by + order by
+2. correlated sup query with aggregation and (4 ways join) + 5 ways join 
+3. 3 way join + group by 
+4. semi correlated join + group by
+5. 6 way join + group by
+6. aggregation
+7. group by + 6 ways join
+8. group by + 8 ways join 
+9. group by + 6 ways join 
+10. group by + 4 ways join
+11. group by + 3 ways join + semi join
+12. group by + 2 ways join 
+13. group by + left outr join
+14. aggregation + 2 ways join
+15. correlated joins
+16. join + semi join + group by
+17. 2 way join + correlated join
+18. 3 way join + semi join + group by
+19. 2 way join + aggregation
+20. 2 way join + correlated join
+21. 4 ways join + correlated join
+22. semi join
