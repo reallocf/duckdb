@@ -189,7 +189,9 @@ idx_t OperatorLineage::Size() {
 }
 
 void OperatorLineage::CaptureAggregateDataChunk(DataChunk &chunk) {
-	agg_data.emplace_back(chunk);
+   DataChunkish chunkish(chunk);
+   chunk.InitializeEmpty(chunkish.types);
+   agg_data.emplace_back(move(chunkish));
 }
 
 } // namespace duckdb
