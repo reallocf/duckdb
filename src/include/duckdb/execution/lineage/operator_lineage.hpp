@@ -57,10 +57,14 @@ public:
 	idx_t Size();
 
 	// For capturing Monus data
-	void CaptureAggregateDataChunk(DataChunk &chunk);
+	void CaptureAggregateDataChunk(const string& op_name, ClientContext& context, DataChunk &chunk);
 
 public:
 	bool trace_lineage;
+	// Have aggregations been initialized yet (hacky...)
+	TableCatalogEntry *agg_table = nullptr;
+	idx_t agg_count_so_far = 0;
+private:
 	shared_ptr<PipelineLineage> pipeline_lineage;
 	// data[0] used by all ops; data[1] used by pipeline breakers
 	std::vector<LineageDataWithOffset> data[2];
@@ -72,18 +76,6 @@ public:
 struct LineageProcessStruct {
 	idx_t count_so_far;
 	bool still_processing;
-};
-
-class DataChunkish {
-public:
-  explicit DataChunkish(DataChunk &chunk) : size(chunk.size()) {
-    types = move(chunk.GetTypes());
-    data = move(chunk.data);
-  }
-
-	vector<Vector> data;
-	vector<LogicalType> types;
-	idx_t size;
 };
 
 } // namespace duckdb

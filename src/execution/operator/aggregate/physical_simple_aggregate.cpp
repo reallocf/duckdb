@@ -144,7 +144,7 @@ void PhysicalSimpleAggregate::Sink(ExecutionContext &context, GlobalOperatorStat
 	}
 
 #ifdef LINEAGE
-	lineage_op->CaptureAggregateDataChunk(payload_chunk);
+	lineage_op->CaptureAggregateDataChunk(GetName(), context.client, payload_chunk);
 #endif
 }
 

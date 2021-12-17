@@ -240,10 +240,41 @@ idx_t OperatorLineage::Size() {
 	return size;
 }
 
-void OperatorLineage::CaptureAggregateDataChunk(DataChunk &chunk) {
-   DataChunkish chunkish(chunk);
-   chunk.InitializeEmpty(chunkish.types);
-   agg_data.emplace_back(move(chunkish));
+void OperatorLineage::CaptureAggregateDataChunk(const string& op_name, ClientContext& context, DataChunk &chunk) {
+	if (agg_table == nullptr) {
+		// Example: LINEAGE_1_HASH_GROUP_BY_2_AGG
+		string table_name = "LINEAGE_" + to_string(context.lineage_manager->query_id) + "_" + op_name + "_AGG";
+
+		// Create Table
+		vector<LogicalType> chunk_types = chunk.GetTypes();
+		auto info = make_unique<CreateTableInfo>();
+		info->schema = DEFAULT_SCHEMA;
+		info->table = table_name;
+		info->on_conflict = OnCreateConflict::ERROR_ON_CONFLICT;
+		info->temporary = false;
+		info->columns.emplace_back("in_index", LogicalType::INTEGER);
+		for (idx_t col_i = 0; col_i < chunk_types.size(); col_i++) {
+			info->columns.emplace_back("agg_" + to_string(col_i), chunk_types[col_i]);
+		}
+		auto binder = Binder::CreateBinder(context);
+		auto bound_create_info = binder->BindCreateTableInfo(move(info));
+		auto &catalog = Catalog::GetCatalog(context);
+		agg_table = dynamic_cast<TableCatalogEntry *>(catalog.CreateTable(context, bound_create_info.get()));
+	}
+
+	// Persist to table
+	DataChunk insert_chunk;
+	insert_chunk.Initialize(agg_table->GetTypes());
+	insert_chunk.SetCardinality(chunk.size());
+	// in_index
+	insert_chunk.data[0].Sequence(agg_count_so_far, 1);
+	// agg_*
+	for (idx_t i = 0; i < chunk.GetTypes().size(); i++) {
+		insert_chunk.data[i + 1].Reference(chunk.data[i]);
+	}
+	agg_table->Persist(*agg_table, context, insert_chunk);
+
+	agg_count_so_far += insert_chunk.size();
 }
 
 } // namespace duckdb
