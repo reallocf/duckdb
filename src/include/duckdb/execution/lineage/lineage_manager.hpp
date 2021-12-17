@@ -37,9 +37,10 @@ public:
 	void CreateQueryTable();
 	void LogQuery(const string& input_query);
 
+	idx_t query_id = 0;
+
 private:
 	ClientContext &context;
-	idx_t query_id = 0;
 };
 
 

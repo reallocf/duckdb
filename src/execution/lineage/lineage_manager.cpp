@@ -185,52 +185,6 @@ void LineageManager::CreateLineageTables(PhysicalOperator *op) {
 		CreateLineageTables( (PhysicalOperator *)dynamic_cast<PhysicalDelimJoin *>(op)->distinct.get());
 	}
 
-	if (
-	    op->type == PhysicalOperatorType::HASH_GROUP_BY ||
-	    op->type == PhysicalOperatorType::PERFECT_HASH_GROUP_BY ||
-	    op->type == PhysicalOperatorType::SIMPLE_AGGREGATE) {
-		// Example: LINEAGE_1_HASH_GROUP_BY_2_AGG
-		string table_name = "LINEAGE_" + to_string(query_id) + "_"
-							+ op->GetName() + "_AGG";
-
-		vector<LogicalType> types = {LogicalType::INTEGER}; // in_index
-		types.reserve(1 + op->lineage_op->agg_data[0].types.size());
-		types.insert(types.end(), op->lineage_op->agg_data[0].types.begin(), op->lineage_op->agg_data[0].types.end());
-		// Create Table
-		auto info = make_unique<CreateTableInfo>();
-		info->schema = DEFAULT_SCHEMA;
-		info->table = table_name;
-		info->on_conflict = OnCreateConflict::ERROR_ON_CONFLICT;
-		info->temporary = false;
-		info->columns.emplace_back("in_index", types[0]);
-		for (idx_t col_i = 1; col_i < types.size(); col_i++) {
-			info->columns.emplace_back("agg_" + to_string(col_i - 1), types[col_i]);
-		}
-		auto binder = Binder::CreateBinder(context);
-		auto bound_create_info = binder->BindCreateTableInfo(move(info));
-		auto &catalog = Catalog::GetCatalog(context);
-		TableCatalogEntry *table =
-			dynamic_cast<TableCatalogEntry *>(catalog.CreateTable(context, bound_create_info.get()));
-
-		// Persist Data
-		DataChunk insert_chunk;
-		insert_chunk.Initialize(types);
-		idx_t count_so_far = 0;
-		for (DataChunkish& chunkish : op->lineage_op->agg_data) {
-			insert_chunk.SetCardinality(chunkish.size);
-
-			// in_index
-			insert_chunk.data[0].Sequence(count_so_far, 1);
-			// agg_*
-			for (idx_t i = 0; i < chunkish.data.size(); i++) {
-				insert_chunk.data[i + 1].Reference(chunkish.data[i]);
-			}
-
-			table->Persist(*table, context, insert_chunk);
-			count_so_far += chunkish.size;
-		}
-	}
-
 	// If the operator is unimplemented or doesn't materialize any lineage, it'll be skipped and we'll just
 	// iterate through its children
 	for (idx_t i = 0; i < op->children.size(); i++) {
