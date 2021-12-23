@@ -418,9 +418,7 @@ void RowGroup::TemplatedScan(Transaction *transaction, RowGroupScanState &state,
 			count = approved_tuple_count;
 
 #ifdef LINEAGE
-			if (transaction){
-				transaction->scan_lineage_data = make_shared<LineageSelVec>(sel, approved_tuple_count);
-			}
+			state.scan_lineage_data = make_shared<LineageSelVec>(sel, approved_tuple_count);
 #endif
 		}
 		result.SetCardinality(count);

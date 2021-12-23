@@ -5,6 +5,12 @@
 require tpch
 
 statement ok
+PRAGMA threads=4
+
+statement ok
+PRAGMA force_parallelism
+
+statement ok
 CALL dbgen(sf=0.01);
 
 statement ok

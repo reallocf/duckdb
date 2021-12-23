@@ -31,7 +31,7 @@ public:
 
 #ifdef LINEAGE
   void SetCurrentLineageOp(shared_ptr<OperatorLineage> lop) {
-    current_lop = move(lop);
+    current_lop = lop;
   }
 
   shared_ptr<OperatorLineage> GetCurrentLineageOp() {
@@ -46,6 +46,7 @@ public:
 	//! The task context for this execution
 	TaskContext &task;
 #ifdef LINEAGE
+	// create one for each thread to avoid synchronization
 	//! Current operator of this execution
 	shared_ptr<OperatorLineage> current_lop;
 #endif

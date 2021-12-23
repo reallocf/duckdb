@@ -279,7 +279,7 @@ void PhysicalPiecewiseMergeJoin::ResolveComplexJoin(ExecutionContext &context, D
 #ifdef LINEAGE
 			auto lhs_lineage = make_unique<LineageSelVec>(move(right_info.result), result_count, state->right_chunk_index*STANDARD_VECTOR_SIZE);
 			auto rhs_lineage = make_unique<LineageSelVec>(move(left_info.result), result_count);
-			lineage_op->Capture(make_shared<LineageBinary>(move(lhs_lineage), move(rhs_lineage)), LINEAGE_UNARY);
+			lineage_op.at(context.task.thread_id)->Capture(make_shared<LineageBinary>(move(lhs_lineage), move(rhs_lineage)), LINEAGE_UNARY);
 #endif
 		}
 	} while (chunk.size() == 0);

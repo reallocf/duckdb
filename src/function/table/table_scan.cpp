@@ -79,12 +79,16 @@ static void TableScanFunc(ClientContext &context, const FunctionData *bind_data_
 #else
 	auto &transaction = Transaction::GetTransaction(context);
 #endif
+	// transaction is shared between multiple threads?
+	std::cout << " start thread_id: " << context.task.thread_id;
 	bind_data.table->storage->Scan(transaction, output, state.scan_state, state.column_ids);
+	std::cout << " end thread_id: " << context.task.thread_id << std::endl;
+
 #ifdef LINEAGE
 	auto scan_lop = context.GetCurrentLineageOp();
 	scan_lop->SetChunkId(bind_data.chunk_count); // TODO this is the incorrect value if skipping has occurred
-	if (transaction.scan_lineage_data) {
-		scan_lop->Capture(move(transaction.scan_lineage_data), LINEAGE_UNARY);
+	if (state.scan_state.row_group_scan_state.scan_lineage_data) {
+		scan_lop->Capture(move(state.scan_state.row_group_scan_state.scan_lineage_data), LINEAGE_UNARY);
 	}
 #endif
 	bind_data.chunk_count++;

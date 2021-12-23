@@ -547,10 +547,14 @@ void GroupedAggregateHashTable::FlushMove(Vector &source_addresses, Vector &sour
 	}
 
 	SelectionVector new_groups(STANDARD_VECTOR_SIZE);
-	Vector group_addresses(LogicalType::POINTER);
+	Vector group_addresses(LogicalType::POINTER); // the new addresses for this hashtable
 	SelectionVector new_groups_sel(STANDARD_VECTOR_SIZE);
 
 	FindOrCreateGroups(groups, source_hashes, group_addresses, new_groups_sel);
+	// this is for the aggregated values
+	// we need to keep this information to map old addresses to new addresses
+	std::cout << "source addresses: " << source_addresses.ToString(count) << std::endl;
+	std::cout << "group addresses: " << group_addresses.ToString(count) << std::endl;
 
 	RowOperations::CombineStates(layout, source_addresses, group_addresses, count);
 }

@@ -199,7 +199,7 @@ void PhysicalHashAggregate::Sink(ExecutionContext &context, GlobalOperatorState 
 		gstate.total_groups += gstate.finalized_hts[0]->AddChunk(group_chunk, aggregate_input_chunk);
 #ifdef LINEAGE
 		// TODO: don't use gstate
-		lineage_op->Capture(move(gstate.finalized_hts[0]->lineage_data), LINEAGE_SINK);
+		lineage_op.at(context.task.thread_id)->Capture(move(gstate.finalized_hts[0]->lineage_data), LINEAGE_SINK);
 #endif
 		return;
 	}
@@ -221,6 +221,7 @@ void PhysicalHashAggregate::Sink(ExecutionContext &context, GlobalOperatorState 
 	gstate.total_groups +=
 	    llstate.ht->AddChunk(group_chunk, aggregate_input_chunk,
 	                         gstate.total_groups > radix_limit && gstate.partition_info.n_partitions > 1);
+	// capture lineage for local ht in llstate
 }
 
 class PhysicalHashAggregateState : public PhysicalOperatorState {
@@ -400,7 +401,7 @@ void PhysicalHashAggregate::GetChunkInternal(ExecutionContext &context, DataChun
 	state.scan_chunk.Reset();
 
 #ifdef LINEAGE
-	context.SetCurrentLineageOp(lineage_op);
+	context.SetCurrentLineageOp(lineage_op.at(context.task.thread_id));
 #endif
 
 	// special case hack to sort out aggregating from empty intermediates

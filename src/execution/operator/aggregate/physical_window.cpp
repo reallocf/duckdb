@@ -495,7 +495,7 @@ static void SortCollectionForPartition(PhysicalWindowOperatorState &state, Bound
 				over_partition.Reset();
 				payload_partition.Reset();
 			}
-
+			std::cout << sel.ToString(bin_size) << std::endl;
 			// Copy the data for each collection.
 			if (bin_size) {
 				over_partition.Append(over_chunk, sel, bin_size);
@@ -1039,6 +1039,9 @@ static void ComputeWindowExpression(BoundWindowExpression *wexpr, ChunkCollectio
 		// special case, OVER (), aggregate over everything
 		UpdateWindowBoundaries(bounds, input.Count(), row_idx, over, boundary_start_collection, boundary_end_collection,
 		                       partition_mask, order_mask);
+		std::cout << row_idx << " " << output_offset << " bounds: " << bounds.window_start << " " << bounds.window_end << std::endl;
+//#3,4,7,0,1,6,5,2, then store window boundries as well
+//#7,4,0,1,6,3,2,5
 		if (WindowNeedsRank(wexpr)) {
 			if (!bounds.is_same_partition || row_idx == 0) { // special case for first row, need to init
 				dense_rank = 1;
@@ -1051,7 +1054,6 @@ static void ComputeWindowExpression(BoundWindowExpression *wexpr, ChunkCollectio
 			}
 			rank_equal++;
 		}
-
 		// if no values are read for window, result is NULL
 		if (bounds.window_start >= bounds.window_end) {
 			FlatVector::SetNull(result, output_offset, true);

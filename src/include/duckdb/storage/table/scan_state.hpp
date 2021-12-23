@@ -101,7 +101,9 @@ public:
 	idx_t max_row;
 	//! Child column scans
 	unique_ptr<ColumnScanState[]> column_scans;
-
+#ifdef LINEAGE
+	shared_ptr<LineageSelVec> scan_lineage_data;
+#endif
 public:
 	//! Move to the next vector, skipping past the current one
 	void NextVector();
@@ -123,7 +125,6 @@ public:
 	unique_ptr<AdaptiveFilter> adaptive_filter;
 	//! Transaction-local scan state
 	LocalScanState local_state;
-
 public:
 	//! Move to the next vector
 	void NextVector();

@@ -14,7 +14,7 @@
 namespace duckdb {
 class PhysicalDelimJoin;
 
-shared_ptr<PipelineLineage> GetPipelineLineageNodeForOp(PhysicalOperator *op) {
+shared_ptr<PipelineLineage> LineageManager::GetPipelineLineageNodeForOp(PhysicalOperator *op, int thd_id) {
 	switch (op->type) {
 	case PhysicalOperatorType::DELIM_SCAN:
 	case PhysicalOperatorType::DUMMY_SCAN:
@@ -24,7 +24,7 @@ shared_ptr<PipelineLineage> GetPipelineLineageNodeForOp(PhysicalOperator *op) {
 	}
 	case PhysicalOperatorType::LIMIT:
 	case PhysicalOperatorType::FILTER: {
-		return make_shared<PipelineSingleLineage>(op->children[0]->lineage_op->GetPipelineLineage());
+		return make_shared<PipelineSingleLineage>(op->children[0]->lineage_op[thd_id]->GetPipelineLineage());
 	}
 	case PhysicalOperatorType::SIMPLE_AGGREGATE:
 	case PhysicalOperatorType::PERFECT_HASH_GROUP_BY:
@@ -37,19 +37,33 @@ shared_ptr<PipelineLineage> GetPipelineLineageNodeForOp(PhysicalOperator *op) {
 	case PhysicalOperatorType::INDEX_JOIN:
 	case PhysicalOperatorType::CROSS_PRODUCT:
 	case PhysicalOperatorType::HASH_JOIN: {
-		return make_shared<PipelineJoinLineage>(op->children[0]->lineage_op->GetPipelineLineage());
+		return make_shared<PipelineJoinLineage>(op->children[0]->lineage_op[thd_id]->GetPipelineLineage());
 	}
 	case PhysicalOperatorType::DELIM_JOIN: {
-		return make_shared<PipelineJoinLineage>(op->children[0]->lineage_op->GetPipelineLineage());
+		return make_shared<PipelineJoinLineage>(op->children[0]->lineage_op[thd_id]->GetPipelineLineage());
 	}
 	case PhysicalOperatorType::PROJECTION: {
 		// Pass through to last operator
-		return op->children[0]->lineage_op->GetPipelineLineage();
+		return op->children[0]->lineage_op[thd_id]->GetPipelineLineage();
 	}
 	default:
 		// Lineage unimplemented! TODO these :)
 		return nullptr;
 	}
+}
+
+void LineageManager::CreateOperatorLineage(PhysicalOperator *op, int thd_id, bool trace_lineage) {
+	if (op->type == PhysicalOperatorType::DELIM_JOIN) {
+		CreateOperatorLineage( dynamic_cast<PhysicalDelimJoin *>(op)->join.get(), thd_id, trace_lineage);
+		CreateOperatorLineage( (PhysicalOperator *)dynamic_cast<PhysicalDelimJoin *>(op)->distinct.get(), thd_id, trace_lineage);
+		for (idx_t i = 0; i < dynamic_cast<PhysicalDelimJoin *>(op)->delim_scans.size(); ++i)
+			CreateOperatorLineage( dynamic_cast<PhysicalDelimJoin *>(op)->delim_scans[i], thd_id, trace_lineage);
+	}
+	for (idx_t i = 0; i < op->children.size(); i++) {
+		CreateOperatorLineage(op->children[i].get(), thd_id, trace_lineage);
+	}
+	op->lineage_op[thd_id] = make_shared<OperatorLineage>(GetPipelineLineageNodeForOp(op), op->type);
+	op->lineage_op[thd_id]->trace_lineage = trace_lineage;
 }
 
 // Iterate through in Postorder to ensure that children have PipelineLineageNodes set before parents
@@ -64,8 +78,6 @@ idx_t PlanAnnotator(PhysicalOperator *op, idx_t counter, bool trace_lineage) {
 		counter = PlanAnnotator(op->children[i].get(), counter, trace_lineage);
 	}
 	op->id = counter;
-	op->lineage_op = make_shared<OperatorLineage>(GetPipelineLineageNodeForOp(op), op->type);
-	op->lineage_op->trace_lineage = trace_lineage;
 	return counter + 1;
 }
 
@@ -380,8 +392,9 @@ void LineageManager::EndToEndQuery(PhysicalOperator *op) {
  */
 void LineageManager::AnnotatePlan(PhysicalOperator *op, bool trace_lineage) {
 	std::cout << op->ToString() << std::endl;
-
+	op->trace_lineage = trace_lineage;
 	PlanAnnotator(op, 0, trace_lineage);
+	CreateOperatorLineage(op, -1, trace_lineage);
 	std::cout << op->ToString() << std::endl;
 /*
 	if (trace_lineage) {
@@ -473,7 +486,7 @@ vector<vector<ColumnDefinition>> GetTableColumnTypes(PhysicalOperator *op) {
 }
 
 // Create the table for this operator and fill it with lineage
-void LineageManager::CreateLineageTables(PhysicalOperator *op) {
+void LineageManager::CreateLineageTables(PhysicalOperator *op, int thd_id) {
 	vector<vector<ColumnDefinition>> table_column_types = GetTableColumnTypes(op);
 
 	for (idx_t i = 0; i < table_column_types.size(); i++) {
@@ -500,13 +513,13 @@ void LineageManager::CreateLineageTables(PhysicalOperator *op) {
 		DataChunk insert_chunk;
 		vector<LogicalType> types = table->GetTypes();
 		insert_chunk.Initialize(types);
-		LineageProcessStruct lps = op->lineage_op->Process(table->GetTypes(), 0, insert_chunk);
+		LineageProcessStruct lps = op->lineage_op.at(thd_id)->Process(table->GetTypes(), 0, insert_chunk);
 		table->Persist(*table, context, insert_chunk);
 		while (lps.still_processing) {
-			lps = op->lineage_op->Process(table->GetTypes(), lps.count_so_far, insert_chunk);
+			lps = op->lineage_op.at(thd_id)->Process(table->GetTypes(), lps.count_so_far, insert_chunk);
 			table->Persist(*table, context, insert_chunk);
 		}
-		op->lineage_op->FinishedProcessing();
+		op->lineage_op.at(thd_id)->FinishedProcessing();
 	}
 
 	if (op->type == PhysicalOperatorType::DELIM_JOIN) {
