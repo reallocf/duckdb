@@ -114,7 +114,8 @@ public:
 	constexpr static uint8_t HASH_WIDTH = sizeof(hash_t);
 
 #ifdef LINEAGE
-	unique_ptr<LineageDataVectorBufferArray> lineage_data;
+	unique_ptr<LineageData> lineage_data;
+	vector<unique_ptr<LineageData>> combine_lineage_data;
 #endif
 
 private:

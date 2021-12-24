@@ -28,14 +28,17 @@ namespace duckdb {
 class ClientContext;
 class PhysicalOperator;
 
+
 class LineageManager {
 public:
 	explicit LineageManager(ClientContext &context) : context(context) {};
 
-	void AnnotatePlan(PhysicalOperator *op, bool trace_lineage);
+	void InitOperatorPlan(PhysicalOperator *op, bool trace_lineage);
 	void CreateLineageTables(PhysicalOperator *op);
 	void CreateQueryTable();
 	void LogQuery(const string& input_query);
+	static shared_ptr<PipelineLineage> GetPipelineLineageNodeForOp(PhysicalOperator *op, int thd_id=-1);
+	static void CreateOperatorLineage(PhysicalOperator *op, int thd_id=-1, bool trace_lineage=true);
 
 private:
 	ClientContext &context;

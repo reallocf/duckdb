@@ -38,7 +38,7 @@ void PhysicalTableScan::GetChunkInternal(ExecutionContext &context, DataChunk &c
 		return;
 	}
 #ifdef LINEAGE
-    context.SetCurrentLineageOp(lineage_op);
+    context.SetCurrentLineageOp(lineage_op.at(context.task.thread_id));
 #endif
 	if (!state.initialized) {
 		state.parallel_state = nullptr;
