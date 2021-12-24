@@ -65,10 +65,6 @@ public:
 	//! Whether or not the transaction has been invalidated
 	bool is_invalidated;
 
-#ifdef LINEAGE
-	//! Captured scan selection vector
-	shared_ptr<LineageSelVec> scan_lineage_data;
-#endif
 public:
 	static Transaction &GetTransaction(ClientContext &context);
 
