@@ -102,6 +102,11 @@ public:
 	//! Child column scans
 	unique_ptr<ColumnScanState[]> column_scans;
 
+#ifdef LINEAGE
+	//! Captured scan selection vector
+	shared_ptr<LineageSelVec> scan_lineage_data;
+	idx_t chunk_id;
+#endif
 public:
 	//! Move to the next vector, skipping past the current one
 	void NextVector();

@@ -82,9 +82,9 @@ static void TableScanFunc(ClientContext &context, const FunctionData *bind_data_
 	bind_data.table->storage->Scan(transaction, output, state.scan_state, state.column_ids);
 #ifdef LINEAGE
 	auto scan_lop = context.GetCurrentLineageOp();
-	scan_lop->SetChunkId(bind_data.chunk_count); // TODO this is the incorrect value if skipping has occurred
-	if (transaction.scan_lineage_data) {
-		scan_lop->Capture(move(transaction.scan_lineage_data), LINEAGE_UNARY);
+	scan_lop->SetChunkId(state.scan_state.row_group_scan_state.chunk_id);
+	if (state.scan_state.row_group_scan_state.scan_lineage_data) {
+		scan_lop->Capture(move(state.scan_state.row_group_scan_state.scan_lineage_data), LINEAGE_UNARY);
 	}
 #endif
 	bind_data.chunk_count++;
