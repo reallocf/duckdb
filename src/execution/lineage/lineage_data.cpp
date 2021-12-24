@@ -146,7 +146,7 @@ vector<LineageDataWithOffset> LineageSelVec::Divide() {
 		    vec.sel_data().get()->owned_data.get() + this_offset + this_count,
 		    this_data.get()->owned_data.get()
 		);
-		res[i] = {make_shared<LineageSelVec>(SelectionVector(this_data), this_count), this_offset};
+		res[i] = {make_shared<LineageSelVec>(SelectionVector(this_data), this_count), (int)this_offset};
 	}
 	return res;
 }

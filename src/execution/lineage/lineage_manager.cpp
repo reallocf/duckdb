@@ -13,7 +13,7 @@
 namespace duckdb {
 class PhysicalDelimJoin;
 
-shared_ptr<PipelineLineage> GetPipelineLineageNodeForOp(PhysicalOperator *op) {
+shared_ptr<PipelineLineage> LineageManager::GetPipelineLineageNodeForOp(PhysicalOperator *op, int thd_id) {
 	switch (op->type) {
 	case PhysicalOperatorType::DUMMY_SCAN:
 	case PhysicalOperatorType::DELIM_SCAN:
@@ -23,11 +23,12 @@ shared_ptr<PipelineLineage> GetPipelineLineageNodeForOp(PhysicalOperator *op) {
 	}
 	case PhysicalOperatorType::LIMIT:
 	case PhysicalOperatorType::FILTER: {
-		return make_shared<PipelineSingleLineage>(op->children[0]->lineage_op->GetPipelineLineage());
+		return make_shared<PipelineSingleLineage>(op->children[0]->lineage_op[thd_id]->GetPipelineLineage());
 	}
 	case PhysicalOperatorType::SIMPLE_AGGREGATE:
 	case PhysicalOperatorType::PERFECT_HASH_GROUP_BY:
 	case PhysicalOperatorType::HASH_GROUP_BY:
+	case PhysicalOperatorType::WINDOW:
 	case PhysicalOperatorType::ORDER_BY: {
 		return make_shared<PipelineBreakerLineage>();
 	}
@@ -37,19 +38,33 @@ shared_ptr<PipelineLineage> GetPipelineLineageNodeForOp(PhysicalOperator *op) {
 	case PhysicalOperatorType::PIECEWISE_MERGE_JOIN:
 	case PhysicalOperatorType::INDEX_JOIN:
 	case PhysicalOperatorType::HASH_JOIN: {
-		return make_shared<PipelineJoinLineage>(op->children[0]->lineage_op->GetPipelineLineage());
+		return make_shared<PipelineJoinLineage>(op->children[0]->lineage_op[thd_id]->GetPipelineLineage());
 	}
 	case PhysicalOperatorType::DELIM_JOIN: {
-		return make_shared<PipelineJoinLineage>(op->children[0]->lineage_op->GetPipelineLineage());
+		return make_shared<PipelineJoinLineage>(op->children[0]->lineage_op[thd_id]->GetPipelineLineage());
 	}
 	case PhysicalOperatorType::PROJECTION: {
 		// Pass through to last operator
-		return op->children[0]->lineage_op->GetPipelineLineage();
+		return op->children[0]->lineage_op[thd_id]->GetPipelineLineage();
 	}
 	default:
 		// Lineage unimplemented! TODO these :)
 		return nullptr;
 	}
+}
+
+void LineageManager::CreateOperatorLineage(PhysicalOperator *op, int thd_id, bool trace_lineage) {
+	if (op->type == PhysicalOperatorType::DELIM_JOIN) {
+		CreateOperatorLineage( dynamic_cast<PhysicalDelimJoin *>(op)->join.get(), thd_id, trace_lineage);
+		CreateOperatorLineage( (PhysicalOperator *)dynamic_cast<PhysicalDelimJoin *>(op)->distinct.get(), thd_id, trace_lineage);
+		for (idx_t i = 0; i < dynamic_cast<PhysicalDelimJoin *>(op)->delim_scans.size(); ++i)
+			CreateOperatorLineage( dynamic_cast<PhysicalDelimJoin *>(op)->delim_scans[i], thd_id, trace_lineage);
+	}
+	for (idx_t i = 0; i < op->children.size(); i++) {
+		CreateOperatorLineage(op->children[i].get(), thd_id, trace_lineage);
+	}
+	op->lineage_op[thd_id] = make_shared<OperatorLineage>(GetPipelineLineageNodeForOp(op), op->type);
+	op->lineage_op[thd_id]->trace_lineage = trace_lineage;
 }
 
 // Iterate through in Postorder to ensure that children have PipelineLineageNodes set before parents
@@ -64,8 +79,6 @@ idx_t PlanAnnotator(PhysicalOperator *op, idx_t counter, bool trace_lineage) {
 		counter = PlanAnnotator(op->children[i].get(), counter, trace_lineage);
 	}
 	op->id = counter;
-	op->lineage_op = make_shared<OperatorLineage>(GetPipelineLineageNodeForOp(op), op->type);
-	op->lineage_op->trace_lineage = trace_lineage;
 	return counter + 1;
 }
 
@@ -91,6 +104,7 @@ vector<vector<ColumnDefinition>> GetTableColumnTypes(PhysicalOperator *op) {
 		vector<ColumnDefinition> table_columns;
 		table_columns.emplace_back("in_index", LogicalType::INTEGER);
 		table_columns.emplace_back("out_index", LogicalType::INTEGER);
+		table_columns.emplace_back("thread_id", LogicalType::INTEGER);
 		res.emplace_back(move(table_columns));
 		break;
 	}
@@ -112,12 +126,20 @@ vector<vector<ColumnDefinition>> GetTableColumnTypes(PhysicalOperator *op) {
 		vector<ColumnDefinition> sink_table_columns;
 		sink_table_columns.emplace_back("in_index", LogicalType::INTEGER);
 		sink_table_columns.emplace_back("out_index", LogicalType::BIGINT);
+		sink_table_columns.emplace_back("thread_id", LogicalType::INTEGER);
 		res.emplace_back(move(sink_table_columns));
 		// source schema: [BIGINT in_index, INTEGER out_index]
 		vector<ColumnDefinition> source_table_columns;
 		source_table_columns.emplace_back("in_index", LogicalType::BIGINT);
 		source_table_columns.emplace_back("out_index", LogicalType::INTEGER);
+		source_table_columns.emplace_back("thread_id", LogicalType::INTEGER);
 		res.emplace_back(move(source_table_columns));
+		// combine schema: [BIGINT in_index, INTEGER out_index]
+		vector<ColumnDefinition> combine_table_columns;
+		combine_table_columns.emplace_back("in_index", LogicalType::BIGINT);
+		combine_table_columns.emplace_back("out_index", LogicalType::BIGINT);
+		combine_table_columns.emplace_back("thread_id", LogicalType::INTEGER);
+		res.emplace_back(move(combine_table_columns));
 		break;
 	}
 	case PhysicalOperatorType::BLOCKWISE_NL_JOIN:
@@ -134,6 +156,7 @@ vector<vector<ColumnDefinition>> GetTableColumnTypes(PhysicalOperator *op) {
 		table_columns.emplace_back("lhs_index", LogicalType::INTEGER);
 		table_columns.emplace_back("rhs_index", LogicalType::INTEGER);
 		table_columns.emplace_back("out_index", LogicalType::INTEGER);
+		table_columns.emplace_back("thread_id", LogicalType::INTEGER);
 		res.emplace_back(move(table_columns));
 		break;
 	}
@@ -143,6 +166,7 @@ vector<vector<ColumnDefinition>> GetTableColumnTypes(PhysicalOperator *op) {
 		table_columns.emplace_back("lhs_index", LogicalType::INTEGER);
 		table_columns.emplace_back("rhs_index", LogicalType::BIGINT);
 		table_columns.emplace_back("out_index", LogicalType::INTEGER);
+		table_columns.emplace_back("thread_id", LogicalType::INTEGER);
 		res.emplace_back(move(table_columns));
 		break;
 	}
@@ -151,6 +175,7 @@ vector<vector<ColumnDefinition>> GetTableColumnTypes(PhysicalOperator *op) {
 		vector<ColumnDefinition> build_table_columns;
 		build_table_columns.emplace_back("in_index", LogicalType::INTEGER);
 		build_table_columns.emplace_back("out_address", LogicalType::BIGINT);
+		build_table_columns.emplace_back("thread_id", LogicalType::INTEGER);
 		res.emplace_back(move(build_table_columns));
 		// probe schema: [BIGINT lhs_address, INTEGER rhs_index, INTEGER out_index]
 		vector<ColumnDefinition> probe_table_columns;
@@ -195,13 +220,17 @@ void LineageManager::CreateLineageTables(PhysicalOperator *op) {
 		DataChunk insert_chunk;
 		vector<LogicalType> types = table->GetTypes();
 		insert_chunk.Initialize(types);
-		LineageProcessStruct lps = op->lineage_op->Process(table->GetTypes(), 0, insert_chunk);
-		table->Persist(*table, context, insert_chunk);
-		while (lps.still_processing) {
-			lps = op->lineage_op->Process(table->GetTypes(), lps.count_so_far, insert_chunk);
-			table->Persist(*table, context, insert_chunk);
+		for (auto const& lineage_op : op->lineage_op) {
+			LineageProcessStruct lps = lineage_op.second->Process(table->GetTypes(), 0, insert_chunk, lineage_op.first);
+			if (lps.count_so_far)
+				table->Persist(*table, context, insert_chunk);
+			while (lps.still_processing) {
+				lps = lineage_op.second->Process(table->GetTypes(), lps.count_so_far, insert_chunk, lineage_op.first);
+				if (lps.count_so_far)
+					table->Persist(*table, context, insert_chunk);
+			}
+			lineage_op.second->FinishedProcessing();
 		}
-		op->lineage_op->FinishedProcessing();
 	}
 
 	if (op->type == PhysicalOperatorType::DELIM_JOIN) {

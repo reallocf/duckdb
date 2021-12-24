@@ -27,6 +27,7 @@
 // Define meaningful lineage_idx names
 #define LINEAGE_UNARY 0
 #define LINEAGE_SINK 0
+#define LINEAGE_COMBINE 2
 #define LINEAGE_SOURCE 1
 #define LINEAGE_BUILD 0
 #define LINEAGE_PROBE 1
@@ -43,14 +44,14 @@ public:
 	explicit OperatorLineage(shared_ptr<PipelineLineage> pipeline_lineage, PhysicalOperatorType type) :
 	      pipeline_lineage(move(pipeline_lineage)), type(type)  {}
 
-	void Capture(const shared_ptr<LineageData>& datum, idx_t lineage_idx);
-	void AddLineage(LineageDataWithOffset lineage, idx_t lineage_idx);
+	void Capture(const shared_ptr<LineageData>& datum, idx_t lineage_idx, int thread_id=-1);
+	void AddLineage(LineageDataWithOffset lineage, idx_t lineage_idx, int thread_id=-1);
 
 	void FinishedProcessing();
 	shared_ptr<PipelineLineage> GetPipelineLineage();
 	// Leaky... should refactor this so we don't need a pure pass-through function like this
 	void MarkChunkReturned();
-	LineageProcessStruct Process(const vector<LogicalType>& types, idx_t count_so_far, DataChunk &insert_chunk);
+	LineageProcessStruct Process(const vector<LogicalType>& types, idx_t count_so_far, DataChunk &insert_chunk, int thread_id=-1);
 	// Leaky... should refactor this so we don't need a pure pass-through function like this
 	void SetChunkId(idx_t idx);
 	idx_t Size();
@@ -59,7 +60,7 @@ public:
 	bool trace_lineage;
 	shared_ptr<PipelineLineage> pipeline_lineage;
 	// data[0] used by all ops; data[1] used by pipeline breakers
-	std::vector<LineageDataWithOffset> data[2];
+	std::vector<LineageDataWithOffset> data[3];
 	idx_t finished_idx = 0;
 	idx_t data_idx = 0;
 	PhysicalOperatorType type;

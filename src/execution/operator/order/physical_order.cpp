@@ -99,7 +99,7 @@ void PhysicalOrder::Combine(ExecutionContext &context, GlobalOperatorState &gsta
 	auto &lstate = (OrderLocalState &)lstate_p;
 	gstate.global_sort_state.AddLocalState(lstate.local_sort_state);
 #ifdef LINEAGE
-	lineage_op->Capture(move(lstate.local_sort_state.lineage), LINEAGE_UNARY);
+	lineage_op.at(context.task.thread_id)->Capture(move(lstate.local_sort_state.lineage), LINEAGE_UNARY);
 #endif
 }
 

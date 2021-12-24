@@ -49,9 +49,12 @@ private:
 	vector<idx_t> sel_vector_sizes;
 	DataChunk group_subset, payload_subset;
 	Vector hashes, hashes_subset;
-
+public:
 	HashTableList unpartitioned_hts;
 	unordered_map<hash_t, HashTableList> radix_partitioned_hts;
+#ifdef LINEAGE
+	int thread_id=-1;
+#endif
 
 private:
 	idx_t ListAddChunk(HashTableList &list, DataChunk &groups, Vector &group_hashes, DataChunk &payload);

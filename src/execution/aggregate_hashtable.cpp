@@ -550,8 +550,11 @@ void GroupedAggregateHashTable::FlushMove(Vector &source_addresses, Vector &sour
 	SelectionVector new_groups_sel(STANDARD_VECTOR_SIZE);
 
 	FindOrCreateGroups(groups, source_hashes, group_addresses, new_groups_sel);
-
 	RowOperations::CombineStates(layout, source_addresses, group_addresses, count);
+
+	auto source_lineage = make_unique<LineageDataVectorBufferArray>(move(source_addresses.GetBuffer()->data),  count);
+	auto new_lineage =  make_unique<LineageDataVectorBufferArray>(move(group_addresses.GetBuffer()->data),  count);
+	lineage_data = make_unique<LineageBinary>(move(source_lineage), move(new_lineage));
 }
 
 void GroupedAggregateHashTable::Combine(GroupedAggregateHashTable &other) {

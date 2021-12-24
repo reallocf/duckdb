@@ -295,6 +295,9 @@ void RowGroup::TemplatedScan(Transaction *transaction, RowGroupScanState &state,
 		idx_t current_row = state.vector_index * STANDARD_VECTOR_SIZE;
 		auto max_count = MinValue<idx_t>(STANDARD_VECTOR_SIZE, state.max_row - current_row);
 
+		#ifdef LINEAGE
+				state.chunk_id = this->start/1024 + state.vector_index;
+		#endif
 		//! first check the zonemap if we have to scan this partition
 		if (!CheckZonemapSegments(state)) {
 			continue;
