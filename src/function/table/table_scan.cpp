@@ -79,12 +79,17 @@ static void TableScanFunc(ClientContext &context, const FunctionData *bind_data_
 #else
 	auto &transaction = Transaction::GetTransaction(context);
 #endif
+	// transaction is shared between multiple threads?
 	bind_data.table->storage->Scan(transaction, output, state.scan_state, state.column_ids);
+
 #ifdef LINEAGE
 	auto scan_lop = context.GetCurrentLineageOp();
 	scan_lop->SetChunkId(state.scan_state.row_group_scan_state.chunk_id);
 	if (state.scan_state.row_group_scan_state.scan_lineage_data) {
 		scan_lop->Capture(move(state.scan_state.row_group_scan_state.scan_lineage_data), LINEAGE_UNARY);
+	} else {
+		idx_t start = state.scan_state.row_group_scan_state.chunk_id*STANDARD_VECTOR_SIZE;
+		scan_lop->Capture( make_shared<LineageRange>(start, start+output.size()), LINEAGE_UNARY);
 	}
 #endif
 	bind_data.chunk_count++;

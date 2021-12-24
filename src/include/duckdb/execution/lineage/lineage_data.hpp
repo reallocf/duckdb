@@ -35,7 +35,7 @@ public:
 struct LineageDataWithOffset {
 	// TODO does this need to have a shared_ptr wrapper?
 	shared_ptr<LineageData> data;
-	idx_t offset;
+	int offset;
 };
 
 // TODO get templating working like before - that would be better

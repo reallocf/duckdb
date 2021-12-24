@@ -14,6 +14,7 @@
 #include "duckdb/common/types/data_chunk.hpp"
 #include "duckdb/planner/expression.hpp"
 #include "duckdb/execution/execution_context.hpp"
+#include "duckdb/parallel/task_context.hpp"
 
 #include <functional>
 #include <utility>
@@ -69,7 +70,8 @@ public:
 	// ID of this operator within the physical plan
 	idx_t id;
 	//! Lineage captured for this operator
-	shared_ptr<OperatorLineage> lineage_op;
+	std::unordered_map<int, shared_ptr<OperatorLineage>> lineage_op;
+	bool trace_lineage;
 #endif
 
 public:

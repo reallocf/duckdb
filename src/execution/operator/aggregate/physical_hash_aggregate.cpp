@@ -199,7 +199,7 @@ void PhysicalHashAggregate::Sink(ExecutionContext &context, GlobalOperatorState 
 		gstate.total_groups += gstate.finalized_hts[0]->AddChunk(group_chunk, aggregate_input_chunk);
 #ifdef LINEAGE
 		// TODO: don't use gstate
-		lineage_op->Capture(move(gstate.finalized_hts[0]->lineage_data), LINEAGE_SINK);
+		lineage_op.at(context.task.thread_id)->Capture(move(gstate.finalized_hts[0]->lineage_data), LINEAGE_SINK);
 #endif
 		return;
 	}
@@ -221,6 +221,15 @@ void PhysicalHashAggregate::Sink(ExecutionContext &context, GlobalOperatorState 
 	gstate.total_groups +=
 	    llstate.ht->AddChunk(group_chunk, aggregate_input_chunk,
 	                         gstate.total_groups > radix_limit && gstate.partition_info.n_partitions > 1);
+#ifdef LINEAGE
+	if (!llstate.ht->IsPartitioned()) {
+		lineage_op.at(context.task.thread_id)->Capture(move(llstate.ht->unpartitioned_hts.back()->lineage_data), LINEAGE_SINK);
+	} else {
+		// handle radix_partitioned_hts case
+		// persist: sel_vectors[partition]  radix_partitioned_hts[partition]->lineage_data
+	}
+
+#endif
 }
 
 class PhysicalHashAggregateState : public PhysicalOperatorState {
@@ -273,7 +282,7 @@ void PhysicalHashAggregate::Combine(ExecutionContext &context, GlobalOperatorSta
 
 	// we will never add new values to these HTs so we can drop the first part of the HT
 	llstate.ht->Finalize();
-
+	llstate.ht->thread_id = context.task.thread_id;
 	// at this point we just collect them the PhysicalHashAggregateFinalizeTask (below) will merge them in parallel
 	gstate.intermediate_hts.push_back(move(llstate.ht));
 }
@@ -383,6 +392,9 @@ bool PhysicalHashAggregate::FinalizeInternal(ClientContext &context, unique_ptr<
 			for (auto &unpartitioned_ht : unpartitioned) {
 				D_ASSERT(unpartitioned_ht);
 				gstate.finalized_hts[0]->Combine(*unpartitioned_ht);
+#ifdef LINEAGE
+				lineage_op.begin()->second->Capture(move(gstate.finalized_hts[0]->lineage_data), LINEAGE_COMBINE, pht->thread_id);
+#endif
 				unpartitioned_ht.reset();
 			}
 			unpartitioned.clear();
@@ -400,7 +412,7 @@ void PhysicalHashAggregate::GetChunkInternal(ExecutionContext &context, DataChun
 	state.scan_chunk.Reset();
 
 #ifdef LINEAGE
-	context.SetCurrentLineageOp(lineage_op);
+	context.SetCurrentLineageOp(lineage_op.at(context.task.thread_id));
 #endif
 
 	// special case hack to sort out aggregating from empty intermediates
