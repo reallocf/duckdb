@@ -5,6 +5,12 @@
 require tpch
 
 statement ok
+PRAGMA threads=4
+
+statement ok
+PRAGMA force_parallelism
+
+statement ok
 CALL dbgen(sf=0.01);
 
 statement ok
@@ -33,6 +39,7 @@ PRAGMA show_tables;
 ----
 LINEAGE_1_HASH_GROUP_BY_3_0
 LINEAGE_1_HASH_GROUP_BY_3_1
+LINEAGE_1_HASH_GROUP_BY_3_2
 LINEAGE_1_ORDER_BY_4_0
 LINEAGE_1_SEQ_SCAN_0_0
 customer
@@ -60,21 +67,24 @@ SELECT rowid, l_returnflag, l_linestatus FROM lineitem LIMIT 10
 8	R	F
 9	A	F
 
-query II
-SELECT l1.in_index, l4.out_index
-FROM LINEAGE_1_SEQ_SCAN_0_0 AS l1
-JOIN LINEAGE_1_HASH_GROUP_BY_3_0 AS l2 ON l1.out_index = l2.in_index
-JOIN LINEAGE_1_HASH_GROUP_BY_3_1 AS l3 ON l2.out_index = l3.in_index
-JOIN LINEAGE_1_ORDER_BY_4_0 AS l4 ON l3.out_index = l4.in_index
+query IIII
+SELECT l1.in_index, l5.out_index, l_returnflag, l_linestatus
+FROM LINEAGE_1_SEQ_SCAN_0_0 as l1
+join LINEAGE_1_HASH_GROUP_BY_3_0 as l2 on (l1.out_index=l2.in_index and l1.thread_id=l2.thread_id)
+join LINEAGE_1_HASH_GROUP_BY_3_2 as l3 on (l2.out_index=l3.in_index and l2.thread_id=l3.thread_id)
+join LINEAGE_1_HASH_GROUP_BY_3_1 as l4 on (l4.in_index=l3.out_index)
+join LINEAGE_1_ORDER_BY_4_0 as l5 on (l4.out_index = l5.in_index)
+join lineitem on (l1.in_index=lineitem.rowid)
 WHERE l1.in_index < 10
+order by l1.in_index
 ----
-0	2
-1	2
-2	2
-3	2
-4	2
-5	2
-6	2
-7	3
-8	3
-9	0
+0	2	N	O
+1	2	N	O
+2	2	N	O
+3	2	N	O
+4	2	N	O
+5	2	N	O
+6	2	N	O
+7	3	R	F
+8	3	R	F
+9	0	A	F
