@@ -37,7 +37,9 @@ select query_id, query from queries_list;
 2	PRAGMA trace_lineage = "OFF"
 
 query III
-select sink.in_index as build_index, rhs_index as probe_index, probe.out_index from LINEAGE_1_HASH_JOIN_2_1 AS probe, LINEAGE_1_HASH_JOIN_2_0 AS sink WHERE out_address=lhs_address ;
+select LINEAGE_1_HASH_JOIN_2_0.in_index as t2_rowid_1, LINEAGE_1_HASH_JOIN_2_1.rhs_index as t1_rowid_0, LINEAGE_1_HASH_JOIN_2_1.out_index
+FROM LINEAGE_1_HASH_JOIN_2_1, LINEAGE_1_HASH_JOIN_2_0
+where LINEAGE_1_HASH_JOIN_2_0.out_address=LINEAGE_1_HASH_JOIN_2_1.lhs_address
 ----
 4	0	0
 1	2	1

@@ -74,6 +74,17 @@ void LineageManager::AnnotatePlan(PhysicalOperator *op, bool trace_lineage) {
 	PlanAnnotator(op, 0, trace_lineage);
 }
 
+/*
+ * Print out end to end lineage query
+ */
+string LineageManager::GetEndToEndQueryString(PhysicalOperator *op) {
+	query Q = GetEndToEndQuery(op, query_id);
+	string query = "SELECT " + Q.in_select + ", " + Q.out_select + " FROM " + Q.from;
+	if (!Q.condition.empty())
+		query += " WHERE " + Q.condition;
+	return query;
+}
+
 // Get the column types for this operator
 // Returns 1 vector of ColumnDefinitions for each table that must be created
 vector<vector<ColumnDefinition>> GetTableColumnTypes(PhysicalOperator *op) {

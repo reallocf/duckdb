@@ -33,6 +33,8 @@ LINEAGE_1_HASH_JOIN_3_0
 LINEAGE_1_HASH_JOIN_3_1
 LINEAGE_1_HASH_JOIN_6_0
 LINEAGE_1_HASH_JOIN_6_1
+LINEAGE_1_LIMIT_16_0
+LINEAGE_1_ORDER_BY_15_0
 LINEAGE_1_SEQ_SCAN_0_0
 LINEAGE_1_SEQ_SCAN_1_0
 LINEAGE_1_SEQ_SCAN_7_0
@@ -46,7 +48,43 @@ queries_list
 region
 supplier
 
-query III
-select * from LINEAGE_1_HASH_JOIN_3_1 where lhs_address=0 limit 1
+
+query IIII
+select LINEAGE_1_HASH_JOIN_6_1.rhs_index as partsupp_rowid_0,
+LINEAGE_1_HASH_JOIN_3_0.in_index as chunkscan_rowid_2,
+LINEAGE_1_HASH_JOIN_3_1.rhs_index as part_rowid_1,
+LINEAGE_1_LIMIT_16_0.out_index
+FROM LINEAGE_1_LIMIT_16_0, LINEAGE_1_ORDER_BY_15_0, LINEAGE_1_HASH_GROUP_BY_14_1,
+LINEAGE_1_HASH_GROUP_BY_14_0, LINEAGE_1_FILTER_11_0,
+LINEAGE_1_HASH_JOIN_6_1, LINEAGE_1_HASH_JOIN_6_0, LINEAGE_1_FILTER_4_0,
+LINEAGE_1_HASH_JOIN_3_1 left join LINEAGE_1_HASH_JOIN_3_0 on (LINEAGE_1_HASH_JOIN_3_0.out_address=LINEAGE_1_HASH_JOIN_3_1.lhs_address)
+where LINEAGE_1_ORDER_BY_15_0.out_index=LINEAGE_1_LIMIT_16_0.in_index
+and LINEAGE_1_HASH_GROUP_BY_14_1.out_index=LINEAGE_1_ORDER_BY_15_0.in_index
+and LINEAGE_1_HASH_GROUP_BY_14_1.in_index=LINEAGE_1_HASH_GROUP_BY_14_0.out_index
+and LINEAGE_1_FILTER_11_0.out_index=LINEAGE_1_HASH_GROUP_BY_14_0.in_index
+and LINEAGE_1_HASH_JOIN_6_1.out_index=LINEAGE_1_FILTER_11_0.in_index
+and LINEAGE_1_HASH_JOIN_6_0.out_address=LINEAGE_1_HASH_JOIN_6_1.lhs_address
+and LINEAGE_1_HASH_JOIN_6_0.in_index=LINEAGE_1_FILTER_4_0.out_index
+and LINEAGE_1_HASH_JOIN_3_1.out_index=LINEAGE_1_FILTER_4_0.in_index
 ----
-0	0	0
+379	6	94	0
+167	3	41	0
+378	6	94	0
+166	3	41	0
+377	6	94	0
+165	3	41	0
+376	6	94	0
+164	3	41	0
+
+query I
+select count(*) from LINEAGE_1_FILTER_4_0, LINEAGE_1_HASH_JOIN_3_1 where  LINEAGE_1_HASH_JOIN_3_1.out_index=LINEAGE_1_FILTER_4_0.in_index
+----
+299
+
+# when lhs_address is zero, it means no match was found from the build side, that is why build.in_index is NULL
+query IIIII
+select LINEAGE_1_HASH_JOIN_3_1.lhs_address, LINEAGE_1_HASH_JOIN_3_1.rhs_index, LINEAGE_1_HASH_JOIN_3_1.out_index, LINEAGE_1_HASH_JOIN_3_0.in_index, LINEAGE_1_HASH_JOIN_3_0.out_address
+FROM  LINEAGE_1_HASH_JOIN_3_1 left join LINEAGE_1_HASH_JOIN_3_0 on (LINEAGE_1_HASH_JOIN_3_0.out_address=LINEAGE_1_HASH_JOIN_3_1.lhs_address)
+where LINEAGE_1_HASH_JOIN_3_1.lhs_address=0 limit 1
+----
+0	0	0	NULL	NULL

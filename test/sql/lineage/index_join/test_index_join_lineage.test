@@ -44,7 +44,7 @@ SELECT * FROM queries_list;
 2	PRAGMA trace_lineage = "OFF";
 
 query IIII
-select rowid, lhs_index, rhs_index, out_index from LINEAGE_1_INDEX_JOIN_2_0;
+select rowid, LINEAGE_1_INDEX_JOIN_2_0.lhs_index as t1_rowid_1, LINEAGE_1_INDEX_JOIN_2_0.rhs_index as t2_rowid_0, LINEAGE_1_INDEX_JOIN_2_0.out_index FROM LINEAGE_1_INDEX_JOIN_2_0
 ----
 0	0	50	0
 1	1	51	1
