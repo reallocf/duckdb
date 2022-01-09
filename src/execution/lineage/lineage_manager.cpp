@@ -117,6 +117,11 @@ vector<vector<ColumnDefinition>> GetTableColumnTypes(PhysicalOperator *op) {
 		break;
 	}
 	case PhysicalOperatorType::PIECEWISE_MERGE_JOIN: {
+		// sink: [INTEGER in_index, INTEGER out_index]
+		vector<ColumnDefinition> sink;
+		sink.emplace_back("in_index", LogicalType::INTEGER);
+		sink.emplace_back("out_index", LogicalType::INTEGER);
+		res.emplace_back(move(sink));
 		// schema: [INTEGER lhs_index, BIGINT rhs_index, INTEGER out_index]
 		vector<ColumnDefinition> table_columns;
 		table_columns.emplace_back("lhs_index", LogicalType::INTEGER);
