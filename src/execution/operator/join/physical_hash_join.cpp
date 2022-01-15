@@ -153,7 +153,7 @@ void PhysicalHashJoin::Sink(ExecutionContext &context, GlobalOperatorState &stat
 #ifdef LINEAGE
 		sink.hash_table->Build(context, lstate.join_keys, input);
 #else
-		sink.hash_table->Build(lstate.join_keys, lstate.build_chunk);
+		sink.hash_table->Build(lstate.join_keys, input);
 #endif
 	} else {
 		// there are only keys: place an empty chunk in the payload
