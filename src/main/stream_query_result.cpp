@@ -63,9 +63,11 @@ void StreamQueryResult::Close() {
 		return;
 	}
 	is_open = false;
+#ifdef LINEAGE
 	if (context->trace_lineage) {
 		context->lineage_manager->CreateLineageTables(prepared->plan.get());
 	}
+#endif
 	context->Cleanup();
 }
 

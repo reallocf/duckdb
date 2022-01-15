@@ -10,7 +10,11 @@
 namespace duckdb {
 
 string PhysicalOperator::GetName() const {
+#ifdef LINEAGE
 	return PhysicalOperatorToString(type) + "_" + std::to_string(id);
+#else
+	return PhysicalOperatorToString(type);
+#endif
 }
 
 string PhysicalOperator::ToString() const {
