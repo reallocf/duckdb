@@ -177,6 +177,26 @@ idx_t LineageRange::Size() {
 }
 
 
+// LineageConstant
+
+idx_t LineageConstant::Count() {
+	return count;
+}
+
+void LineageConstant::Debug() {
+	std::cout << "LineageConstant - value: " << value << " Count: " << count << std::endl;
+}
+
+data_ptr_t LineageConstant::Process(idx_t offset) {
+	vec.push_back(value);
+	return (data_ptr_t)vec.data();
+}
+
+idx_t LineageConstant::Size() {
+	return 1*sizeof(value);
+}
+
+
 // LineageBinary
 
 idx_t LineageBinary::Count() {

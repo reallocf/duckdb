@@ -154,6 +154,26 @@ private:
 	vector<sel_t> vec;
 };
 
+// Constant Value
+class LineageConstant : public LineageData {
+public:
+	LineageConstant(idx_t value, idx_t count) : value(value), count(count) {
+#ifdef LINEAGE_DEBUG
+		Debug();
+#endif
+	}
+
+	idx_t Count() override;
+	void Debug() override;
+	data_ptr_t Process(idx_t offset) override;
+	idx_t Size() override;
+
+private:
+	idx_t value;
+	idx_t count;
+	vector<int> vec;
+};
+
 // Captures two lineage data of the same side - used for Joins
 class LineageBinary : public LineageData {
 public:
