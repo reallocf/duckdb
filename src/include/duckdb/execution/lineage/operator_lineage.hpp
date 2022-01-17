@@ -35,13 +35,16 @@
 
 namespace duckdb {
 enum class PhysicalOperatorType : uint8_t;
+class OperatorLineage;
 struct LineageDataWithOffset;
 struct LineageProcessStruct;
 
+shared_ptr<OperatorLineage> ConstructOperatorLineage(PhysicalOperator *op);
+
 class OperatorLineage {
 public:
-	explicit OperatorLineage(shared_ptr<PipelineLineage> pipeline_lineage, PhysicalOperatorType type) :
-	      pipeline_lineage(move(pipeline_lineage)), type(type)  {}
+	// Should call ConstructOperatorLineage instead of using this constructor (hacky...)
+	OperatorLineage() {};
 
 	void Capture(const shared_ptr<LineageData>& datum, idx_t lineage_idx);
 	void FinishedProcessing();
@@ -53,15 +56,17 @@ public:
 	void SetChunkId(idx_t idx);
 	idx_t Size();
 
-public:
 	bool trace_lineage;
-private:
+	vector<vector<ColumnDefinition>> lineage_tables_columns;
+
+protected:
+	virtual idx_t InternalProcess(const vector<LogicalType>& types, idx_t count_so_far, DataChunk &insert_chunk) = 0;
+
 	shared_ptr<PipelineLineage> pipeline_lineage;
 	// data[0] used by all ops; data[1] used by pipeline breakers
 	std::vector<LineageDataWithOffset> data[2];
 	idx_t finished_idx = 0;
 	idx_t data_idx = 0;
-	PhysicalOperatorType type;
 };
 
 struct LineageProcessStruct {
