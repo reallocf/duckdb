@@ -55,7 +55,6 @@ public:
 	// Chunk Management
 	void MarkChunkReturned();
 
-private:
 	shared_ptr<PipelineLineage> probe_child_node;
 	shared_ptr<ChunkOffset> chunk_offset;
 
