@@ -188,6 +188,9 @@ public:
 	}
 
 	DataChunk cached_chunk;
+#ifdef LINEAGE
+	vector<LineageDataWithOffset> cached_lineage;
+#endif
 	DataChunk join_keys;
 	ExpressionExecutor probe_executor;
 	unique_ptr<JoinHashTable::ScanStructure> scan_structure;
@@ -237,17 +240,20 @@ void PhysicalHashJoin::GetChunkInternal(ExecutionContext &context, DataChunk &ch
 
 	do {
 		ProbeHashTable(context, chunk, state);
-#ifdef LINEAGE
-		if (state->scan_structure && state->scan_structure->lineage_probe_data) {
-			lineage_op->Capture(state->scan_structure->lineage_probe_data, LINEAGE_PROBE);
-		}
-#endif
+
 		if (chunk.size() == 0) {
 #if STANDARD_VECTOR_SIZE >= 128
 			if (state->cached_chunk.size() > 0) {
 				// finished probing but cached data remains, return cached chunk
 				chunk.Move(state->cached_chunk);
 				state->cached_chunk.Initialize(types);
+#ifdef LINEAGE
+				for (idx_t i=0; i < state->cached_lineage.size(); ++i) {
+					lineage_op->AddLineage(move(state->cached_lineage[i]), LINEAGE_PROBE);
+				}
+				state->cached_lineage.clear();
+				lineage_op->MarkChunkReturned();
+#endif
 			} else
 #endif
 			    if (IsRightOuterJoin(join_type)) {
@@ -259,35 +265,50 @@ void PhysicalHashJoin::GetChunkInternal(ExecutionContext &context, DataChunk &ch
 				sink.hash_table->ScanFullOuter(chunk, sink.ht_scan_state);
 #endif
 			}
-#ifdef LINEAGE
-			lineage_op->MarkChunkReturned();
-#endif
 			return;
 		} else {
 #if STANDARD_VECTOR_SIZE >= 128
 			if (can_cache && chunk.size() < 64) {
 				// small chunk: add it to chunk cache and continue
 				state->cached_chunk.Append(chunk);
+#ifdef LINEAGE
+				// If we haven't pushed to the parent operator, offset remains the same (chunk merge)
+				idx_t offset = lineage_op->GetPipelineLineage()->GetChildChunkOffset(LINEAGE_PROBE);
+				state->cached_lineage.push_back( LineageDataWithOffset{move(state->scan_structure->lineage_probe_data), offset});
+#endif
 				if (state->cached_chunk.size() >= (STANDARD_VECTOR_SIZE - 64)) {
 					// chunk cache full: return it
 					chunk.Move(state->cached_chunk);
 					state->cached_chunk.Initialize(types);
 #ifdef LINEAGE
+					// iterate over cached lineage
+					for (idx_t i=0; i < state->cached_lineage.size(); ++i) {
+						lineage_op->AddLineage(move(state->cached_lineage[i]), LINEAGE_PROBE);
+
+					}
+					state->cached_lineage.clear();
 					lineage_op->MarkChunkReturned();
 #endif
 					return;
 				} else {
 					// chunk cache not full: probe again
+					// we need to cache lineage data as well.
 					chunk.Reset();
 				}
 			} else {
 #ifdef LINEAGE
+				if (state->scan_structure && state->scan_structure->lineage_probe_data) {
+					lineage_op->Capture(state->scan_structure->lineage_probe_data, LINEAGE_PROBE);
+				}
 				lineage_op->MarkChunkReturned();
 #endif
 				return;
 			}
 #else
 #ifdef LINEAGE
+			if (state->scan_structure && state->scan_structure->lineage_probe_data) {
+				lineage_op->Capture(state->scan_structure->lineage_probe_data, LINEAGE_PROBE);
+			}
 			lineage_op->MarkChunkReturned();
 #endif
 			return;

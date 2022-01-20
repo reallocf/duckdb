@@ -1,6 +1,5 @@
-# name: test/sql/lineage/tpch_lineage/test_tpch_lineage.test
-# description: Test TPCH Q01 Lineage
-# group: [tpch_lineage_q01]
+# name: test/sql/lineage/hash_join/test_hash_join_edges_3.test
+# group: [hash_join_edges]
 
 require tpch
 

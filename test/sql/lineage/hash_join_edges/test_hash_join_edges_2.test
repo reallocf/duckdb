@@ -1,0 +1,39 @@
+# name: test/sql/lineage/hash_join/test_hash_join_edges_2.test
+# description: Test Even More Hash Joins Edge Cases
+# group: [hash_join_edges]
+
+statement ok
+CREATE TABLE t1(i INTEGER);
+
+statement ok
+INSERT INTO t1 VALUES (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0);
+INSERT INTO t1 SELECT i FROM range(1030,2084) tbl(i);
+INSERT INTO t1 VALUES (0);
+
+statement ok
+CREATE TABLE t2(i INTEGER);
+
+statement ok
+INSERT INTO t2 SELECT i FROM range(0,1030) tbl(i);
+INSERT INTO t2 SELECT i FROM range(0,1030) tbl(i);
+INSERT INTO t2 SELECT i FROM range(0,1030) tbl(i);
+
+statement ok
+PRAGMA trace_lineage = "ON"
+
+statement ok
+create table q1 as select ROW_NUMBER() OVER (ORDER BY (SELECT 1)) as out_index, t1.rowid as t1_rowid, t2.rowid as t2_rowid, t1.i, t2.i from t1 inner join t2 on (t1.i = t2.i) where t1.i + t2.i = 0
+
+statement ok
+PRAGMA trace_lineage = "OFF";
+
+statement ok
+create table lineage_q1 as (select f.out_index+1 as out_index, sink.in_index as t2_rowid, probe.rhs_index as t1_rowid
+from LINEAGE_1_HASH_JOIN_2_1 AS probe
+join LINEAGE_1_HASH_JOIN_2_0 AS sink ON sink.out_address = probe.lhs_address
+join LINEAGE_1_FILTER_3_0 as f ON probe.out_index=f.in_index
+order by f.out_index asc)
+
+query IIIIIIII
+select * from q1 join lineage_q1 on (q1.out_index=lineage_q1.out_index) where q1.t2_rowid<>lineage_q1.t2_rowid or q1.t1_rowid<>lineage_q1.t1_rowid
+----

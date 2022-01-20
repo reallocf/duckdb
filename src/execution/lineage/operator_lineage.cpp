@@ -18,6 +18,12 @@ void OperatorLineage::Capture(const shared_ptr<LineageData>& datum, idx_t lineag
 	data[lineage_idx].push_back(LineageDataWithOffset{datum, offset});
 }
 
+void OperatorLineage::AddLineage(LineageDataWithOffset lineage, idx_t lineage_idx) {
+	if (!trace_lineage ) return;
+	pipeline_lineage->AdjustChunkOffsets(lineage.data->Count(), LINEAGE_PROBE);
+	data[lineage_idx].push_back(lineage);
+}
+
 void OperatorLineage::FinishedProcessing() {
 	finished_idx++;
 	data_idx = 0;

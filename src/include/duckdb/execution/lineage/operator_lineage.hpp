@@ -44,6 +44,8 @@ public:
 	      pipeline_lineage(move(pipeline_lineage)), type(type)  {}
 
 	void Capture(const shared_ptr<LineageData>& datum, idx_t lineage_idx);
+	void AddLineage(LineageDataWithOffset lineage, idx_t lineage_idx);
+
 	void FinishedProcessing();
 	shared_ptr<PipelineLineage> GetPipelineLineage();
 	// Leaky... should refactor this so we don't need a pure pass-through function like this
@@ -55,7 +57,6 @@ public:
 
 public:
 	bool trace_lineage;
-private:
 	shared_ptr<PipelineLineage> pipeline_lineage;
 	// data[0] used by all ops; data[1] used by pipeline breakers
 	std::vector<LineageDataWithOffset> data[2];

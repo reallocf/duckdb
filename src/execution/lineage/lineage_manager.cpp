@@ -15,6 +15,7 @@ class PhysicalDelimJoin;
 
 shared_ptr<PipelineLineage> GetPipelineLineageNodeForOp(PhysicalOperator *op) {
 	switch (op->type) {
+	case PhysicalOperatorType::DUMMY_SCAN:
 	case PhysicalOperatorType::DELIM_SCAN:
 	case PhysicalOperatorType::CHUNK_SCAN:
 	case PhysicalOperatorType::TABLE_SCAN: {
