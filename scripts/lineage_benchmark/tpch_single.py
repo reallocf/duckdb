@@ -25,25 +25,31 @@ if args.threads > 1:
     con.execute("PRAGMA threads="+str(args.threads))
     con.execute("PRAGMA force_parallelism")
 
+print(args)
+
 prefix = "extension/tpch/dbgen/queries/q"
+table_name = None
 if args.perm:
     prefix = "extension/tpch/dbgen/queries/perm/q"
-    args.query_lineage = False
+    table_name = 'lineage'
 
 q = prefix+str(args.query_id).zfill(2)+".sql"
 text_file = open(q, "r")
 tpch = text_file.read()
 text_file.close()
-avg, output_size = Run(tpch, args, con)
+avg, output_size = Run(tpch, args, con, table_name)
 
 if args.show_tables:
     print(con.execute("PRAGMA show_tables").fetchdf())
 
 if args.query_lineage:
-    args.profile=False
-    lineage_prefix = "extension/tpch/dbgen/queries/lineage_queries/q"
-    lineage_q = lineage_prefix+str(args.query_id).zfill(2)+".sql"
-    text_file = open(lineage_q, "r")
-    lineage_q = text_file.read()
-    query_id = con.execute("select max(query_id) as qid from queries_list").fetchdf().loc[0, 'qid'] - 1
-    avg, output_size = Run(lineage_q.format(query_id), args, con)
+    if args.enable_lineage:
+        args.profile=False
+        lineage_prefix = "extension/tpch/dbgen/queries/lineage_queries/q"
+        lineage_q = lineage_prefix+str(args.query_id).zfill(2)+".sql"
+        text_file = open(lineage_q, "r")
+        lineage_q = text_file.read()
+        query_id = con.execute("select max(query_id) as qid from queries_list").fetchdf().loc[0, 'qid'] - 1
+        avg, output_size = Run(lineage_q.format(query_id), args, con)
+    elif args.perm:
+        print(con.execute("select * from lineage").fetchdf())
