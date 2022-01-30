@@ -1,25 +1,31 @@
-with select1 as (
-    SELECT customer.rowid as customer_rowid_0, c_acctbal
-    FROM customer
-    WHERE c_acctbal > 0.00 AND substring(c_phone FROM 1 FOR 2) IN ('13', '31', '23', '29', '30', '18', '17')
-), avg_c_acctbal as (
-    select avg(c_acctbal) from select1
-), joins1 as (
-    SELECT customer.rowid as customer_rowid_1, substring(c_phone FROM 1 FOR 2) AS cntrycode, c_acctbal
+CREATE TABLE lineage AS (
+  select groups.*, joins1.*, subq.*
+  from (
+    SELECT cntrycode, count(*) AS numcust, sum(c_acctbal) AS totacctbal
+    FROM (
+      SELECT substring(c_phone FROM 1 FOR 2) AS cntrycode, c_acctbal
+      FROM customer
+      WHERE substring(c_phone FROM 1 FOR 2) IN ('13', '31', '23', '29', '30', '18', '17')
+            AND c_acctbal >  (select avg(c_acctbal) from (
+              SELECT c_acctbal FROM customer
+              WHERE c_acctbal > 0.00 AND substring(c_phone FROM 1 FOR 2) IN ('13', '31', '23', '29', '30', '18', '17')
+            ))
+            AND NOT EXISTS (SELECT * FROM orders WHERE o_custkey=c_custkey)
+    )
+    GROUP BY cntrycode
+    ORDER BY cntrycode
+  ) as groups join (
+    SELECT customer.rowid as customer_rowid_1, substring(c_phone FROM 1 FOR 2) AS cntrycode
     FROM customer
     WHERE substring(c_phone FROM 1 FOR 2) IN ('13', '31', '23', '29', '30', '18', '17')
-          AND c_acctbal > (SELECT * from avg_c_acctbal)
+          AND c_acctbal >  (select avg(c_acctbal) from (
+            SELECT c_acctbal FROM customer
+            WHERE c_acctbal > 0.00 AND substring(c_phone FROM 1 FOR 2) IN ('13', '31', '23', '29', '30', '18', '17')
+          ))
           AND NOT EXISTS (SELECT * FROM orders WHERE o_custkey=c_custkey)
-), groups as (
-  SELECT cntrycode, count(*) AS numcust, sum(c_acctbal) AS totacctbal
-  FROM joins1
-  GROUP BY cntrycode
-  ORDER BY cntrycode
-), end_to_end as (
-  select groups.*, customer_rowid_1, customer_rowid_0
-  from groups join joins1 using (cntrycode),
-    (select group_concat(customer_rowid_0) as customer_rowid_0
-      from select1, joins1 where joins1.c_acctbal > (SELECT * from avg_c_acctbal))
+  ) as joins1 using (cntrycode),
+    (select group_concat(customer.rowid) as customer_rowid_0
+      FROM customer
+        WHERE c_acctbal > 0.00 AND substring(c_phone FROM 1 FOR 2) IN ('13', '31', '23', '29', '30', '18', '17')
+    ) as subq
 )
-
-select * from end_to_end
