@@ -51,7 +51,13 @@ data_ptr_t LineageDataVectorBufferArray::Process(idx_t offset) {
 }
 
 idx_t LineageDataVectorBufferArray::Size() {
-	return count * sizeof(vec[0]);
+  if (count)
+    // sizeof vector is always STANDARD_VECTOR_SIZE since that is how
+    // much memory allocated
+    // return count * sizeof(vec[0]);
+    return STANDARD_VECTOR_SIZE * sizeof(vec[0]);
+  else
+    return 0;
 }
 
 
@@ -77,7 +83,13 @@ data_ptr_t LineageDataUIntPtrArray::Process(idx_t offset) {
 }
 
 idx_t LineageDataUIntPtrArray::Size() {
-	return count * sizeof(vec[0]);
+  if (count)
+    // sizeof vector is always STANDARD_VECTOR_SIZE since that is how
+    // much memory allocated
+    // return count * sizeof(vec[0]);
+    return STANDARD_VECTOR_SIZE * sizeof(vec[0]);
+  else
+    return 0;
 }
 
 
@@ -103,7 +115,13 @@ data_ptr_t LineageDataUInt32Array::Process(idx_t offset) {
 }
 
 idx_t LineageDataUInt32Array::Size() {
-	return count * sizeof(vec[0]);
+  if (count)
+    // sizeof vector is always STANDARD_VECTOR_SIZE since that is how
+    // much memory allocated
+    // return count  * sizeof(vec[0]);
+    return STANDARD_VECTOR_SIZE * sizeof(vec[0]);
+  else
+    return 0;
 }
 
 
@@ -130,6 +148,13 @@ data_ptr_t LineageSelVec::Process(idx_t offset) {
 
 idx_t LineageSelVec::Size() {
 	return count * sizeof(vec.get_index(0));
+  if (count)
+    // sizeof vector is always STANDARD_VECTOR_SIZE since that is how
+    // much memory allocated
+    // return count * sizeof(vec.get_index(0));
+    return STANDARD_VECTOR_SIZE * sizeof(vec.get_index(0));
+  else
+    return 0;
 }
 
 vector<LineageDataWithOffset> LineageSelVec::Divide() {
@@ -173,7 +198,9 @@ data_ptr_t LineageRange::Process(idx_t offset) {
 }
 
 idx_t LineageRange::Size() {
-	return 2*sizeof(start);
+  // in-memory count=2, persist count=end-start
+  // return 2 * sizeof(sel_t);
+  return (end-start) * sizeof(sel_t);
 }
 
 

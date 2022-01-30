@@ -41,7 +41,7 @@ void OperatorLineage::MarkChunkReturned() {
 }
 
 LineageProcessStruct OperatorLineage::Process(const vector<LogicalType>& types, idx_t count_so_far,
-                                              DataChunk &insert_chunk, int thread_id) {
+                                              DataChunk &insert_chunk, idx_t size_so_far, int thread_id) {
 	if (data[finished_idx].size() > data_idx) {
 		Vector thread_id_vec(Value::INTEGER(thread_id));
 		switch (this->type) {
@@ -65,6 +65,7 @@ LineageProcessStruct OperatorLineage::Process(const vector<LogicalType>& types, 
 			insert_chunk.data[3].Reference(thread_id_vec);
 
 			count_so_far += res_count;
+			size_so_far += this_data.data->Size();
 			break;
 		}
 		case PhysicalOperatorType::INDEX_JOIN: {
@@ -83,6 +84,7 @@ LineageProcessStruct OperatorLineage::Process(const vector<LogicalType>& types, 
 			insert_chunk.data[2].Sequence(count_so_far, 1);
 			insert_chunk.data[3].Reference(thread_id_vec);
 			count_so_far += res_count;
+			size_so_far += this_data.data->Size();
 			break;
 		}
 		case PhysicalOperatorType::CROSS_PRODUCT: {
@@ -97,6 +99,7 @@ LineageProcessStruct OperatorLineage::Process(const vector<LogicalType>& types, 
 			insert_chunk.data[2].Sequence(count_so_far, 1);
 			insert_chunk.data[3].Reference(thread_id_vec);
 			count_so_far += res_count;
+			size_so_far += this_data.data->Size();
 			break;
 		}
 		case PhysicalOperatorType::BLOCKWISE_NL_JOIN: {
@@ -113,6 +116,7 @@ LineageProcessStruct OperatorLineage::Process(const vector<LogicalType>& types, 
 			insert_chunk.data[2].Sequence(count_so_far, 1);
 			insert_chunk.data[3].Reference(thread_id_vec);
 			count_so_far += res_count;
+			size_so_far += this_data.data->Size();
 			break;
 		}
 		case PhysicalOperatorType::FILTER:
@@ -131,6 +135,7 @@ LineageProcessStruct OperatorLineage::Process(const vector<LogicalType>& types, 
 			insert_chunk.data[1].Sequence(count_so_far, 1);
 			insert_chunk.data[2].Reference(thread_id_vec);
 			count_so_far += res_count;
+			size_so_far += this_data.data->Size();
 			break;
 		}
 		case PhysicalOperatorType::HASH_JOIN: {
@@ -148,6 +153,7 @@ LineageProcessStruct OperatorLineage::Process(const vector<LogicalType>& types, 
 				insert_chunk.data[1].Reference(payload);
 				insert_chunk.data[2].Reference(thread_id_vec);
 				count_so_far += res_count;
+				size_so_far += this_data.data->Size();
 			} else {
 				// schema2: [INTEGER lhs_address, INTEGER rhs_index, INTEGER out_index]
 
@@ -178,6 +184,7 @@ LineageProcessStruct OperatorLineage::Process(const vector<LogicalType>& types, 
 				insert_chunk.data[2].Sequence(count_so_far, 1);
 				insert_chunk.data[3].Reference(thread_id_vec);
 				count_so_far += res_count;
+				size_so_far += this_data.data->Size();
 			}
 			break;
 		}
@@ -200,6 +207,7 @@ LineageProcessStruct OperatorLineage::Process(const vector<LogicalType>& types, 
 			insert_chunk.data[1].Sequence(count_so_far, 1);
 			insert_chunk.data[2].Reference(thread_id_vec);
 			count_so_far += res_count;
+			size_so_far += this_data.data->Size();
 			break;
 		}
 		case PhysicalOperatorType::HASH_GROUP_BY:
@@ -217,6 +225,7 @@ LineageProcessStruct OperatorLineage::Process(const vector<LogicalType>& types, 
 				insert_chunk.data[1].Reference(payload);
 				insert_chunk.data[2].Reference(thread_id_vec);
 				count_so_far += res_count;
+				size_so_far += this_data.data->Size();
 			} else if (finished_idx == LINEAGE_COMBINE) {
 				LineageDataWithOffset this_data = data[LINEAGE_COMBINE][data_idx];
 				idx_t res_count = this_data.data->Count();
@@ -231,6 +240,7 @@ LineageProcessStruct OperatorLineage::Process(const vector<LogicalType>& types, 
 				insert_chunk.data[2].Reference(thread_id_vec);
 
 				count_so_far += res_count;
+				size_so_far += this_data.data->Size();
 			} else {
 				// TODO: can we remove this one for Hash Aggregate?
 				LineageDataWithOffset this_data = data[LINEAGE_SOURCE][data_idx];
@@ -243,6 +253,7 @@ LineageProcessStruct OperatorLineage::Process(const vector<LogicalType>& types, 
 				insert_chunk.data[1].Sequence(count_so_far, 1);
 				insert_chunk.data[2].Reference(thread_id_vec);
 				count_so_far += res_count;
+				size_so_far += this_data.data->Size();
 			}
 			break;
 		}
@@ -252,7 +263,7 @@ LineageProcessStruct OperatorLineage::Process(const vector<LogicalType>& types, 
 		}
 	}
 	data_idx++;
-	return LineageProcessStruct{ count_so_far,data[finished_idx].size() > data_idx };
+	return LineageProcessStruct{ count_so_far, size_so_far, data[finished_idx].size() > data_idx };
 }
 
 void OperatorLineage::SetChunkId(idx_t idx) {

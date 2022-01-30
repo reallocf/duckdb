@@ -65,7 +65,8 @@ void StreamQueryResult::Close() {
 	is_open = false;
 #ifdef LINEAGE
 	if (context->trace_lineage) {
-		context->lineage_manager->CreateLineageTables(prepared->plan.get());
+		idx_t lineage_size = context->lineage_manager->CreateLineageTables(prepared->plan.get());
+		context->lineage_manager->LogQuery(context->query, lineage_size);
 	}
 #endif
 	context->Cleanup();

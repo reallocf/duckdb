@@ -34,9 +34,9 @@ public:
 	explicit LineageManager(ClientContext &context) : context(context) {};
 
 	void InitOperatorPlan(PhysicalOperator *op, bool trace_lineage);
-	void CreateLineageTables(PhysicalOperator *op);
+	idx_t CreateLineageTables(PhysicalOperator *op);
 	void CreateQueryTable();
-	void LogQuery(const string& input_query);
+	void LogQuery(const string& input_query, idx_t lineage_size=0);
 	static shared_ptr<PipelineLineage> GetPipelineLineageNodeForOp(PhysicalOperator *op, int thd_id=-1);
 	static void CreateOperatorLineage(PhysicalOperator *op, int thd_id=-1, bool trace_lineage=true);
 

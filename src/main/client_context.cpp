@@ -245,10 +245,6 @@ unique_ptr<QueryResult> ClientContext::ExecutePreparedStatement(ClientContextLoc
 	}
 
 #ifdef LINEAGE
-	if (trace_lineage) {
-		// Log query for later lineage lookup
-		lineage_manager->LogQuery(query);
-	}
 	// Always annotate plan with lineage - lineage is always captured even if it isn't persisted TODO is this right?
 	lineage_manager->InitOperatorPlan(statement.plan.get(), trace_lineage);
 #endif
@@ -287,7 +283,8 @@ unique_ptr<QueryResult> ClientContext::ExecutePreparedStatement(ClientContextLoc
 	}
 #ifdef LINEAGE
 	if (trace_lineage) {
-		lineage_manager->CreateLineageTables(statement.plan.get());
+		idx_t lineage_size = lineage_manager->CreateLineageTables(statement.plan.get());
+		lineage_manager->LogQuery(query, lineage_size);
 	}
 #endif
 	if (enable_progress_bar) {
