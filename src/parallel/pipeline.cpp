@@ -19,11 +19,17 @@ namespace duckdb {
 
 class PipelineTask : public Task {
 public:
-	explicit PipelineTask(shared_ptr<Pipeline> pipeline_p) : pipeline(move(pipeline_p)) {
+#ifdef LINEAGE
+	explicit PipelineTask(shared_ptr<Pipeline> pipeline_p, int th_id=-1) : pipeline(move(pipeline_p))  {
+		task.thread_id = th_id;
+#else
+	explicit PipelineTask(shared_ptr<Pipeline> pipeline_p) : pipeline(move(pipeline_p))  {
+#endif
 	}
 
 	TaskContext task;
 	shared_ptr<Pipeline> pipeline;
+
 
 public:
 	void Execute() override {
@@ -140,7 +146,11 @@ void Pipeline::ScheduleSequentialTask() {
 	scheduler.ScheduleTask(*executor.producer, move(task));
 }
 
+#ifdef LINEAGE
+bool Pipeline::LaunchScanTasks(PhysicalOperator *op, idx_t max_threads, unique_ptr<ParallelState> pstate, PhysicalOperator *top) {
+#else
 bool Pipeline::LaunchScanTasks(PhysicalOperator *op, idx_t max_threads, unique_ptr<ParallelState> pstate) {
+#endif
 	// split the scan up into parts and schedule the parts
 	auto &scheduler = TaskScheduler::GetScheduler(executor.context);
 	if (max_threads > executor.context.db->NumberOfThreads()) {
@@ -150,21 +160,35 @@ bool Pipeline::LaunchScanTasks(PhysicalOperator *op, idx_t max_threads, unique_p
 		// too small to parallelize
 		return false;
 	}
+#ifdef LINEAGE
+	for (idx_t i = 0; i < max_threads; i++) {
+		LineageManager::CreateOperatorLineage(top, i, executor.context.trace_lineage);
+	}
+#endif
 
 	this->parallel_node = op;
 	this->parallel_state = move(pstate);
 
 	// launch a task for every thread
 	this->total_tasks = max_threads;
+
 	for (idx_t i = 0; i < max_threads; i++) {
+#ifdef LINEAGE
+		auto task = make_unique<PipelineTask>(shared_from_this(), i);
+#else
 		auto task = make_unique<PipelineTask>(shared_from_this());
+#endif
 		scheduler.ScheduleTask(*executor.producer, move(task));
 	}
 
 	return true;
 }
 
+#ifdef LINEAGE
+bool Pipeline::ScheduleOperator(PhysicalOperator *op, PhysicalOperator *top) {
+#else
 bool Pipeline::ScheduleOperator(PhysicalOperator *op) {
+#endif
 	switch (op->type) {
 	case PhysicalOperatorType::UNNEST:
 	case PhysicalOperatorType::FILTER:
@@ -173,14 +197,22 @@ bool Pipeline::ScheduleOperator(PhysicalOperator *op) {
 	case PhysicalOperatorType::STREAMING_SAMPLE:
 	case PhysicalOperatorType::INOUT_FUNCTION:
 		// filter, projection or hash probe: continue in children
+#ifdef LINEAGE
+		return ScheduleOperator(op->children[0].get(), top);
+#else
 		return ScheduleOperator(op->children[0].get());
+#endif
 	case PhysicalOperatorType::HASH_JOIN: {
 		// hash join; for now we can't safely parallelize right or full outer join probes
 		auto &join = (PhysicalHashJoin &)*op;
 		if (IsRightOuterJoin(join.join_type)) {
 			return false;
 		}
+#ifdef LINEAGE
+		return ScheduleOperator(op->children[0].get(), top);
+#else
 		return ScheduleOperator(op->children[0].get());
+#endif
 	}
 	case PhysicalOperatorType::TABLE_SCAN: {
 		auto &get = (PhysicalTableScan &)*op;
@@ -192,13 +224,21 @@ bool Pipeline::ScheduleOperator(PhysicalOperator *op) {
 		D_ASSERT(get.function.parallel_state_next);
 		idx_t max_threads = get.function.max_threads(executor.context, get.bind_data.get());
 		auto pstate = get.function.init_parallel_state(executor.context, get.bind_data.get());
+#ifdef LINEAGE
+		return LaunchScanTasks(op, max_threads, move(pstate), top);
+#else
 		return LaunchScanTasks(op, max_threads, move(pstate));
+#endif
 	}
 	case PhysicalOperatorType::WINDOW: {
 		auto &win = (PhysicalWindow &)*op;
 		idx_t max_threads = win.MaxThreads(executor.context);
 		auto pstate = win.GetParallelState();
+#ifdef LINEAGE
+		return LaunchScanTasks(op, max_threads, move(pstate), top);
+#else
 		return LaunchScanTasks(op, max_threads, move(pstate));
+#endif
 	}
 	case PhysicalOperatorType::HASH_GROUP_BY: {
 		// FIXME: parallelize scan of GROUP_BY HT
@@ -249,7 +289,11 @@ void Pipeline::Schedule() {
 			// not all aggregates are parallelizable: switch to sequential mode
 			break;
 		}
+#ifdef LINEAGE
+		if (ScheduleOperator(sink->children[0].get(), sink)) {
+#else
 		if (ScheduleOperator(sink->children[0].get())) {
+#endif
 			// all parallel tasks have been scheduled: return
 			return;
 		}
@@ -261,7 +305,11 @@ void Pipeline::Schedule() {
 	case PhysicalOperatorType::RESERVOIR_SAMPLE:
 	case PhysicalOperatorType::PERFECT_HASH_GROUP_BY: {
 		// perfect hash aggregate can always be parallelized
+#ifdef LINEAGE
+		if (ScheduleOperator(sink->children[0].get(), sink)) {
+#else
 		if (ScheduleOperator(sink->children[0].get())) {
+#endif
 			// all parallel tasks have been scheduled: return
 			return;
 		}
@@ -273,7 +321,11 @@ void Pipeline::Schedule() {
 			// not all aggregates are parallelizable: switch to sequential mode
 			break;
 		}
+#ifdef LINEAGE
+		if (ScheduleOperator(sink->children[0].get(), sink)) {
+#else
 		if (ScheduleOperator(sink->children[0].get())) {
+#endif
 			// all parallel tasks have been scheduled: return
 			return;
 		}
@@ -282,7 +334,11 @@ void Pipeline::Schedule() {
 	case PhysicalOperatorType::CROSS_PRODUCT:
 	case PhysicalOperatorType::HASH_JOIN: {
 		// schedule build side of the join
+#ifdef LINEAGE
+		if (ScheduleOperator(sink->children[1].get(), sink)) {
+#else
 		if (ScheduleOperator(sink->children[1].get())) {
+#endif
 			// all parallel tasks have been scheduled: return
 			return;
 		}
@@ -290,7 +346,11 @@ void Pipeline::Schedule() {
 	}
 	case PhysicalOperatorType::WINDOW: {
 		// schedule child op
+#ifdef LINEAGE
+		if (ScheduleOperator(sink->children[0].get(), sink)) {
+#else
 		if (ScheduleOperator(sink->children[0].get())) {
+#endif
 			// all parallel tasks have been scheduled: return
 			return;
 		}

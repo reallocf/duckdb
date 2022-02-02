@@ -23,6 +23,9 @@ public:
 
 	//! Per-operator task info
 	unordered_map<const PhysicalOperator *, ParallelState *> task_info;
+#ifdef LINEAGE
+	int thread_id=-1;
+#endif
 };
 
 } // namespace duckdb

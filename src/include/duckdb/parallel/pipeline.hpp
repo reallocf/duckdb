@@ -106,8 +106,13 @@ private:
 private:
 	bool GetProgress(ClientContext &context, PhysicalOperator *op, int &current_percentage);
 	void ScheduleSequentialTask();
+#ifdef LINEAGE
+	bool LaunchScanTasks(PhysicalOperator *op, idx_t max_threads, unique_ptr<ParallelState> parallel_state, PhysicalOperator *top);
+	bool ScheduleOperator(PhysicalOperator *op, PhysicalOperator *top);
+#else
 	bool LaunchScanTasks(PhysicalOperator *op, idx_t max_threads, unique_ptr<ParallelState> parallel_state);
 	bool ScheduleOperator(PhysicalOperator *op);
+#endif
 };
 
 } // namespace duckdb
