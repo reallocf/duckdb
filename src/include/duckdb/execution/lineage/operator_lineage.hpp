@@ -45,7 +45,6 @@ public:
 	      pipeline_lineage(move(pipeline_lineage)), type(type)  {}
 
 	void Capture(const shared_ptr<LineageData>& datum, idx_t lineage_idx, int thread_id=-1);
-	void AddLineage(LineageDataWithOffset lineage, idx_t lineage_idx, int thread_id=-1);
 
 	void FinishedProcessing();
 	shared_ptr<PipelineLineage> GetPipelineLineage();
@@ -64,6 +63,7 @@ public:
 	idx_t finished_idx = 0;
 	idx_t data_idx = 0;
 	PhysicalOperatorType type;
+	shared_ptr<LineageNested> cached_internal_lineage = nullptr;
 };
 
 struct LineageProcessStruct {
