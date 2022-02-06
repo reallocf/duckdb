@@ -21,12 +21,6 @@ void OperatorLineage::Capture(const shared_ptr<LineageData>& datum, idx_t lineag
 	}
 }
 
-void OperatorLineage::AddLineage(LineageDataWithOffset lineage, idx_t lineage_idx, int thread_id) {
-	if (!trace_lineage ) return;
-	pipeline_lineage->AdjustChunkOffsets(lineage.data->Count(), LINEAGE_PROBE);
-	data[lineage_idx].push_back(lineage);
-}
-
 void OperatorLineage::FinishedProcessing() {
 	finished_idx++;
 	data_idx = 0;
@@ -157,24 +151,40 @@ LineageProcessStruct OperatorLineage::Process(const vector<LogicalType>& types, 
 			} else {
 				// schema2: [INTEGER lhs_address, INTEGER rhs_index, INTEGER out_index]
 
-				LineageDataWithOffset this_data = data[LINEAGE_PROBE][data_idx];
-				idx_t res_count = this_data.data->Count();
+				// This is pretty hacky, but it's fine since we're just validating that we haven't broken HashJoins
+				// when introducing LineageNested
+				if (cached_internal_lineage == nullptr) {
+					cached_internal_lineage = make_shared<LineageNested>(
+					    dynamic_cast<LineageNested &>(*data[LINEAGE_PROBE][data_idx].data)
+					);
+				}
+
+				shared_ptr<LineageDataWithOffset> this_data = cached_internal_lineage->GetInternal();
+
+				if (cached_internal_lineage->IsComplete()) {
+					cached_internal_lineage = nullptr; // Clear to prepare for next LineageNested
+				} else {
+					data_idx--; // Subtract one since later we'll add one and we don't want to move to the next data_idx yet
+				}
+
 				Vector lhs_payload(types[0]);
 				Vector rhs_payload(types[1]);
 
-				if (dynamic_cast<LineageBinary&>(*this_data.data).left == nullptr) {
+				idx_t res_count = this_data->data->Count();
+
+				if (dynamic_cast<LineageBinary&>(*this_data->data).left == nullptr) {
 					lhs_payload.SetVectorType(VectorType::CONSTANT_VECTOR);
 					ConstantVector::SetNull(lhs_payload, true);
 				} else {
-					Vector temp(types[0],  this_data.data->Process(0));
+					Vector temp(types[0],  this_data->data->Process(0));
 					lhs_payload.Reference(temp);
 				}
 
-				if (dynamic_cast<LineageBinary&>(*this_data.data).right == nullptr) {
+				if (dynamic_cast<LineageBinary&>(*this_data->data).right == nullptr) {
 					rhs_payload.SetVectorType(VectorType::CONSTANT_VECTOR);
 					ConstantVector::SetNull(rhs_payload, true);
 				} else {
-					Vector temp(types[1],  this_data.data->Process(this_data.offset));
+					Vector temp(types[1],  this_data->data->Process(this_data->offset));
 					rhs_payload.Reference(temp);
 				}
 
@@ -184,7 +194,7 @@ LineageProcessStruct OperatorLineage::Process(const vector<LogicalType>& types, 
 				insert_chunk.data[2].Sequence(count_so_far, 1);
 				insert_chunk.data[3].Reference(thread_id_vec);
 				count_so_far += res_count;
-				size_so_far += this_data.data->Size();
+				size_so_far += this_data->data->Size();
 			}
 			break;
 		}
