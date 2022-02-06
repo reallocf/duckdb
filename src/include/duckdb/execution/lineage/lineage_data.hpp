@@ -195,6 +195,38 @@ private:
 	bool switch_on_left = true;
 };
 
+class LineageNested : public LineageData {
+public:
+	LineageNested() {
+#ifdef LINEAGE_DEBUG
+		Debug();
+#endif
+	}
+
+	explicit LineageNested(const shared_ptr<LineageDataWithOffset>& lineage_data) : lineage({lineage_data}) {
+		count = lineage_data->data->Count();
+		size = lineage_data->data->Size();
+#ifdef LINEAGE_DEBUG
+		Debug();
+#endif
+	}
+
+	idx_t Count() override;
+	void Debug() override;
+	data_ptr_t Process(idx_t offset) override;
+	idx_t Size() override;
+
+	void AddLineage(const shared_ptr<LineageDataWithOffset>& lineage_data);
+	shared_ptr<LineageDataWithOffset> GetInternal();
+	bool IsComplete();
+
+private:
+	vector<shared_ptr<LineageDataWithOffset>> lineage = {};
+	idx_t ret_idx = 0;
+	idx_t count = 0;
+	idx_t size = 0;
+};
+
 
 } // namespace duckdb
 #endif

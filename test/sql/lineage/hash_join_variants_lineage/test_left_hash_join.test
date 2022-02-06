@@ -43,8 +43,8 @@ PRAGMA trace_lineage = "OFF"
 query II
 select query_id, query from queries_list;
 ----
+0	PRAGMA trace_lineage = "ON"
 1	select t1.rowid, t2.rowid, i, j, k from t1 left join t2 using(i)
-2	PRAGMA trace_lineage = "OFF"
 
 query III
 select sink.in_index as build_index, rhs_index as probe_index, probe.out_index from LINEAGE_1_HASH_JOIN_2_1 AS probe left join LINEAGE_1_HASH_JOIN_2_0 AS sink ON (out_address=lhs_address) order by probe.out_index;

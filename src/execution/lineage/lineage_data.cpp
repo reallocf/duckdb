@@ -256,5 +256,42 @@ idx_t LineageBinary::Size() {
 }
 
 
+// LineageNested
+
+idx_t LineageNested::Count() {
+	return count;
+}
+
+void LineageNested::Debug() {
+	std::cout << "LineageNested:" << std::endl;
+	for (const shared_ptr<LineageDataWithOffset>& lineage_data : lineage) {
+		std::cout << "    ";
+		lineage_data->data->Debug();
+	}
+	std::cout << "End LineageNested" << std::endl;
+}
+
+data_ptr_t LineageNested::Process(idx_t offset) { // ignore passed offset, use stored ones
+	throw std::logic_error("Can't call process on LineageNested more than twice");
+}
+
+idx_t LineageNested::Size() {
+	return size;
+}
+
+void LineageNested::AddLineage(const shared_ptr<LineageDataWithOffset>& lineage_data) {
+	count += lineage_data->data->Count();
+	size += lineage_data->data->Size();
+	lineage.push_back(lineage_data);
+}
+
+shared_ptr<LineageDataWithOffset> LineageNested::GetInternal() {
+	return lineage[ret_idx++];
+}
+
+bool LineageNested::IsComplete() {
+	return ret_idx >= lineage.size();
+}
+
 } // namespace duckdb
 #endif
