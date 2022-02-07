@@ -96,7 +96,7 @@ void LineageManager::InitOperatorPlan(PhysicalOperator *op, bool trace_lineage) 
 
 // Get the column types for this operator
 // Returns 1 vector of ColumnDefinitions for each table that must be created
-vector<vector<ColumnDefinition>> GetTableColumnTypes(PhysicalOperator *op) {
+vector<vector<ColumnDefinition>> LineageManager::GetTableColumnTypes(PhysicalOperator *op) {
 	vector<vector<ColumnDefinition>> res;
 	switch (op->type) {
 	case PhysicalOperatorType::LIMIT:

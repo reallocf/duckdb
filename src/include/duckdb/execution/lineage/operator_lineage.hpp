@@ -51,6 +51,8 @@ public:
 	// Leaky... should refactor this so we don't need a pure pass-through function like this
 	void MarkChunkReturned();
 	LineageProcessStruct Process(const vector<LogicalType>& types, idx_t count_so_far, DataChunk &insert_chunk, idx_t size=0, int thread_id=-1);
+	LineageProcessStruct PostProcess(idx_t count_so_far, idx_t size=0, int thread_id=-1);
+	vector<idx_t> Backward(PhysicalOperator *op, idx_t idx_origin);
 	// Leaky... should refactor this so we don't need a pure pass-through function like this
 	void SetChunkId(idx_t idx);
 	idx_t Size();
@@ -64,6 +66,15 @@ public:
 	idx_t data_idx = 0;
 	PhysicalOperatorType type;
 	shared_ptr<LineageNested> cached_internal_lineage = nullptr;
+
+   // final lineage indexing data-structures
+   // hash_map: used by group by and hash join build side
+   std::unordered_map<uint64_t, idx_t> hash_map;
+   // index: used to index selection vectors
+   //        it stores the size of SV from each chunk
+   //        which helps in locating the one needed
+   //        using binary-search.
+   vector<idx_t> index;
 };
 
 struct LineageProcessStruct {

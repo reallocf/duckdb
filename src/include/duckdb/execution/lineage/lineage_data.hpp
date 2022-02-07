@@ -29,6 +29,7 @@ public:
 	virtual void Debug() = 0;
 	virtual data_ptr_t Process(idx_t offset) = 0;
 	virtual idx_t Size() = 0;
+	virtual idx_t Backward(idx_t) = 0;
 	virtual ~LineageData() {};
 };
 
@@ -51,6 +52,7 @@ public:
 	void Debug() override;
 	data_ptr_t Process(idx_t offset) override;
 	idx_t Size() override;
+	idx_t Backward(idx_t) override;
 
 private:
 	vector<row_t> vec;
@@ -69,6 +71,7 @@ public:
 	void Debug() override;
 	data_ptr_t Process(idx_t offset) override;
 	idx_t Size() override;
+	idx_t Backward(idx_t) override;
 
 private:
 	unique_ptr<data_t[]> vec;
@@ -87,6 +90,7 @@ public:
 	void Debug() override;
 	data_ptr_t Process(idx_t offset) override;
 	idx_t Size() override;
+	idx_t Backward(idx_t) override;
 
 private:
 	unique_ptr<uintptr_t[]> vec;
@@ -105,6 +109,7 @@ public:
 	void Debug() override;
 	data_ptr_t Process(idx_t offset) override;
 	idx_t Size() override;
+	idx_t Backward(idx_t) override;
 
 private:
 	unique_ptr<uint32_t[]> vec;
@@ -123,6 +128,7 @@ public:
 	void Debug() override;
 	data_ptr_t Process(idx_t offset) override;
 	idx_t Size() override;
+	idx_t Backward(idx_t) override;
 
 	// TODO should this be a func shared across all LineageData?
 	vector<LineageDataWithOffset> Divide();
@@ -147,6 +153,7 @@ public:
 	void Debug() override;
 	data_ptr_t Process(idx_t offset) override;
 	idx_t Size() override;
+	idx_t Backward(idx_t) override;
 
 private:
 	idx_t start;
@@ -167,6 +174,7 @@ public:
 	void Debug() override;
 	data_ptr_t Process(idx_t offset) override;
 	idx_t Size() override;
+	idx_t Backward(idx_t) override;
 
 private:
 	idx_t value;
@@ -188,6 +196,7 @@ public:
 	void Debug() override;
 	data_ptr_t Process(idx_t offset) override;
 	idx_t Size() override;
+	idx_t Backward(idx_t) override;
 
 	unique_ptr<LineageData> left;
 	unique_ptr<LineageData> right;
@@ -206,6 +215,7 @@ public:
 	explicit LineageNested(const shared_ptr<LineageDataWithOffset>& lineage_data) : lineage({lineage_data}) {
 		count = lineage_data->data->Count();
 		size = lineage_data->data->Size();
+		index.push_back(count);
 #ifdef LINEAGE_DEBUG
 		Debug();
 #endif
@@ -215,16 +225,21 @@ public:
 	void Debug() override;
 	data_ptr_t Process(idx_t offset) override;
 	idx_t Size() override;
+	idx_t Backward(idx_t) override;
 
 	void AddLineage(const shared_ptr<LineageDataWithOffset>& lineage_data);
 	shared_ptr<LineageDataWithOffset> GetInternal();
 	bool IsComplete();
+	shared_ptr<LineageDataWithOffset>& GetChunkAt(idx_t index);
+	int LocateChunkIndex(idx_t source);
+	idx_t GetAccCount(idx_t i);
 
 private:
 	vector<shared_ptr<LineageDataWithOffset>> lineage = {};
 	idx_t ret_idx = 0;
 	idx_t count = 0;
 	idx_t size = 0;
+	vector<idx_t> index;
 };
 
 

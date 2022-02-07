@@ -283,8 +283,10 @@ unique_ptr<QueryResult> ClientContext::ExecutePreparedStatement(ClientContextLoc
 	}
 #ifdef LINEAGE
 	if (trace_lineage) {
-		idx_t lineage_size = lineage_manager->CreateLineageTables(statement.plan.get());
-		lineage_manager->LogQuery(query, lineage_size);
+		//idx_t lineage_size = lineage_manager->CreateLineageTables(statement.plan.get());
+		lineage_manager->PostProcess(statement.plan.get());
+		lineage_manager->LogQuery(query, 0);
+		query_to_plan[query] = move(statement.plan);
 	}
 #endif
 	if (enable_progress_bar) {
