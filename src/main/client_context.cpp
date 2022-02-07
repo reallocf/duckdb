@@ -218,10 +218,18 @@ unique_ptr<QueryResult> ClientContext::ExecutePreparedStatement(ClientContextLoc
 		progress_bar = make_unique<ProgressBar>(&executor, wait_time);
 		progress_bar->Start();
 	}
+
 	// store the physical plan in the context for calls to Fetch()
 	executor.Initialize(statement.plan.get());
     if (trace_lineage)
         executor.lineage_manager->setQuery(query);
+
+	const string range_ = "SEQ_SCAN_11_0_range";
+	const string filter_ = "FILTER_11_0";
+	if (query.find(range_) != -1 || query.find(filter_) != -1){
+		//Append the scan operator
+		executor.lineage_manager->addCustomScan(statement.plan.get());
+	}
 
     auto types = executor.GetTypes();
 

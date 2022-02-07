@@ -29,6 +29,7 @@ public:
         create_table_exists = false;
     };
 
+	void addCustomScan(PhysicalOperator *plan);
 	void setQuery(string input_query);
     void CreateQueryTable(ClientContext &context);
     void CreateLineageTables(PhysicalOperator *op, ClientContext &context);
