@@ -28,6 +28,10 @@ idx_t LineageDataRowVector::Size() {
 	return count * sizeof(vec[0]);
 }
 
+idx_t LineageDataRowVector::Backward(idx_t source) {
+	return (idx_t)vec[source];
+}
+
 // LineageDataVectorBufferArray
 
 idx_t LineageDataVectorBufferArray::Count() {
@@ -60,6 +64,9 @@ idx_t LineageDataVectorBufferArray::Size() {
     return 0;
 }
 
+idx_t LineageDataVectorBufferArray::Backward(idx_t source) {
+	return (idx_t)vec[source];
+}
 
 // LineageDataUIntPtrArray
 
@@ -92,6 +99,9 @@ idx_t LineageDataUIntPtrArray::Size() {
     return 0;
 }
 
+idx_t LineageDataUIntPtrArray::Backward(idx_t source) {
+	return (idx_t)vec[source];
+}
 
 // LineageDataUInt32Array
 
@@ -124,6 +134,9 @@ idx_t LineageDataUInt32Array::Size() {
     return 0;
 }
 
+idx_t LineageDataUInt32Array::Backward(idx_t source) {
+	return (idx_t)vec[source];
+}
 
 // LineageSelVec
 
@@ -157,6 +170,11 @@ idx_t LineageSelVec::Size() {
     return 0;
 }
 
+
+idx_t LineageSelVec::Backward(idx_t source) {
+	return (idx_t)vec.sel_data()->owned_data[source];
+}
+
 vector<LineageDataWithOffset> LineageSelVec::Divide() {
 	vector<LineageDataWithOffset> res(count / STANDARD_VECTOR_SIZE + 1);
 	for (idx_t i = 0; i < count / STANDARD_VECTOR_SIZE + 1; i++) {
@@ -175,7 +193,6 @@ vector<LineageDataWithOffset> LineageSelVec::Divide() {
 	}
 	return res;
 }
-
 
 // LineageRange
 
@@ -203,6 +220,9 @@ idx_t LineageRange::Size() {
   return (end-start) * sizeof(sel_t);
 }
 
+idx_t LineageRange::Backward(idx_t source) {
+	return source;
+}
 
 // LineageConstant
 
@@ -223,6 +243,9 @@ idx_t LineageConstant::Size() {
 	return 1*sizeof(value);
 }
 
+idx_t LineageConstant::Backward(idx_t source) {
+	return value;
+}
 
 // LineageBinary
 
@@ -255,6 +278,9 @@ idx_t LineageBinary::Size() {
 	return size;
 }
 
+idx_t LineageBinary::Backward(idx_t source) {
+	throw std::logic_error("Can't call backward directly on LineageBinary");
+}
 
 // LineageNested
 
@@ -283,6 +309,7 @@ void LineageNested::AddLineage(const shared_ptr<LineageDataWithOffset>& lineage_
 	count += lineage_data->data->Count();
 	size += lineage_data->data->Size();
 	lineage.push_back(lineage_data);
+	index.push_back(count);
 }
 
 shared_ptr<LineageDataWithOffset> LineageNested::GetInternal() {
@@ -290,7 +317,37 @@ shared_ptr<LineageDataWithOffset> LineageNested::GetInternal() {
 }
 
 bool LineageNested::IsComplete() {
-	return ret_idx >= lineage.size();
+	auto flag = ret_idx >= lineage.size();
+	if (flag) {
+		ret_idx = 0;
+	}
+	return flag;
+}
+
+int LineageNested::LocateChunkIndex(idx_t source) {
+	// (1) locate which internal lineage_data to use
+	auto lower = lower_bound(index.begin(), index.end(), source);
+	if (lower == index.end()) {
+		std::cout << " source (" << source <<") not found in index" << std::endl;
+		return -1;
+	}
+	// exact match, the value is in the next chunk
+	if (*lower == source)
+		return lower-index.begin()+1;
+
+	return lower-index.begin();
+}
+
+shared_ptr<LineageDataWithOffset>& LineageNested::GetChunkAt(idx_t index) {
+	return lineage[index];
+}
+
+idx_t LineageNested::GetAccCount(idx_t i) {
+	return index[i];
+}
+
+idx_t LineageNested::Backward(idx_t source) {
+	throw std::logic_error("Can't call backward directly on LineageNested");
 }
 
 } // namespace duckdb

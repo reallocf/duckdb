@@ -8,7 +8,7 @@
 namespace duckdb {
 
 void OperatorLineage::Capture(const shared_ptr<LineageData>& datum, idx_t lineage_idx, int thread_id) {
-	if (!trace_lineage ) return;
+	if (!trace_lineage || datum->Count() == 0) return;
 	// Prepare this vector's chunk to be passed on to future operators
 	pipeline_lineage->AdjustChunkOffsets(datum->Count(), lineage_idx);
 

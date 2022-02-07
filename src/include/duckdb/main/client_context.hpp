@@ -105,6 +105,7 @@ public:
 	bool trace_lineage = false;
 	//! The lineage manager
 	unique_ptr<LineageManager> lineage_manager;
+	std::unordered_map<string, std::unique_ptr<PhysicalOperator>> query_to_plan;
 #endif
 
 public:

@@ -4,6 +4,28 @@
 
 namespace duckdb {
 
+#ifdef LINEAGE
+string PragmaBackwardLineage(ClientContext &context, const FunctionParameters &parameters) {
+	// query the lineage data, create a view on top of it, and then query that
+	string query = parameters.values[0].ToString();
+	auto op = context.query_to_plan[query].get();
+	string origin = parameters.values[1].ToString();
+	std::stringstream ss(origin);
+	string word;
+	string out;
+	while (ss >> word) {
+		auto lineage = context.lineage_manager->Backward(op, (idx_t)stoi(word));
+		for (auto el : lineage) {
+			if (out.size() > 0)
+				out += ",";
+			out += to_string(el);
+		}
+	}
+
+	return StringUtil::Format("SELECT %s", out);
+}
+#endif
+
 string PragmaTableInfo(ClientContext &context, const FunctionParameters &parameters) {
 	return StringUtil::Format("SELECT * FROM pragma_table_info('%s')", parameters.values[0].ToString());
 }
@@ -67,6 +89,9 @@ string PragmaStorageInfo(ClientContext &context, const FunctionParameters &param
 }
 
 void PragmaQueries::RegisterFunction(BuiltinFunctions &set) {
+#ifdef LINEAGE
+	set.AddFunction(PragmaFunction::PragmaCall("backward_lineage", PragmaBackwardLineage,  {LogicalType::VARCHAR, LogicalType::VARCHAR}));
+#endif
 	set.AddFunction(PragmaFunction::PragmaCall("table_info", PragmaTableInfo, {LogicalType::VARCHAR}));
 	set.AddFunction(PragmaFunction::PragmaCall("storage_info", PragmaStorageInfo, {LogicalType::VARCHAR}));
 	set.AddFunction(PragmaFunction::PragmaStatement("show_tables", PragmaShowTables));
