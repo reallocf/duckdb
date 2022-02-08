@@ -55,6 +55,14 @@ void ManageLineage::addCustomScan(PhysicalOperator *op) {
 
 }
 
+void ManageLineage::setCustomScan(bool isSet){
+	customScan = isSet;
+}
+
+bool ManageLineage::getCustomScan(){
+	return customScan;
+}
+
 void ManageLineage::AnnotatePlan(PhysicalOperator *op) {
     if (!op) return;
     if ( op_metadata.find(op->GetName()) == op_metadata.end() )

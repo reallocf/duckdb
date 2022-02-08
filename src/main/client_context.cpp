@@ -228,7 +228,8 @@ unique_ptr<QueryResult> ClientContext::ExecutePreparedStatement(ClientContextLoc
 	const string filter_ = "FILTER_11_0";
 	if (query.find(range_) != -1 || query.find(filter_) != -1){
 		//Append the scan operator
-		executor.lineage_manager->addCustomScan(statement.plan.get());
+		//executor.lineage_manager->addCustomScan(statement.plan.get());
+		executor.lineage_manager->setCustomScan(true);
 	}
 
     auto types = executor.GetTypes();

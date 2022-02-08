@@ -39,6 +39,8 @@ public:
     void ForwardLineage(PhysicalOperator *op, shared_ptr<LineageContext> lineage, int idx, ClientContext &context);
 	void Reset();
     void LineageSize();
+	void setCustomScan(bool isSet);
+	bool getCustomScan();
 
     void AddOutputLineage(PhysicalOperator* opKey, shared_ptr<LineageContext>  lineage);
     void AddLocalSinkLineage(PhysicalOperator* opKey,  shared_ptr<LineageContext> lineage);
@@ -54,6 +56,7 @@ public:
     DataChunk insert_chunk;
     ClientContext &context;
     bool create_table_exists;
+	bool customScan;
 };
 
 class LineageData {
@@ -470,6 +473,7 @@ public:
 
     std::unordered_map<int, std::unordered_map<PhysicalOperator*, shared_ptr<LineageOp>>> ht;
 	int32_t chunk_id;
+	bool isCScanSet;
 };
 
 } // namespace duckdb

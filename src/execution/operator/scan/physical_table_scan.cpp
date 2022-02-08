@@ -65,7 +65,15 @@ void PhysicalTableScan::GetChunkInternal(ExecutionContext &context, DataChunk &c
 	}
 	if (!state.parallel_state) {
 		// sequential scan
-		function.function(context, bind_data.get(), state.operator_data.get(), nullptr, chunk);
+		int k = 0;
+		if (context.lineage->isCScanSet){
+			// fill in the output chunk by calling a custom function not necessarily an operator. figure out how to set the flag to false
+			k = 1;
+		}
+		else{
+			function.function(context, bind_data.get(), state.operator_data.get(), nullptr, chunk);
+		}
+
 		if (chunk.size() != 0) {
 			return;
 		}
