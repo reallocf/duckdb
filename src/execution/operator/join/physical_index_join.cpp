@@ -133,9 +133,12 @@ void PhysicalIndexJoin::Output(ExecutionContext &context, DataChunk &chunk, Phys
 	}
 
 #ifdef LINEAGE
-	auto lhs_lineage = make_unique<LineageSelVec>(move(sel), output_sel_idx);
-	auto rhs_lineage = make_unique<LineageDataRowVector>(fetch_rows, output_sel_idx);
-	lineage_op.at(context.task.thread_id)->Capture(make_shared<LineageBinary>(move(lhs_lineage), move(rhs_lineage)), LINEAGE_UNARY);
+	auto this_lineage_op = lineage_op.at(context.task.thread_id);
+	auto child = this_lineage_op->GetChildLatest(LINEAGE_UNARY);
+	auto lhs_lineage = make_unique<LineageSelVec>(move(sel), output_sel_idx, child);
+	// TODO think through merging for index join, since these should technically have different children
+	auto rhs_lineage = make_unique<LineageDataRowVector>(fetch_rows, output_sel_idx, child);
+	this_lineage_op->Capture(make_shared<LineageBinary>(move(lhs_lineage), move(rhs_lineage), child), LINEAGE_UNARY);
 #endif
 
 	state->result_size = output_sel_idx;

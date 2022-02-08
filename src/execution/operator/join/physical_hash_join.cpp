@@ -275,6 +275,9 @@ void PhysicalHashJoin::GetChunkInternal(ExecutionContext &context, DataChunk &ch
 #ifdef LINEAGE
 				// If we haven't pushed to the parent operator, offset remains the same (chunk merge)
 				int offset = lineage_op.at(context.task.thread_id)->GetPipelineLineage()->GetChildChunkOffset(LINEAGE_PROBE);
+				state->scan_structure->lineage_probe_data->SetChild(
+				    lineage_op.at(context.task.thread_id)->GetChildLatest(LINEAGE_PROBE)
+				);
 				auto lineage = make_shared<LineageDataWithOffset>(LineageDataWithOffset{
 				    move(state->scan_structure->lineage_probe_data),
 				    offset
@@ -303,6 +306,9 @@ void PhysicalHashJoin::GetChunkInternal(ExecutionContext &context, DataChunk &ch
 #ifdef LINEAGE
 				if (state->scan_structure && state->scan_structure->lineage_probe_data) {
 					int offset = lineage_op.at(context.task.thread_id)->GetPipelineLineage()->GetChildChunkOffset(LINEAGE_PROBE);
+					state->scan_structure->lineage_probe_data->SetChild(
+						lineage_op.at(context.task.thread_id)->GetChildLatest(LINEAGE_PROBE)
+					);
 					auto lineage = make_shared<LineageDataWithOffset>(LineageDataWithOffset{
 						move(state->scan_structure->lineage_probe_data),
 						offset
@@ -317,6 +323,9 @@ void PhysicalHashJoin::GetChunkInternal(ExecutionContext &context, DataChunk &ch
 #ifdef LINEAGE
 			if (state->scan_structure && state->scan_structure->lineage_probe_data) {
 				int offset = lineage_op.at(context.task.thread_id)->GetPipelineLineage()->GetChildChunkOffset(LINEAGE_PROBE);
+				state->scan_structure->lineage_probe_data->SetChild(
+				    lineage_op.at(context.task.thread_id)->GetChildLatest(LINEAGE_PROBE)
+				);
 				auto lineage = make_shared<LineageDataWithOffset>(LineageDataWithOffset{
 					move(state->scan_structure->lineage_probe_data),
 					offset

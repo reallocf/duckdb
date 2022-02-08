@@ -199,7 +199,9 @@ void PhysicalHashAggregate::Sink(ExecutionContext &context, GlobalOperatorState 
 		gstate.total_groups += gstate.finalized_hts[0]->AddChunk(group_chunk, aggregate_input_chunk);
 #ifdef LINEAGE
 		// TODO: don't use gstate
-		lineage_op.at(context.task.thread_id)->Capture(move(gstate.finalized_hts[0]->lineage_data), LINEAGE_SINK);
+		auto this_lineage_op = lineage_op.at(context.task.thread_id);
+		gstate.finalized_hts[0]->lineage_data->SetChild(this_lineage_op->GetChildLatest(LINEAGE_SINK));
+		this_lineage_op->Capture(move(gstate.finalized_hts[0]->lineage_data), LINEAGE_SINK);
 #endif
 		return;
 	}
@@ -223,7 +225,9 @@ void PhysicalHashAggregate::Sink(ExecutionContext &context, GlobalOperatorState 
 	                         gstate.total_groups > radix_limit && gstate.partition_info.n_partitions > 1);
 #ifdef LINEAGE
 	if (!llstate.ht->IsPartitioned()) {
-		lineage_op.at(context.task.thread_id)->Capture(move(llstate.ht->unpartitioned_hts.back()->lineage_data), LINEAGE_SINK);
+		auto this_lineage_op = lineage_op.at(context.task.thread_id);
+		llstate.ht->unpartitioned_hts.back()->lineage_data->SetChild(this_lineage_op->GetChildLatest(LINEAGE_SINK));
+		this_lineage_op->Capture(move(llstate.ht->unpartitioned_hts.back()->lineage_data), LINEAGE_SINK);
 	} else {
 		// handle radix_partitioned_hts case
 		// persist: sel_vectors[partition]  radix_partitioned_hts[partition]->lineage_data

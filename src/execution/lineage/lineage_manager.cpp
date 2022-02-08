@@ -53,6 +53,73 @@ shared_ptr<PipelineLineage> LineageManager::GetPipelineLineageNodeForOp(Physical
 	}
 }
 
+std::vector<shared_ptr<OperatorLineage>> GetChildrenForOp(PhysicalOperator *op, int thd_id=-1) {
+	switch (op->type) {
+	case PhysicalOperatorType::CHUNK_SCAN:
+	case PhysicalOperatorType::DELIM_SCAN:
+	case PhysicalOperatorType::DUMMY_SCAN:
+	case PhysicalOperatorType::TABLE_SCAN: {
+		return {};
+	}
+	case PhysicalOperatorType::FILTER:
+	case PhysicalOperatorType::HASH_GROUP_BY:
+	case PhysicalOperatorType::LIMIT:
+	case PhysicalOperatorType::ORDER_BY:
+	case PhysicalOperatorType::PERFECT_HASH_GROUP_BY:
+	case PhysicalOperatorType::SIMPLE_AGGREGATE:
+	case PhysicalOperatorType::WINDOW: {
+		if (op->children[0]->type == PhysicalOperatorType::PROJECTION) {
+			return {op->children[0]->children[0]->lineage_op[thd_id]};
+		} else {
+			return {op->children[0]->lineage_op[thd_id]};
+		}
+	}
+	case PhysicalOperatorType::CROSS_PRODUCT:
+	case PhysicalOperatorType::NESTED_LOOP_JOIN:
+	case PhysicalOperatorType::BLOCKWISE_NL_JOIN:
+	case PhysicalOperatorType::PIECEWISE_MERGE_JOIN:
+	case PhysicalOperatorType::INDEX_JOIN:
+	case PhysicalOperatorType::HASH_JOIN: {
+		shared_ptr<OperatorLineage> first;
+		shared_ptr<OperatorLineage> second;
+		if (op->children[0]->type == PhysicalOperatorType::PROJECTION) {
+			first = op->children[0]->children[0]->lineage_op[thd_id];
+		} else {
+			first = op->children[0]->lineage_op[thd_id];
+		}
+		if (op->children[1]->type == PhysicalOperatorType::PROJECTION) {
+			second = op->children[1]->children[0]->lineage_op[thd_id];
+		} else {
+			second = op->children[1]->lineage_op[thd_id];
+		}
+		return {first, second};
+	}
+	case PhysicalOperatorType::DELIM_JOIN: {
+		// TODO think through this more deeply - will probably require re-arranging some child pointers
+		PhysicalDelimJoin *delim_join = dynamic_cast<PhysicalDelimJoin *>(op);
+		shared_ptr<OperatorLineage> child;
+		if (op->children[0]->type == PhysicalOperatorType::PROJECTION) {
+			child = op->children[0]->children[0]->lineage_op[thd_id];
+		} else {
+			child = op->children[0]->lineage_op[thd_id];
+		}
+		return {
+		    child,
+			delim_join->join->lineage_op[thd_id],
+		    ((PhysicalOperator *)delim_join->distinct.get())->lineage_op[thd_id],
+		    // TODO DelimScans...
+		};
+	}
+	case PhysicalOperatorType::PROJECTION: {
+		// Doesn't matter - PROJECTION is skipped!
+		return {};
+	}
+	default:
+		// Lineage unimplemented! TODO these :)
+		return {};
+	}
+}
+
 void LineageManager::CreateOperatorLineage(PhysicalOperator *op, int thd_id, bool trace_lineage) {
 	if (op->type == PhysicalOperatorType::DELIM_JOIN) {
 		CreateOperatorLineage( dynamic_cast<PhysicalDelimJoin *>(op)->join.get(), thd_id, trace_lineage);
@@ -63,7 +130,11 @@ void LineageManager::CreateOperatorLineage(PhysicalOperator *op, int thd_id, boo
 	for (idx_t i = 0; i < op->children.size(); i++) {
 		CreateOperatorLineage(op->children[i].get(), thd_id, trace_lineage);
 	}
-	op->lineage_op[thd_id] = make_shared<OperatorLineage>(GetPipelineLineageNodeForOp(op), op->type);
+	op->lineage_op[thd_id] = make_shared<OperatorLineage>(
+	    GetPipelineLineageNodeForOp(op, thd_id),
+	    GetChildrenForOp(op, thd_id),
+	    op->type
+	);
 	op->lineage_op[thd_id]->trace_lineage = trace_lineage;
 }
 
@@ -312,6 +383,29 @@ void LineageManager::LogQuery(const string& input_query, idx_t lineage_size) {
   insert_chunk.data[2].Reference(lineage_size_vec);
 
   table->Persist(*table, context, insert_chunk);
+}
+
+void LineageManager::MergeLineage(PhysicalOperator *op) {
+	// Backward lineage query for 10th element
+	idx_t target = 10;
+
+	std::cout << "Backward Lineage: " << target << std::endl;
+
+	shared_ptr<OperatorLineage> op_lineage = op->lineage_op[-1]; // -1 is always good because final pipeline is always single threaded
+	idx_t lineage_idx = 0;
+	LineageDataWithOffset lineage_data = op_lineage->data[0][lineage_idx++]; // Assume non-join and non-agg for now, so can use 0
+	idx_t offset = lineage_data.data->Count();
+	idx_t last_offset = 0;
+	while (offset < target) {
+		lineage_data = op_lineage->data[0][lineage_idx++];
+		last_offset = offset;
+		offset += lineage_data.data->Count();
+	}
+
+	target = lineage_data.data->GetSel(target - last_offset);
+
+
+	// Traverse children, printing each
 }
 
 } // namespace duckdb

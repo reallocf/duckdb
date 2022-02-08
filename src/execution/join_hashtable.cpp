@@ -235,8 +235,9 @@ void JoinHashTable::Build(DataChunk &keys, DataChunk &payload) {
 	RowOperations::Scatter(source_chunk, source_data.data(), layout, addresses, *string_heap, *current_sel,
 	                       added_count);
 #ifdef LINEAGE
+	auto child = context.GetCurrentLineageOp()->GetChildLatest(LINEAGE_BUILD);
 	// log lineage data that maps input to output ht payload entries
-	auto lineage_data = make_shared<LineageDataVectorBufferArray>(move(addresses.GetBuffer()->data), added_count);
+	auto lineage_data = make_shared<LineageDataVectorBufferArray>(move(addresses.GetBuffer()->data), added_count, child);
 	// todo: handle the case when hash index key is null -> need to store current_sel
 	//       and store offset from address for hashtable payload instead of pointer value itself
 	context.GetCurrentLineageOp()->Capture(move(lineage_data), LINEAGE_BUILD);
@@ -840,10 +841,16 @@ void JoinHashTable::ScanFullOuter(DataChunk &result, JoinHTScanState &state) {
 			RowOperations::Gather(addresses, sel_vector, vector, sel_vector, found_entries, col_offset, col_no);
 		}
 #ifdef LINEAGE
-		auto lhs_lineage = make_unique<LineageDataVectorBufferArray>(move(addresses.GetBuffer()->data), found_entries);
-		auto lineage_data = make_shared<LineageBinary>(move(lhs_lineage), nullptr);
+		// TODO confirm proper left/right children
+		auto lhs_child = context.GetCurrentLineageOp()->GetChildLatest(LINEAGE_BUILD);
+		auto lhs_lineage = make_unique<LineageDataVectorBufferArray>(move(addresses.GetBuffer()->data), found_entries, lhs_child);
+		auto rhs_child = context.GetCurrentLineageOp()->GetChildLatest(LINEAGE_PROBE);
+		auto lineage_data = make_shared<LineageBinary>(move(lhs_lineage), nullptr, rhs_child);
 		int offset = context.GetCurrentLineageOp()->GetPipelineLineage()->GetChildChunkOffset(LINEAGE_PROBE);
-		auto lineage_data_with_offset = make_shared<LineageDataWithOffset>(LineageDataWithOffset{lineage_data, offset});
+		auto lineage_data_with_offset = make_shared<LineageDataWithOffset>(LineageDataWithOffset {
+		    lineage_data,
+		    offset
+		});
 		auto nested_lineage = make_shared<LineageNested>(LineageNested(lineage_data_with_offset));
 		context.GetCurrentLineageOp()->Capture(nested_lineage, LINEAGE_PROBE);
 		context.GetCurrentLineageOp()->MarkChunkReturned();

@@ -553,8 +553,8 @@ void GroupedAggregateHashTable::FlushMove(Vector &source_addresses, Vector &sour
 	RowOperations::CombineStates(layout, source_addresses, group_addresses, count);
 
 #ifdef LINEAGE
-	auto source_lineage = make_unique<LineageDataVectorBufferArray>(move(source_addresses.GetBuffer()->data),  count);
-	auto new_lineage =  make_unique<LineageDataVectorBufferArray>(move(group_addresses.GetBuffer()->data),  count);
+	auto source_lineage = make_unique<LineageDataVectorBufferArray>(move(source_addresses.GetBuffer()->data), count, nullptr);
+	auto new_lineage =  make_unique<LineageDataVectorBufferArray>(move(group_addresses.GetBuffer()->data), count, nullptr);
 	combine_lineage_data.push_back(make_unique<LineageBinary>(move(source_lineage), move(new_lineage)));
 #endif
 }
@@ -690,7 +690,7 @@ idx_t GroupedAggregateHashTable::Scan(idx_t &scan_position, DataChunk &result) {
 	RowOperations::FinalizeStates(layout, addresses, result, group_cols);
 #ifdef LINEAGE
 	// this maps output to groups
-	auto scan_lineage = make_unique<LineageDataVectorBufferArray>(move(addresses.GetBuffer()->data),  result.size());
+	auto scan_lineage = make_unique<LineageDataVectorBufferArray>(move(addresses.GetBuffer()->data),  result.size(), nullptr);
 	context.GetCurrentLineageOp()->Capture(move(scan_lineage), LINEAGE_SOURCE);
 #endif
 	scan_position += this_n;

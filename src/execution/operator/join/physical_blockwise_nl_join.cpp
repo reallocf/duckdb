@@ -197,10 +197,12 @@ void PhysicalBlockwiseNLJoin::GetChunkInternal(ExecutionContext &context, DataCh
 			}
 			chunk.Slice(match_sel, result_count);
 #ifdef LINEAGE
+			auto this_lineage_op = lineage_op.at(context.task.thread_id);
+			auto child = this_lineage_op->GetChildLatest(LINEAGE_PROBE);
 			// left_position within the chunk retrieved from the child
-			auto lhs_lineage = make_unique<LineageConstant>(state->left_position, result_count);
-			auto rhs_lineage = make_unique<LineageSelVec>(move(match_sel), result_count, (state->right_position * STANDARD_VECTOR_SIZE));
-			lineage_op.at(context.task.thread_id)->Capture( make_shared<LineageBinary>(move(lhs_lineage), move(rhs_lineage)), LINEAGE_PROBE);
+			auto lhs_lineage = make_unique<LineageConstant>(state->left_position, result_count, child);
+			auto rhs_lineage = make_unique<LineageSelVec>(move(match_sel), result_count, child, (state->right_position * STANDARD_VECTOR_SIZE));
+			this_lineage_op->Capture( make_shared<LineageBinary>(move(lhs_lineage), move(rhs_lineage), child), LINEAGE_PROBE);
 #endif
 		} else {
 			// no result: reset the chunk

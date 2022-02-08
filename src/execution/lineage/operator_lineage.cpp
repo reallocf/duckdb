@@ -291,5 +291,46 @@ idx_t OperatorLineage::Size() {
 	return size;
 }
 
+shared_ptr<LineageDataWithOffset> OperatorLineage::GetChildLatest(idx_t lineage_idx) {
+	switch (type) {
+	case PhysicalOperatorType::CHUNK_SCAN:
+	case PhysicalOperatorType::DELIM_SCAN:
+	case PhysicalOperatorType::DUMMY_SCAN:
+	case PhysicalOperatorType::PROJECTION:
+	case PhysicalOperatorType::TABLE_SCAN: {
+		return nullptr;
+	}
+	case PhysicalOperatorType::FILTER:
+	case PhysicalOperatorType::HASH_GROUP_BY:
+	case PhysicalOperatorType::LIMIT:
+	case PhysicalOperatorType::ORDER_BY:
+	case PhysicalOperatorType::PERFECT_HASH_GROUP_BY:
+	case PhysicalOperatorType::SIMPLE_AGGREGATE:
+	case PhysicalOperatorType::WINDOW: {
+		// These always refer to their child, though it isn't used for ORDER BY since ORDER BY considers all the
+		// child outputs at the same time
+		// And for HASH GROUP BY and PERFECT HASH GROUP BY for their second and third selection vectors since they
+		// both also consider all of the outputs of the prior step in the aggregate
+		return make_shared<LineageDataWithOffset>(children[0]->data[0][data[0].size() - 1]);
+	}
+	case PhysicalOperatorType::CROSS_PRODUCT:
+	case PhysicalOperatorType::NESTED_LOOP_JOIN:
+	case PhysicalOperatorType::BLOCKWISE_NL_JOIN:
+	case PhysicalOperatorType::PIECEWISE_MERGE_JOIN:
+	case PhysicalOperatorType::INDEX_JOIN:
+	case PhysicalOperatorType::HASH_JOIN: {
+		// lineage_idx happens to refer to the correct left/right value in the child TODO confirm this
+		return make_shared<LineageDataWithOffset>(children[lineage_idx]->data[0][data[0].size() - 1]);
+	}
+	case PhysicalOperatorType::DELIM_JOIN: {
+		// TODO think through this
+		throw std::logic_error("Haven't handled delim join yet");
+	}
+	default:
+		// Lineage unimplemented! TODO these :)
+		return {};
+	}
+}
+
 } // namespace duckdb
 #endif

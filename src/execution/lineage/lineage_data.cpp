@@ -28,6 +28,14 @@ idx_t LineageDataRowVector::Size() {
 	return count * sizeof(vec[0]);
 }
 
+LineageIteratorStruct LineageDataRowVector::GetSel(idx_t idx) {
+	throw std::logic_error("Can't call GetSel on LineageDataVectorBufferArray"); // TODO is this right?
+}
+
+void LineageDataRowVector::SetChild(shared_ptr<LineageDataWithOffset> c) {
+	child = c;
+}
+
 // LineageDataVectorBufferArray
 
 idx_t LineageDataVectorBufferArray::Count() {
@@ -58,6 +66,14 @@ idx_t LineageDataVectorBufferArray::Size() {
     return STANDARD_VECTOR_SIZE * sizeof(vec[0]);
   else
     return 0;
+}
+
+LineageIteratorStruct LineageDataVectorBufferArray::GetSel(idx_t idx) {
+	throw std::logic_error("Can't call GetSel on LineageDataVectorBufferArray"); // TODO is this right?
+}
+
+void LineageDataVectorBufferArray::SetChild(shared_ptr<LineageDataWithOffset> c) {
+	child = c;
 }
 
 
@@ -92,6 +108,14 @@ idx_t LineageDataUIntPtrArray::Size() {
     return 0;
 }
 
+LineageIteratorStruct LineageDataUIntPtrArray::GetSel(idx_t idx) {
+	throw std::logic_error("Can't call GetSel on LineageDataVectorBufferArray"); // TODO is this right?
+}
+
+void LineageDataUIntPtrArray::SetChild(shared_ptr<LineageDataWithOffset> c) {
+	child = c;
+}
+
 
 // LineageDataUInt32Array
 
@@ -122,6 +146,14 @@ idx_t LineageDataUInt32Array::Size() {
     return STANDARD_VECTOR_SIZE * sizeof(vec[0]);
   else
     return 0;
+}
+
+LineageIteratorStruct LineageDataUInt32Array::GetSel(idx_t idx) {
+	return {vec[idx], child};
+}
+
+void LineageDataUInt32Array::SetChild(shared_ptr<LineageDataWithOffset> c) {
+	child = c;
 }
 
 
@@ -171,9 +203,20 @@ vector<LineageDataWithOffset> LineageSelVec::Divide() {
 		    vec.sel_data().get()->owned_data.get() + this_offset + this_count,
 		    this_data.get()->owned_data.get()
 		);
-		res[i] = {make_shared<LineageSelVec>(SelectionVector(this_data), this_count), (int)this_offset};
+		res[i] = {
+		    make_shared<LineageSelVec>(SelectionVector(this_data), this_count, child),
+		    (int)this_offset
+		};
 	}
 	return res;
+}
+
+LineageIteratorStruct LineageSelVec::GetSel(idx_t idx) {
+	return {vec[idx], child};
+}
+
+void LineageSelVec::SetChild(shared_ptr<LineageDataWithOffset> c) {
+	child = c;
 }
 
 
@@ -203,6 +246,20 @@ idx_t LineageRange::Size() {
   return (end-start) * sizeof(sel_t);
 }
 
+LineageIteratorStruct LineageRange::GetSel(idx_t idx) {
+	// Lazily convert lineage range to selection vector
+	if (vec.empty()) {
+		for (idx_t i = start; i < end; i++) {
+			vec.push_back(i);
+		}
+	}
+	return {vec[idx], child};
+}
+
+void LineageRange::SetChild(shared_ptr<LineageDataWithOffset> c) {
+	child = c;
+}
+
 
 // LineageConstant
 
@@ -221,6 +278,17 @@ data_ptr_t LineageConstant::Process(idx_t offset) {
 
 idx_t LineageConstant::Size() {
 	return 1*sizeof(value);
+}
+
+LineageIteratorStruct LineageConstant::GetSel(idx_t idx) {
+	if (idx >= count) {
+		throw std::logic_error("Accessing out-of-bounds Sel from LineageConstant");
+	}
+	return {static_cast<sel_t>(value), child}; // TODO is this cast right?
+}
+
+void LineageConstant::SetChild(shared_ptr<LineageDataWithOffset> c) {
+	child = c;
 }
 
 
@@ -255,6 +323,21 @@ idx_t LineageBinary::Size() {
 	return size;
 }
 
+LineageIteratorStruct LineageBinary::GetSel(idx_t idx) {
+	if (switch_on_left && left) {
+		return left->GetSel(idx);
+	} else if (right) {
+		return right->GetSel(idx);
+	} else {
+		throw std::logic_error("Accessing LineageBinary Sel in an invalid manner");
+	}
+}
+
+void LineageBinary::SetChild(shared_ptr<LineageDataWithOffset> c) {
+	// TODO think through this more - should this be two children? Pass through to its children?
+	child = c;
+}
+
 
 // LineageNested
 
@@ -272,11 +355,28 @@ void LineageNested::Debug() {
 }
 
 data_ptr_t LineageNested::Process(idx_t offset) { // ignore passed offset, use stored ones
-	throw std::logic_error("Can't call process on LineageNested more than twice");
+	throw std::logic_error("Can't call process on LineageNested");
 }
 
 idx_t LineageNested::Size() {
 	return size;
+}
+
+LineageIteratorStruct LineageNested::GetSel(idx_t idx) {
+	// Linear scan, jumping by internal chunk sizes
+	// Capped at 1024 but still _might_ be slow - could use an index to speed up if that's the case
+	idx_t item_idx = 0;
+	idx_t offset = lineage[item_idx]->data->Count();
+	idx_t last_offset = 0;
+	while (offset < idx) {
+		last_offset = offset;
+		offset += lineage[item_idx++]->data->Count();
+	}
+	return lineage[item_idx]->data->GetSel(idx - last_offset);
+}
+
+void LineageNested::SetChild(shared_ptr<LineageDataWithOffset> c) {
+	throw std::logic_error("Cannot set the child of a LineageNested - instead set the children for internal LineageData");
 }
 
 void LineageNested::AddLineage(const shared_ptr<LineageDataWithOffset>& lineage_data) {

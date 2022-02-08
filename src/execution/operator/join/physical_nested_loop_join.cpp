@@ -343,9 +343,11 @@ void PhysicalNestedLoopJoin::ResolveComplexJoin(ExecutionContext &context, DataC
 			chunk.Slice(state->child_chunk, lvector, match_count);
 			chunk.Slice(right_data, rvector, match_count, state->child_chunk.ColumnCount());
 #ifdef LINEAGE
+			auto this_lineage_op = lineage_op.at(context.task.thread_id);
+			auto child = this_lineage_op->G
 			auto lineage_lhs = make_unique<LineageSelVec>(move(lvector), match_count);
 			auto lineage_rhs = make_unique<LineageSelVec>(move(rvector), match_count, state->right_chunk * STANDARD_VECTOR_SIZE );
-			lineage_op.at(context.task.thread_id)->Capture( make_shared<LineageBinary>(move(lineage_lhs), move(lineage_rhs)), LINEAGE_PROBE);
+			this_lineage_op->Capture( make_shared<LineageBinary>(move(lineage_lhs), move(lineage_rhs)), LINEAGE_PROBE);
 #endif
 		}
 
