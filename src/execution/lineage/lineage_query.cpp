@@ -79,18 +79,70 @@ LineageProcessStruct OperatorLineage::PostProcess(idx_t count_so_far, idx_t size
 			// schema for both: [INTEGER in_index, INTEGER out_index]
 			if (finished_idx == LINEAGE_SINK) {
 				// build hash table
-
 				LineageDataWithOffset this_data = data[LINEAGE_SINK][data_idx];
 				idx_t res_count = this_data.data->Count();
-				auto payload = this_data.data->Process(0);
-				for (idx_t i=0; i < res_count; ++i) {
-					hash_map[payload[i]] = i + count_so_far;
+				if (type == PhysicalOperatorType::PERFECT_HASH_GROUP_BY) {
+					auto payload = (sel_t*)this_data.data->Process(0);
+					for (idx_t i=0; i < res_count; ++i) {
+						hash_map_agg[(idx_t)payload[i]].push_back(i + count_so_far);
+					}
+				} else {
+					auto payload = (uint64_t*)this_data.data->Process(0);
+					for (idx_t i=0; i < res_count; ++i) {
+						hash_map_agg[(idx_t)payload[i]].push_back(i + count_so_far);
+					}
 				}
 				count_so_far += res_count;
 				size_so_far += this_data.data->Size();
 			} else if (finished_idx == LINEAGE_COMBINE) {
 			} else {
+				idx_t res_count = data[LINEAGE_PROBE][data_idx].data->Count();
+				index.push_back(res_count + count_so_far);
+				count_so_far += res_count;
+				size_so_far +=  data[LINEAGE_PROBE][data_idx].data->Size();
 			}
+			break;
+		}
+		case PhysicalOperatorType::BLOCKWISE_NL_JOIN:
+		case PhysicalOperatorType::PIECEWISE_MERGE_JOIN:
+		case PhysicalOperatorType::NESTED_LOOP_JOIN: {
+			LineageDataWithOffset this_data = data[LINEAGE_PROBE][data_idx];
+			idx_t res_count = this_data.data->Count();
+			index.push_back(res_count + count_so_far);
+			count_so_far += res_count;
+			size_so_far += this_data.data->Size();
+			break;
+		}
+		case PhysicalOperatorType::CROSS_PRODUCT: {
+			LineageDataWithOffset this_data = data[LINEAGE_PROBE][data_idx];
+			idx_t res_count = this_data.data->Count();
+			index.push_back(res_count + count_so_far);
+			count_so_far += res_count;
+			size_so_far += this_data.data->Size();
+			break;
+		}
+		case PhysicalOperatorType::INDEX_JOIN: {
+			LineageDataWithOffset this_data = data[0][data_idx];
+			idx_t res_count = this_data.data->Count();
+			index.push_back(res_count + count_so_far);
+			count_so_far += res_count;
+			size_so_far += this_data.data->Size();
+			break;
+		}
+		case PhysicalOperatorType::ORDER_BY: {
+			LineageDataWithOffset this_data = data[LINEAGE_UNARY][data_idx];
+			idx_t res_count = this_data.data->Count();
+			if (res_count > STANDARD_VECTOR_SIZE) {
+				D_ASSERT(data_idx == 0);
+				data[LINEAGE_UNARY] = dynamic_cast<LineageSelVec *>(this_data.data.get())->Divide();
+				this_data = data[LINEAGE_UNARY][0];
+				res_count = this_data.data->Count();
+			}
+
+			index.push_back(res_count + count_so_far);
+
+			count_so_far += res_count;
+			size_so_far += this_data.data->Size();
 			break;
 		}
 		default:
@@ -111,14 +163,10 @@ vector<idx_t> OperatorLineage::Backward(PhysicalOperator *op, idx_t source) {
 		// we need a way to locate the exact data we should access
 		// from the source index
 		auto lower = lower_bound(index.begin(), index.end(), source);
-		if (lower == index.end()) {
-			return lineage;
-		}
+		if (lower == index.end()) return lineage;
 		auto chunk_id =  std::distance(index.begin(), lower);
 		LineageDataWithOffset this_data = data[LINEAGE_UNARY][chunk_id];
-		if (chunk_id > 0) {
-			source -= index[chunk_id-1];
-		}
+		if (chunk_id > 0) source -= index[chunk_id-1];
 		auto res = this_data.data->Backward(source);
 		if (!op->children.empty()) {
 			lineage = op->children[0]->lineage_op.at(-1)->Backward(op->children[0].get(), res+this_data.offset);
@@ -129,10 +177,7 @@ vector<idx_t> OperatorLineage::Backward(PhysicalOperator *op, idx_t source) {
 		// we need hash table from the build side
 		// access the probe side, get the address from the right side
 		auto lower = lower_bound(index.begin(), index.end(), source);
-		if (lower == index.end()) {
-			std::cout << " source (" << source <<") not found in index" << std::endl;
-			return lineage;
-		}
+		if (lower == index.end()) return {};
 		auto chunk_id =  std::distance(index.begin(), lower);
 		if (*lower == source) {
 			chunk_id += 1;
@@ -159,8 +204,95 @@ vector<idx_t> OperatorLineage::Backward(PhysicalOperator *op, idx_t source) {
 		}
 		break;
 	}
+
+	case PhysicalOperatorType::HASH_GROUP_BY:
+	case PhysicalOperatorType::PERFECT_HASH_GROUP_BY: {
+		// get the address it maps to from probe, then use it to access all the groups
+		// that maps to this
+		auto lower = lower_bound(index.begin(), index.end(), source);
+		if (lower == index.end()) return {};
+		auto chunk_id =  std::distance(index.begin(), lower);
+		if (*lower == source) chunk_id += 1;
+		if (chunk_id > 0) source -= index[chunk_id-1];
+		LineageDataWithOffset this_data = data[LINEAGE_PROBE][chunk_id];
+		if (chunk_id > 0) source -= index[chunk_id-1];
+		if (type == PhysicalOperatorType::PERFECT_HASH_GROUP_BY) {
+			auto payload = (sel_t *)this_data.data->Process(0);
+			for (auto val : hash_map_agg[payload[source]]) {
+				lineage.push_back(val);
+			}
+		} else {
+			auto payload = (uint64_t*)this_data.data->Process(0);
+			for (auto val : hash_map_agg[payload[source]]) {
+				lineage.push_back(val);
+			}
+		}
+
+		break;
+	}
 	case PhysicalOperatorType::PROJECTION: {
 		lineage = op->children[0]->lineage_op.at(-1)->Backward(op->children[0].get(), source);
+		break;
+	}
+	case PhysicalOperatorType::BLOCKWISE_NL_JOIN:
+	case PhysicalOperatorType::PIECEWISE_MERGE_JOIN:
+	case PhysicalOperatorType::NESTED_LOOP_JOIN: {
+		auto lower = lower_bound(index.begin(), index.end(), source);
+		if (lower == index.end()) return {};
+		auto chunk_id =  std::distance(index.begin(), lower);
+		if (*lower == source) chunk_id += 1;
+		LineageDataWithOffset this_data = data[LINEAGE_PROBE][chunk_id];
+		if (chunk_id > 0) source -= index[chunk_id-1];
+		if (dynamic_cast<LineageBinary&>(*this_data.data).right != nullptr) {
+			auto right = dynamic_cast<LineageBinary&>(*this_data.data).right->Backward(source);
+			lineage.push_back(right);
+		}
+
+		if (dynamic_cast<LineageBinary&>(*this_data.data).left != nullptr) {
+			auto left = dynamic_cast<LineageBinary&>(*this_data.data).left->Backward(source);
+			lineage.push_back(left+this_data.offset);
+		}
+		break;
+	} case PhysicalOperatorType::CROSS_PRODUCT: {
+		auto lower = lower_bound(index.begin(), index.end(), source);
+		if (lower == index.end()) return {};
+		auto chunk_id =  std::distance(index.begin(), lower);
+		if (*lower == source) chunk_id += 1;
+		LineageDataWithOffset this_data = data[LINEAGE_PROBE][chunk_id];
+		if (chunk_id > 0) source -= index[chunk_id-1];
+		lineage.push_back(this_data.data->Backward(source));
+		lineage.push_back(this_data.offset+source);
+
+		break;
+	}
+	case PhysicalOperatorType::INDEX_JOIN: {
+		auto lower = lower_bound(index.begin(), index.end(), source);
+		if (lower == index.end()) return {};
+		auto chunk_id =  std::distance(index.begin(), lower);
+		if (*lower == source) chunk_id += 1;
+		if (chunk_id > 0) source -= index[chunk_id-1];
+		LineageDataWithOffset this_data = data[0][chunk_id];
+
+		if (dynamic_cast<LineageBinary&>(*this_data.data).right != nullptr) {
+			auto right = dynamic_cast<LineageBinary&>(*this_data.data).right->Backward(source);
+			lineage.push_back(right);
+		}
+
+		if (dynamic_cast<LineageBinary&>(*this_data.data).left != nullptr) {
+			auto left = dynamic_cast<LineageBinary&>(*this_data.data).left->Backward(source);
+			lineage.push_back(left+this_data.offset);
+		}
+		break;
+	}
+	case PhysicalOperatorType::ORDER_BY: {
+		auto lower = lower_bound(index.begin(), index.end(), source);
+		if (lower == index.end()) return {};
+		auto chunk_id =  std::distance(index.begin(), lower);
+		if (*lower == source) chunk_id += 1;
+		if (chunk_id > 0) source -= index[chunk_id-1];
+		LineageDataWithOffset this_data = data[LINEAGE_UNARY][chunk_id];
+		auto res = this_data.data->Backward(source);
+		lineage.push_back(res);
 		break;
 	}
 	default: {}

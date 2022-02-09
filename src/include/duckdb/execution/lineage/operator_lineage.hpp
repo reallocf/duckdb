@@ -70,6 +70,7 @@ public:
    // final lineage indexing data-structures
    // hash_map: used by group by and hash join build side
    std::unordered_map<uint64_t, idx_t> hash_map;
+   std::unordered_map<idx_t, vector<idx_t>> hash_map_agg;
    // index: used to index selection vectors
    //        it stores the size of SV from each chunk
    //        which helps in locating the one needed
