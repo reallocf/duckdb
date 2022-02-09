@@ -33,22 +33,22 @@ select l.rowid as l_rowid, r.rowid as r_rowid, l.i, r.i from t1 as l inner join 
 statement ok
 PRAGMA trace_lineage = "OFF";
 
-query II
+query I
 PRAGMA backward_lineage('select t1.rowid as t1_rowid, t2.rowid as t2_rowid, t1.i, t2.i from t1 inner join t2 on (t1.i = t2.i) where t1.i + t2.i = 0', '0')
 ----
-0	43
+[0, 43]
 
-query II
+query I
 PRAGMA backward_lineage('select t1.rowid as t1_rowid, t2.rowid as t2_rowid, t1.i, t2.i from t1 inner join t2 on (t1.i = t2.i) where t1.i + t2.i = 0', '101')
 ----
-2060	0
+[2060, 0]
 
-query II
+query I
 PRAGMA backward_lineage('select l.rowid as l_rowid, r.rowid as r_rowid, l.i, r.i from t1 as l inner join t1 as r on (l.i = r.i) where l.i + r.i = 0', '33')
 ----
-43	43
+[43, 43]
 
-query II
+query I
 PRAGMA backward_lineage('select l.rowid as l_rowid, r.rowid as r_rowid, l.i, r.i from t1 as l inner join t1 as r on (l.i = r.i) where l.i + r.i = 0', '1155')
 ----
-43	0
+[43, 0]
