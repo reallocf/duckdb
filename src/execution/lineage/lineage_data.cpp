@@ -32,6 +32,11 @@ idx_t LineageDataRowVector::Backward(idx_t source) {
 	return (idx_t)vec[source];
 }
 
+void LineageDataRowVector::SetChild(shared_ptr<LineageDataWithOffset> c) {
+	child = c;
+}
+
+
 // LineageDataVectorBufferArray
 
 idx_t LineageDataVectorBufferArray::Count() {
@@ -68,6 +73,11 @@ idx_t LineageDataVectorBufferArray::Backward(idx_t source) {
 	return (idx_t)vec[source];
 }
 
+void LineageDataVectorBufferArray::SetChild(shared_ptr<LineageDataWithOffset> c) {
+	child = c;
+}
+
+
 // LineageDataUIntPtrArray
 
 idx_t LineageDataUIntPtrArray::Count() {
@@ -103,6 +113,11 @@ idx_t LineageDataUIntPtrArray::Backward(idx_t source) {
 	return (idx_t)vec[source];
 }
 
+void LineageDataUIntPtrArray::SetChild(shared_ptr<LineageDataWithOffset> c) {
+	child = c;
+}
+
+
 // LineageDataUInt32Array
 
 idx_t LineageDataUInt32Array::Count() {
@@ -137,6 +152,11 @@ idx_t LineageDataUInt32Array::Size() {
 idx_t LineageDataUInt32Array::Backward(idx_t source) {
 	return (idx_t)vec[source];
 }
+
+void LineageDataUInt32Array::SetChild(shared_ptr<LineageDataWithOffset> c) {
+	child = c;
+}
+
 
 // LineageSelVec
 
@@ -189,10 +209,17 @@ vector<LineageDataWithOffset> LineageSelVec::Divide() {
 		    vec.sel_data().get()->owned_data.get() + this_offset + this_count,
 		    this_data.get()->owned_data.get()
 		);
-		res[i] = {make_shared<LineageSelVec>(SelectionVector(this_data), this_count), (int)this_offset};
+		auto this_lineage = make_shared<LineageSelVec>(SelectionVector(this_data), this_count);
+		this_lineage->SetChild(child);
+		res[i] = {this_lineage, (int)this_offset};
 	}
 	return res;
 }
+
+void LineageSelVec::SetChild(shared_ptr<LineageDataWithOffset> c) {
+	child = c;
+}
+
 
 // LineageRange
 
@@ -224,6 +251,11 @@ idx_t LineageRange::Backward(idx_t source) {
 	return source;
 }
 
+void LineageRange::SetChild(shared_ptr<LineageDataWithOffset> c) {
+	child = c;
+}
+
+
 // LineageConstant
 
 idx_t LineageConstant::Count() {
@@ -246,6 +278,11 @@ idx_t LineageConstant::Size() {
 idx_t LineageConstant::Backward(idx_t source) {
 	return value;
 }
+
+void LineageConstant::SetChild(shared_ptr<LineageDataWithOffset> c) {
+	child = c;
+}
+
 
 // LineageBinary
 
@@ -282,6 +319,11 @@ idx_t LineageBinary::Backward(idx_t source) {
 	throw std::logic_error("Can't call backward directly on LineageBinary");
 }
 
+void LineageBinary::SetChild(shared_ptr<LineageDataWithOffset> c) {
+	child = c;
+}
+
+
 // LineageNested
 
 idx_t LineageNested::Count() {
@@ -297,8 +339,8 @@ void LineageNested::Debug() {
 	std::cout << "End LineageNested" << std::endl;
 }
 
-data_ptr_t LineageNested::Process(idx_t offset) { // ignore passed offset, use stored ones
-	throw std::logic_error("Can't call process on LineageNested more than twice");
+data_ptr_t LineageNested::Process(idx_t offset) {
+	throw std::logic_error("Can't call process on LineageNested");
 }
 
 idx_t LineageNested::Size() {
@@ -348,6 +390,10 @@ idx_t LineageNested::GetAccCount(idx_t i) {
 
 idx_t LineageNested::Backward(idx_t source) {
 	throw std::logic_error("Can't call backward directly on LineageNested");
+}
+
+void LineageNested::SetChild(shared_ptr<LineageDataWithOffset> c) {
+	// Do nothing since the children are set on the internal LineageData
 }
 
 } // namespace duckdb

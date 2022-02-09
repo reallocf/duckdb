@@ -22,12 +22,14 @@
 #include <utility>
 
 namespace duckdb {
+struct LineageDataWithOffset;
 
 class LineageData {
 public:
 	virtual idx_t Count() = 0;
 	virtual void Debug() = 0;
 	virtual data_ptr_t Process(idx_t offset) = 0;
+	virtual void SetChild(shared_ptr<LineageDataWithOffset> c) = 0;
 	virtual idx_t Size() = 0;
 	virtual idx_t Backward(idx_t) = 0;
 	virtual ~LineageData() {};
@@ -51,12 +53,14 @@ public:
 	idx_t Count() override;
 	void Debug() override;
 	data_ptr_t Process(idx_t offset) override;
+	void SetChild(shared_ptr<LineageDataWithOffset> c) override;
 	idx_t Size() override;
 	idx_t Backward(idx_t) override;
 
 private:
 	vector<row_t> vec;
 	idx_t count;
+	shared_ptr<LineageDataWithOffset> child;
 };
 
 class LineageDataVectorBufferArray : public LineageData {
@@ -70,12 +74,14 @@ public:
 	idx_t Count() override;
 	void Debug() override;
 	data_ptr_t Process(idx_t offset) override;
+	void SetChild(shared_ptr<LineageDataWithOffset> c) override;
 	idx_t Size() override;
 	idx_t Backward(idx_t) override;
 
 private:
 	unique_ptr<data_t[]> vec;
 	idx_t count;
+	shared_ptr<LineageDataWithOffset> child;
 };
 
 class LineageDataUIntPtrArray : public LineageData {
@@ -89,12 +95,14 @@ public:
 	idx_t Count() override;
 	void Debug() override;
 	data_ptr_t Process(idx_t offset) override;
+	void SetChild(shared_ptr<LineageDataWithOffset> c) override;
 	idx_t Size() override;
 	idx_t Backward(idx_t) override;
 
 private:
 	unique_ptr<uintptr_t[]> vec;
 	idx_t count;
+	shared_ptr<LineageDataWithOffset> child;
 };
 
 class LineageDataUInt32Array : public LineageData {
@@ -108,12 +116,14 @@ public:
 	idx_t Count() override;
 	void Debug() override;
 	data_ptr_t Process(idx_t offset) override;
+	void SetChild(shared_ptr<LineageDataWithOffset> c) override;
 	idx_t Size() override;
 	idx_t Backward(idx_t) override;
 
 private:
 	unique_ptr<uint32_t[]> vec;
 	idx_t count;
+	shared_ptr<LineageDataWithOffset> child;
 };
 
 class LineageSelVec : public LineageData {
@@ -127,6 +137,7 @@ public:
 	idx_t Count() override;
 	void Debug() override;
 	data_ptr_t Process(idx_t offset) override;
+	void SetChild(shared_ptr<LineageDataWithOffset> c) override;
 	idx_t Size() override;
 	idx_t Backward(idx_t) override;
 
@@ -136,6 +147,7 @@ public:
 private:
 	SelectionVector vec;
 	idx_t count;
+	shared_ptr<LineageDataWithOffset> child;
 	idx_t in_offset;
 };
 
@@ -152,6 +164,7 @@ public:
 	idx_t Count() override;
 	void Debug() override;
 	data_ptr_t Process(idx_t offset) override;
+	void SetChild(shared_ptr<LineageDataWithOffset> c) override;
 	idx_t Size() override;
 	idx_t Backward(idx_t) override;
 
@@ -159,6 +172,7 @@ private:
 	idx_t start;
 	idx_t end;
 	vector<sel_t> vec;
+	shared_ptr<LineageDataWithOffset> child;
 };
 
 // Constant Value
@@ -173,6 +187,7 @@ public:
 	idx_t Count() override;
 	void Debug() override;
 	data_ptr_t Process(idx_t offset) override;
+	void SetChild(shared_ptr<LineageDataWithOffset> c) override;
 	idx_t Size() override;
 	idx_t Backward(idx_t) override;
 
@@ -180,6 +195,7 @@ private:
 	idx_t value;
 	idx_t count;
 	vector<int> vec;
+	shared_ptr<LineageDataWithOffset> child;
 };
 
 // Captures two lineage data of the same side - used for Joins
@@ -195,6 +211,7 @@ public:
 	idx_t Count() override;
 	void Debug() override;
 	data_ptr_t Process(idx_t offset) override;
+	void SetChild(shared_ptr<LineageDataWithOffset> c) override;
 	idx_t Size() override;
 	idx_t Backward(idx_t) override;
 
@@ -202,6 +219,7 @@ public:
 	unique_ptr<LineageData> right;
 private:
 	bool switch_on_left = true;
+	shared_ptr<LineageDataWithOffset> child;
 };
 
 class LineageNested : public LineageData {
@@ -224,6 +242,7 @@ public:
 	idx_t Count() override;
 	void Debug() override;
 	data_ptr_t Process(idx_t offset) override;
+	void SetChild(shared_ptr<LineageDataWithOffset> c) override;
 	idx_t Size() override;
 	idx_t Backward(idx_t) override;
 

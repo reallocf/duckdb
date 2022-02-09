@@ -12,6 +12,9 @@ void OperatorLineage::Capture(const shared_ptr<LineageData>& datum, idx_t lineag
 	// Prepare this vector's chunk to be passed on to future operators
 	pipeline_lineage->AdjustChunkOffsets(datum->Count(), lineage_idx);
 
+	// Set child ptr
+	datum->SetChild(GetChildLatest(lineage_idx));
+
 	// Capture this vector
 	idx_t offset = pipeline_lineage->GetChildChunkOffset(lineage_idx);
 	if (lineage_idx == LINEAGE_COMBINE) {
@@ -289,6 +292,107 @@ idx_t OperatorLineage::Size() {
 		size += lineage_data.data->Size();
 	}
 	return size;
+}
+
+shared_ptr<LineageDataWithOffset> OperatorLineage::GetMyLatest() {
+	switch (type) {
+	case PhysicalOperatorType::CHUNK_SCAN:
+	case PhysicalOperatorType::DELIM_SCAN:
+	case PhysicalOperatorType::DUMMY_SCAN:
+	case PhysicalOperatorType::TABLE_SCAN: {
+		if (!data[0].empty()) {
+			return make_shared<LineageDataWithOffset>(data[0][data[0].size() - 1]);
+		} else {
+			return nullptr;
+		}
+	}
+	case PhysicalOperatorType::FILTER:
+	case PhysicalOperatorType::HASH_GROUP_BY:
+	case PhysicalOperatorType::LIMIT:
+	case PhysicalOperatorType::ORDER_BY:
+	case PhysicalOperatorType::PERFECT_HASH_GROUP_BY:
+	case PhysicalOperatorType::SIMPLE_AGGREGATE:
+	case PhysicalOperatorType::WINDOW: {
+		return make_shared<LineageDataWithOffset>(data[0][data[0].size() - 1]);
+	}
+	case PhysicalOperatorType::CROSS_PRODUCT:
+	case PhysicalOperatorType::NESTED_LOOP_JOIN:
+	case PhysicalOperatorType::BLOCKWISE_NL_JOIN:
+	case PhysicalOperatorType::PIECEWISE_MERGE_JOIN:
+	case PhysicalOperatorType::INDEX_JOIN:
+	case PhysicalOperatorType::HASH_JOIN: {
+		// When being asked for latest, we'll always want to refer to the probe data
+		if (data[LINEAGE_PROBE].size() > 0) {
+			return make_shared<LineageDataWithOffset>(data[LINEAGE_PROBE][data[LINEAGE_PROBE].size() - 1]);
+		} else {
+			// Mark Hash Join TODO is this right?
+			return {};
+		}
+	}
+	case PhysicalOperatorType::PROJECTION: {
+		throw std::logic_error("We shouldn't ever try to call GetMyLatest on a Projection");
+	}
+	case PhysicalOperatorType::DELIM_JOIN: {
+		// TODO think through this
+		return {};
+	}
+	default:
+		// Lineage unimplemented! TODO these :)
+		return {};
+	}
+}
+
+shared_ptr<LineageDataWithOffset> OperatorLineage::GetChildLatest(idx_t lineage_idx) {
+	switch (type) {
+	case PhysicalOperatorType::CHUNK_SCAN:
+	case PhysicalOperatorType::DELIM_SCAN:
+	case PhysicalOperatorType::DUMMY_SCAN:
+	case PhysicalOperatorType::PROJECTION:
+	case PhysicalOperatorType::TABLE_SCAN: {
+		return nullptr;
+	}
+	case PhysicalOperatorType::ORDER_BY: {
+		return nullptr; // Order By has no children since ALL are its children
+	}
+	case PhysicalOperatorType::HASH_GROUP_BY:
+	case PhysicalOperatorType::PERFECT_HASH_GROUP_BY: {
+		// Only SINK has children
+		if (children.empty()) {
+			// The aggregation in DelimJoin TODO figure this out
+			return nullptr;
+		} else if (lineage_idx == LINEAGE_SINK) {
+			return children[0]->GetMyLatest();
+		} else {
+			return nullptr;
+		}
+	}
+	case PhysicalOperatorType::FILTER:
+	case PhysicalOperatorType::LIMIT:
+	case PhysicalOperatorType::SIMPLE_AGGREGATE:
+	case PhysicalOperatorType::WINDOW: {
+		return children[0]->GetMyLatest();
+	}
+	case PhysicalOperatorType::CROSS_PRODUCT:
+	case PhysicalOperatorType::NESTED_LOOP_JOIN:
+	case PhysicalOperatorType::BLOCKWISE_NL_JOIN:
+	case PhysicalOperatorType::PIECEWISE_MERGE_JOIN:
+	case PhysicalOperatorType::INDEX_JOIN:
+	case PhysicalOperatorType::HASH_JOIN: {
+		// lineage_idx happens to refer to the correct left/right value in the child TODO confirm this
+		if (lineage_idx == LINEAGE_BUILD) {
+			return children[1]->GetMyLatest();
+		} else {
+			return children[0]->GetMyLatest();
+		}
+	}
+	case PhysicalOperatorType::DELIM_JOIN: {
+		// TODO think through this
+		throw std::logic_error("Haven't handled delim join yet");
+	}
+	default:
+		// Lineage unimplemented! TODO these :)
+		return {};
+	}
 }
 
 } // namespace duckdb

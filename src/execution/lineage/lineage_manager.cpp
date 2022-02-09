@@ -53,6 +53,92 @@ shared_ptr<PipelineLineage> LineageManager::GetPipelineLineageNodeForOp(Physical
 	}
 }
 
+// This is used to recursively skip projections
+shared_ptr<OperatorLineage> GetThisLineageOp(PhysicalOperator *op, int thd_id) {
+	switch (op->type) {
+	case PhysicalOperatorType::CHUNK_SCAN:
+	case PhysicalOperatorType::DELIM_SCAN:
+	case PhysicalOperatorType::DUMMY_SCAN:
+	case PhysicalOperatorType::TABLE_SCAN:
+	case PhysicalOperatorType::FILTER:
+	case PhysicalOperatorType::HASH_GROUP_BY:
+	case PhysicalOperatorType::LIMIT:
+	case PhysicalOperatorType::ORDER_BY:
+	case PhysicalOperatorType::PERFECT_HASH_GROUP_BY:
+	case PhysicalOperatorType::SIMPLE_AGGREGATE:
+	case PhysicalOperatorType::WINDOW:
+	case PhysicalOperatorType::CROSS_PRODUCT:
+	case PhysicalOperatorType::NESTED_LOOP_JOIN:
+	case PhysicalOperatorType::BLOCKWISE_NL_JOIN:
+	case PhysicalOperatorType::PIECEWISE_MERGE_JOIN:
+	case PhysicalOperatorType::INDEX_JOIN:
+	case PhysicalOperatorType::HASH_JOIN:
+	case PhysicalOperatorType::DELIM_JOIN: {
+		return op->lineage_op[thd_id];
+	}
+	case PhysicalOperatorType::PROJECTION: {
+		// Skip projection!
+		return GetThisLineageOp((PhysicalOperator *)op->children[0].get(), thd_id);
+	}
+	default:
+		// Lineage unimplemented! TODO these :)
+		return {};
+	}
+}
+
+std::vector<shared_ptr<OperatorLineage>> GetChildrenForOp(PhysicalOperator *op, int thd_id) {
+	switch (op->type) {
+	case PhysicalOperatorType::CHUNK_SCAN:
+	case PhysicalOperatorType::DELIM_SCAN:
+	case PhysicalOperatorType::DUMMY_SCAN:
+	case PhysicalOperatorType::TABLE_SCAN: {
+		return {};
+	}
+	case PhysicalOperatorType::FILTER:
+	case PhysicalOperatorType::HASH_GROUP_BY:
+	case PhysicalOperatorType::LIMIT:
+	case PhysicalOperatorType::ORDER_BY:
+	case PhysicalOperatorType::PERFECT_HASH_GROUP_BY:
+	case PhysicalOperatorType::SIMPLE_AGGREGATE:
+	case PhysicalOperatorType::WINDOW: {
+		if (op->children.empty()) {
+			// The aggregation in DelimJoin TODO figure this out
+			return {};
+		} else {
+			return {GetThisLineageOp((PhysicalOperator *)op->children[0].get(), thd_id)};
+		}
+	}
+	case PhysicalOperatorType::CROSS_PRODUCT:
+	case PhysicalOperatorType::NESTED_LOOP_JOIN:
+	case PhysicalOperatorType::BLOCKWISE_NL_JOIN:
+	case PhysicalOperatorType::PIECEWISE_MERGE_JOIN:
+	case PhysicalOperatorType::INDEX_JOIN:
+	case PhysicalOperatorType::HASH_JOIN: {
+		return {
+		    GetThisLineageOp((PhysicalOperator *)op->children[0].get(), thd_id),
+		    GetThisLineageOp((PhysicalOperator *)op->children[1].get(), thd_id)
+		};
+	}
+	case PhysicalOperatorType::DELIM_JOIN: {
+		// TODO think through this more deeply - will probably require re-arranging some child pointers
+		PhysicalDelimJoin *delim_join = dynamic_cast<PhysicalDelimJoin *>(op);
+		return {
+		    GetThisLineageOp((PhysicalOperator *)op->children[0].get(), thd_id),
+			GetThisLineageOp((PhysicalOperator *)delim_join->join.get(), thd_id),
+			GetThisLineageOp(((PhysicalOperator *)delim_join->distinct.get()), thd_id),
+			// TODO DelimScans...
+		};
+	}
+	case PhysicalOperatorType::PROJECTION: {
+		// Doesn't matter - PROJECTION is skipped!
+		return {};
+	}
+	default:
+		// Lineage unimplemented! TODO these :)
+		return {};
+	}
+}
+
 void LineageManager::CreateOperatorLineage(PhysicalOperator *op, int thd_id, bool trace_lineage) {
 	if (op->type == PhysicalOperatorType::DELIM_JOIN) {
 		CreateOperatorLineage( dynamic_cast<PhysicalDelimJoin *>(op)->join.get(), thd_id, trace_lineage);
@@ -63,7 +149,11 @@ void LineageManager::CreateOperatorLineage(PhysicalOperator *op, int thd_id, boo
 	for (idx_t i = 0; i < op->children.size(); i++) {
 		CreateOperatorLineage(op->children[i].get(), thd_id, trace_lineage);
 	}
-	op->lineage_op[thd_id] = make_shared<OperatorLineage>(GetPipelineLineageNodeForOp(op), op->type);
+	op->lineage_op[thd_id] = make_shared<OperatorLineage>(
+		GetPipelineLineageNodeForOp(op, thd_id),
+		GetChildrenForOp(op, thd_id),
+		op->type
+	);
 	op->lineage_op[thd_id]->trace_lineage = trace_lineage;
 }
 
