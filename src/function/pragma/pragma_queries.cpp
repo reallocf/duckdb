@@ -9,6 +9,10 @@ string PragmaBackwardLineage(ClientContext &context, const FunctionParameters &p
 	// query the lineage data, create a view on top of it, and then query that
 	string query = parameters.values[0].ToString();
 	auto op = context.query_to_plan[query].get();
+	if (op == nullptr) {
+		return "SELECT []";
+	}
+
 	string origin = parameters.values[1].ToString();
 	std::stringstream ss(origin);
 	string word;
@@ -21,6 +25,7 @@ string PragmaBackwardLineage(ClientContext &context, const FunctionParameters &p
 			out += to_string(el);
 		}
 	}
+	out = "list_value("+out+")";
 
 	return StringUtil::Format("SELECT %s", out);
 }
