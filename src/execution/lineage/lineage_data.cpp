@@ -147,7 +147,7 @@ idx_t LineageSelVec::Count() {
 void LineageSelVec::Debug() {
 	std::cout << "LineageSelVec " << " " << typeid(vec).name() << std::endl;
 	for (idx_t i = 0; i < count; i++) {
-		std::cout << " (" << i << " -> " << vec.sel_data()->owned_data[i] << ") ";
+		std::cout << " (" << i << " -> " << vec.sel_data()->owned_data[i] + in_offset << ") ";
 	}
 	std::cout << std::endl;
 }
@@ -172,7 +172,7 @@ idx_t LineageSelVec::Size() {
 
 
 idx_t LineageSelVec::Backward(idx_t source) {
-	return (idx_t)vec.sel_data()->owned_data[source];
+	return (idx_t)vec.sel_data()->owned_data[source]+ in_offset;
 }
 
 vector<LineageDataWithOffset> LineageSelVec::Divide() {
