@@ -41,8 +41,11 @@ struct LineageProcessStruct;
 
 class OperatorLineage {
 public:
-	explicit OperatorLineage(shared_ptr<PipelineLineage> pipeline_lineage, PhysicalOperatorType type) :
-	      pipeline_lineage(move(pipeline_lineage)), type(type)  {}
+	explicit OperatorLineage(
+		shared_ptr<PipelineLineage> pipeline_lineage,
+		std::vector<shared_ptr<OperatorLineage>> children,
+	    PhysicalOperatorType type
+	) : pipeline_lineage(move(pipeline_lineage)), type(type), children(move(children))  {}
 
 	void Capture(const shared_ptr<LineageData>& datum, idx_t lineage_idx, int thread_id=-1);
 
@@ -56,6 +59,8 @@ public:
 	// Leaky... should refactor this so we don't need a pure pass-through function like this
 	void SetChunkId(idx_t idx);
 	idx_t Size();
+	shared_ptr<LineageDataWithOffset> GetMyLatest();
+	shared_ptr<LineageDataWithOffset> GetChildLatest(idx_t lineage_idx);
 
 public:
 	bool trace_lineage;
@@ -66,6 +71,7 @@ public:
 	idx_t data_idx = 0;
 	PhysicalOperatorType type;
 	shared_ptr<LineageNested> cached_internal_lineage = nullptr;
+	std::vector<shared_ptr<OperatorLineage>> children;
 
    // final lineage indexing data-structures
    // hash_map: used by group by and hash join build side
