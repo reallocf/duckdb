@@ -1,4 +1,4 @@
-#include "duckdb/execution/operator/scan/physical_table_scan.hpp"
+#include "duckdb/execution/operator/scan/physical_lineage_scan.hpp"
 
 #include "duckdb/catalog/catalog_entry/table_catalog_entry.hpp"
 #include "duckdb/common/string_util.hpp"
@@ -10,9 +10,9 @@
 
 namespace duckdb {
 
-class PhysicalTableScanOperatorState : public PhysicalOperatorState {
+class PhysicalLineageScanOperatorState : public PhysicalOperatorState {
 public:
-	explicit PhysicalTableScanOperatorState(PhysicalOperator &op)
+	explicit PhysicalLineageScanOperatorState(PhysicalOperator &op)
 	    : PhysicalOperatorState(op, nullptr), initialized(false) {
 	}
 
@@ -22,22 +22,17 @@ public:
 	bool initialized;
 };
 
-PhysicalTableScan::PhysicalTableScan(vector<LogicalType> types, TableFunction function_p,
-                                     unique_ptr<FunctionData> bind_data_p, vector<column_t> column_ids_p,
-                                     vector<string> names_p, unique_ptr<TableFilterSet> table_filters_p,
-                                     idx_t estimated_cardinality)
-    : PhysicalOperator(PhysicalOperatorType::TABLE_SCAN, move(types), estimated_cardinality),
-      function(move(function_p)), bind_data(move(bind_data_p)), column_ids(move(column_ids_p)), names(move(names_p)),
-      table_filters(move(table_filters_p)) {
+PhysicalLineageScan::PhysicalLineageScan(vector<LogicalType> types)
+    : PhysicalOperator(PhysicalOperatorType::LINEAGE_SCAN, move(types), 0) {
 }
 
-void PhysicalTableScan::GetChunkInternal(ExecutionContext &context, DataChunk &chunk, PhysicalOperatorState *state_p) {
-	auto &state = (PhysicalTableScanOperatorState &)*state_p;
+void PhysicalLineageScan::GetChunkInternal(ExecutionContext &context, DataChunk &chunk, PhysicalOperatorState *state_p) {
+	auto &state = (PhysicalLineageScanOperatorState &)*state_p;
 	if (column_ids.empty()) {
 		return;
 	}
 #ifdef LINEAGE
-    context.setCurrent(this);
+	context.setCurrent(this);
 #endif
 	if (!state.initialized) {
 		state.parallel_state = nullptr;
@@ -65,15 +60,7 @@ void PhysicalTableScan::GetChunkInternal(ExecutionContext &context, DataChunk &c
 	}
 	if (!state.parallel_state) {
 		// sequential scan
-		int k = 0;
-		if (context.lineage->isCScanSet){
-			// fill in the output chunk by calling a custom function not necessarily an operator. figure out how to set the flag to false
-			k = 1;
-		}
-		else{
-			function.function(context, bind_data.get(), state.operator_data.get(), nullptr, chunk);
-		}
-
+		function.function(context, bind_data.get(), state.operator_data.get(), nullptr, chunk);
 		if (chunk.size() != 0) {
 			return;
 		}
@@ -100,11 +87,11 @@ void PhysicalTableScan::GetChunkInternal(ExecutionContext &context, DataChunk &c
 	}
 }
 
-string PhysicalTableScan::GetName() const {
+string PhysicalLineageScan::GetName() const {
 	return StringUtil::Upper(function.name);
 }
 
-string PhysicalTableScan::ParamsToString() const {
+string PhysicalLineageScan::ParamsToString() const {
 	string result;
 	if (function.to_string) {
 		result = function.to_string(bind_data.get());
@@ -136,8 +123,8 @@ string PhysicalTableScan::ParamsToString() const {
 	return result;
 }
 
-unique_ptr<PhysicalOperatorState> PhysicalTableScan::GetOperatorState() {
-	return make_unique<PhysicalTableScanOperatorState>(*this);
+unique_ptr<PhysicalOperatorState> PhysicalLineageScan::GetOperatorState() {
+	return make_unique<PhysicalLineageScanOperatorState>(*this);
 }
 
 } // namespace duckdb

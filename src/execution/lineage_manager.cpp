@@ -1,10 +1,12 @@
 #include "duckdb/execution/lineage_context.hpp"
 #include "duckdb/main/client_context.hpp"
-
-#include "duckdb/planner/binder.hpp"
-#include "duckdb/parser/statement/create_statement.hpp"
 #include "duckdb/parser/parsed_data/create_table_info.hpp"
+#include "duckdb/parser/statement/create_statement.hpp"
+#include "duckdb/planner/binder.hpp"
 #include "duckdb/planner/parsed_data/bound_create_table_info.hpp"
+
+#include <duckdb/execution/operator/scan/physical_lineage_scan.hpp>
+#include <duckdb/execution/operator/scan/physical_table_scan.hpp>
 
 namespace duckdb {
 class PhysicalOperator;
@@ -32,6 +34,35 @@ void ManageLineage::AddLocalSinkLineage(PhysicalOperator* sink,  shared_ptr<Line
     }
 }
 
+bool isInstanceOf(unique_ptr<PhysicalOperator> u_p){
+	if (dynamic_cast<PhysicalTableScan*>(u_p.get()) == nullptr)
+	{
+		return false;
+	}
+	return true;
+}
+
+void ManageLineage::addCustomScan(PhysicalOperator *op) {
+
+	vector<LogicalType> types{LogicalType::INTEGER};
+	if (isInstanceOf(static_cast<unique_ptr<PhysicalOperator>>(op))){
+		op->children.push_back(make_unique<PhysicalLineageScan>(types));
+	}
+
+	for (int i = 0; i < op->children.size(); ++i){
+		addCustomScan(op->children[i].get());
+	}
+
+}
+
+void ManageLineage::setCustomScan(bool isSet){
+	customScan = isSet;
+}
+
+bool ManageLineage::getCustomScan(){
+	return customScan;
+}
+
 void ManageLineage::AnnotatePlan(PhysicalOperator *op) {
     if (!op) return;
     if ( op_metadata.find(op->GetName()) == op_metadata.end() )
@@ -40,8 +71,11 @@ void ManageLineage::AnnotatePlan(PhysicalOperator *op) {
         op_metadata[op->GetName()]++;
     op->id = op_metadata[op->GetName()];
 
-    for (int i = 0; i < op->children.size(); ++i)
-        AnnotatePlan(op->children[i].get());
+    for (int i = 0; i < op->children.size(); ++i){
+
+		AnnotatePlan(op->children[i].get());
+	}
+
 }
 
 void ManageLineage::setQuery(string input_query) {

@@ -260,6 +260,10 @@ unique_ptr<DataChunk> Executor::FetchChunk() {
     TaskContext task;
     ExecutionContext econtext(context, thread, task, context.trace_lineage);
 
+	if (this->lineage_manager->getCustomScan()){
+		econtext.lineage->isCScanSet = true;
+	}
+
     auto chunk = make_unique<DataChunk>();
     // run the plan to get the next chunks
     physical_plan->InitializeChunkEmpty(*chunk);
