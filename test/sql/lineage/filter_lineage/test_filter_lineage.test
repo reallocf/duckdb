@@ -29,7 +29,7 @@ statement ok
 PRAGMA trace_lineage = "ON";
 
 query I
-select * from t1 where i < 5 or i > 1075;
+select * from t2 where i < 5 or i > 1075;
 ----
 0
 1

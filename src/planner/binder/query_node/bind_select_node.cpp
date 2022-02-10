@@ -10,6 +10,7 @@
 #include "duckdb/parser/query_node/select_node.hpp"
 #include "duckdb/parser/tableref/joinref.hpp"
 #include "duckdb/planner/binder.hpp"
+#include "duckdb/planner/expression_binder/aggregate_binder.hpp"
 #include "duckdb/planner/expression_binder/constant_binder.hpp"
 #include "duckdb/planner/expression_binder/group_binder.hpp"
 #include "duckdb/planner/expression_binder/having_binder.hpp"
@@ -17,7 +18,8 @@
 #include "duckdb/planner/expression_binder/select_binder.hpp"
 #include "duckdb/planner/expression_binder/where_binder.hpp"
 #include "duckdb/planner/query_node/bound_select_node.hpp"
-#include "duckdb/planner/expression_binder/aggregate_binder.hpp"
+
+#include <duckdb/parser/tableref/basetableref.hpp>
 
 namespace duckdb {
 unique_ptr<Expression> Binder::BindFilter(unique_ptr<ParsedExpression> condition) {
@@ -180,8 +182,7 @@ unique_ptr<BoundQueryNode> Binder::BindNode(SelectNode &statement) {
 	result->prune_index = GenerateTableIndex();
 
 	// first bind the FROM table statement
-	result->from_table = Bind(*statement.from_table);
-
+		result->from_table = Bind(*statement.from_table);
 	// bind the sample clause
 	if (statement.sample) {
 		result->sample_options = move(statement.sample);
