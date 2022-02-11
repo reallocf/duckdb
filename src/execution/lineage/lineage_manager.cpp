@@ -105,7 +105,7 @@ std::vector<shared_ptr<OperatorLineage>> GetChildrenForOp(PhysicalOperator *op, 
 			// The aggregation in DelimJoin TODO figure this out
 			return {};
 		} else {
-			return {GetThisLineageOp((PhysicalOperator *)op->children[0].get(), thd_id)};
+			return {GetThisLineageOp(op->children[0].get(), thd_id)};
 		}
 	}
 	case PhysicalOperatorType::CROSS_PRODUCT:
@@ -115,17 +115,17 @@ std::vector<shared_ptr<OperatorLineage>> GetChildrenForOp(PhysicalOperator *op, 
 	case PhysicalOperatorType::INDEX_JOIN:
 	case PhysicalOperatorType::HASH_JOIN: {
 		return {
-		    GetThisLineageOp((PhysicalOperator *)op->children[0].get(), thd_id),
-		    GetThisLineageOp((PhysicalOperator *)op->children[1].get(), thd_id)
+		    GetThisLineageOp(op->children[0].get(), thd_id),
+		    GetThisLineageOp(op->children[1].get(), thd_id)
 		};
 	}
 	case PhysicalOperatorType::DELIM_JOIN: {
 		// TODO think through this more deeply - will probably require re-arranging some child pointers
 		PhysicalDelimJoin *delim_join = dynamic_cast<PhysicalDelimJoin *>(op);
 		return {
-		    GetThisLineageOp((PhysicalOperator *)op->children[0].get(), thd_id),
-			GetThisLineageOp((PhysicalOperator *)delim_join->join.get(), thd_id),
-			GetThisLineageOp(((PhysicalOperator *)delim_join->distinct.get()), thd_id),
+		    GetThisLineageOp(op->children[0].get(), thd_id),
+			GetThisLineageOp(delim_join->join.get(), thd_id),
+			GetThisLineageOp((PhysicalOperator *)delim_join->distinct.get(), thd_id),
 			// TODO DelimScans...
 		};
 	}
