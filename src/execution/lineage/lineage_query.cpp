@@ -10,36 +10,47 @@
 namespace duckdb {
 class PhysicalDelimJoin;
 
-void LineageManager::PostProcess(PhysicalOperator *op) {
+void LineageManager::PostProcess(PhysicalOperator *op, bool should_index) {
 	// massage the data to make it easier to query
-	vector<vector<ColumnDefinition>> table_column_types = GetTableColumnTypes(op);
-	for (idx_t i = 0; i < table_column_types.size(); i++) {
-		// for hash join, build hash table on the build side that map the address to id
-		// for group by, build hash table on the unique groups
-		for (auto const& lineage_op : op->lineage_op) {
-			LineageProcessStruct lps = lineage_op.second->PostProcess(0, 0, lineage_op.first);
-			while (lps.still_processing) {
-				lps = lineage_op.second->PostProcess(lps.count_so_far,  lps.size_so_far, lineage_op.first);
+	bool always_post_process =
+	    op->type == PhysicalOperatorType::HASH_GROUP_BY
+	    || op->type == PhysicalOperatorType::PERFECT_HASH_GROUP_BY
+	    || op->type == PhysicalOperatorType::HASH_JOIN;
+	if (always_post_process || should_index) {
+		vector<vector<ColumnDefinition>> table_column_types = GetTableColumnTypes(op);
+		for (idx_t i = 0; i < table_column_types.size(); i++) {
+			// for hash join, build hash table on the build side that map the address to id
+			// for group by, build hash table on the unique groups
+			for (auto const& lineage_op : op->lineage_op) {
+				LineageProcessStruct lps = lineage_op.second->PostProcess(0, 0, lineage_op.first);
+				while (lps.still_processing) {
+					lps = lineage_op.second->PostProcess(lps.count_so_far,  lps.size_so_far, lineage_op.first);
+				}
+				lineage_op.second->FinishedProcessing();
 			}
-			lineage_op.second->FinishedProcessing();
 		}
 	}
 
-
 	if (op->type == PhysicalOperatorType::DELIM_JOIN) {
-		PostProcess( dynamic_cast<PhysicalDelimJoin *>(op)->join.get());
-		PostProcess( (PhysicalOperator *)dynamic_cast<PhysicalDelimJoin *>(op)->distinct.get());
-		for (idx_t i = 0; i < dynamic_cast<PhysicalDelimJoin *>(op)->delim_scans.size(); ++i)
-			PostProcess( dynamic_cast<PhysicalDelimJoin *>(op)->delim_scans[i]);
+		PostProcess( dynamic_cast<PhysicalDelimJoin *>(op)->join.get(), false);
+		PostProcess( (PhysicalOperator *)dynamic_cast<PhysicalDelimJoin *>(op)->distinct.get(), false);
+		for (idx_t i = 0; i < dynamic_cast<PhysicalDelimJoin *>(op)->delim_scans.size(); ++i) {
+			PostProcess( dynamic_cast<PhysicalDelimJoin *>(op)->delim_scans[i], false);
+		}
 	}
 	for (idx_t i = 0; i < op->children.size(); i++) {
-		PostProcess(op->children[i].get());
+		bool child_should_index =
+			op->type == PhysicalOperatorType::HASH_GROUP_BY
+			|| op->type == PhysicalOperatorType::PERFECT_HASH_GROUP_BY
+			|| (op->type == PhysicalOperatorType::HASH_JOIN && i == 0) // Only build side child needs an index
+			|| op->type == PhysicalOperatorType::ORDER_BY
+		    || (op->type == PhysicalOperatorType::PROJECTION && should_index); // Pass through should_index on projection
+		PostProcess(op->children[i].get(), child_should_index);
 	}
 }
 
 
 LineageProcessStruct OperatorLineage::PostProcess(idx_t count_so_far, idx_t size_so_far, int thread_id) {
-	// TODO turn off indexing when we can pointer hop
 	if (data[finished_idx].size() > data_idx) {
 		Vector thread_id_vec(Value::INTEGER(thread_id));
 		switch (this->type) {
