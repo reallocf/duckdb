@@ -396,18 +396,6 @@ vector<idx_t> OperatorLineage::Backward(PhysicalOperator *op, idx_t source, shar
 	}
 }
 
-// Just used to (recursively) skip over projections
-PhysicalOperator *GetThisOp(PhysicalOperator *op) {
-	switch(op->type) {
-	case PhysicalOperatorType::PROJECTION: {
-		return GetThisOp(op->children[0].get());
-	}
-	default: {
-		return op;
-	}
-	}
-}
-
 vector<idx_t> LineageManager::Backward(PhysicalOperator *op, idx_t source) {
 	// an operator can have lineage from multiple threads, how to decide which one to check?
 	vector<idx_t> lineage = op->lineage_op.at(-1)->Backward(op, source);
