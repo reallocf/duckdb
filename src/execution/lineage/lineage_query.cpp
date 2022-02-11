@@ -54,6 +54,10 @@ void LineageManager::PostProcess(PhysicalOperator *op, bool should_index) {
 			op->type == PhysicalOperatorType::HASH_GROUP_BY
 			|| op->type == PhysicalOperatorType::PERFECT_HASH_GROUP_BY
 			|| (op->type == PhysicalOperatorType::HASH_JOIN && i == 0) // Only build side child needs an index
+		    || (op->type == PhysicalOperatorType::BLOCKWISE_NL_JOIN && i == 1) // Right side needs index
+		    || (op->type == PhysicalOperatorType::CROSS_PRODUCT && i == 1) // Right side needs index
+		    || (op->type == PhysicalOperatorType::NESTED_LOOP_JOIN && i == 1) // Right side needs index
+		    || (op->type == PhysicalOperatorType::PIECEWISE_MERGE_JOIN && i == 1) // Right side needs index
 			|| op->type == PhysicalOperatorType::ORDER_BY
 		    || (op->type == PhysicalOperatorType::PROJECTION && should_index); // Pass through should_index on projection
 		PostProcess(op->children[i].get(), child_should_index);
@@ -329,11 +333,15 @@ vector<idx_t> OperatorLineage::Backward(PhysicalOperator *op, idx_t source, shar
 		// TODO iteration on these
 		if (dynamic_cast<LineageBinary&>(*this_data.data).right != nullptr) {
 			auto right = dynamic_cast<LineageBinary&>(*this_data.data).right->Backward(source);
+			auto child_lop = op->children[1]->lineage_op.at(-1);
+			auto right_lineage = child_lop->Backward(op->children[1].get(), right); // Full scan
 			lineage.push_back(right);
 		}
 
 		if (dynamic_cast<LineageBinary&>(*this_data.data).left != nullptr) {
 			auto left = dynamic_cast<LineageBinary&>(*this_data.data).left->Backward(source);
+			auto child_lop = op->children[0]->lineage_op.at(-1);
+			auto left_lineage = child_lop->Backward(op->children[0].get(), left, this_data.data->GetChild());
 			lineage.push_back(left+this_data.offset);
 		}
 
@@ -350,9 +358,13 @@ vector<idx_t> OperatorLineage::Backward(PhysicalOperator *op, idx_t source, shar
 			this_data = *maybe_lineage_data.get();
 		}
 
-		// TODO iteration on these
-		lineage.push_back(this_data.data->Backward(source));
-		lineage.push_back(this_data.offset + source);
+		auto right_child_lop = op->children[1]->lineage_op.at(-1);
+		lineage = right_child_lop->Backward(op->children[1].get(), this_data.data->Backward(source)); // Full scan
+
+		auto left_child_lop = op->children[0]->lineage_op.at(-1);
+		auto left_lineage = left_child_lop->Backward(op->children[0].get(), source, this_data.data->GetChild());
+		lineage.reserve(lineage.size() + left_lineage.size());
+		lineage.insert(lineage.end(), left_lineage.begin(), left_lineage.end());
 
 		return lineage;
 	}
@@ -368,15 +380,18 @@ vector<idx_t> OperatorLineage::Backward(PhysicalOperator *op, idx_t source, shar
 			this_data = *maybe_lineage_data.get();
 		}
 
-		// TODO iteration on these
 		if (dynamic_cast<LineageBinary&>(*this_data.data).right != nullptr) {
+			// This is the exact value - no need to iterate
 			auto right = dynamic_cast<LineageBinary&>(*this_data.data).right->Backward(source);
 			lineage.push_back(right);
 		}
 
 		if (dynamic_cast<LineageBinary&>(*this_data.data).left != nullptr) {
 			auto left = dynamic_cast<LineageBinary&>(*this_data.data).left->Backward(source);
-			lineage.push_back(left+this_data.offset);
+			auto child_lop = op->children[0]->lineage_op.at(-1);
+			auto left_lineage = child_lop->Backward(op->children[0].get(), left, this_data.data->GetChild());
+			lineage.reserve(lineage.size() + left_lineage.size());
+			lineage.insert(lineage.end(), left_lineage.begin(), left_lineage.end());
 		}
 
 		return lineage;
