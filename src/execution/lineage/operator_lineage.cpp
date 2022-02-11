@@ -315,14 +315,20 @@ shared_ptr<LineageDataWithOffset> OperatorLineage::GetMyLatest() {
 	case PhysicalOperatorType::WINDOW: {
 		return make_shared<LineageDataWithOffset>(data[0][data[0].size() - 1]);
 	}
-	case PhysicalOperatorType::CROSS_PRODUCT:
+	case PhysicalOperatorType::CROSS_PRODUCT: {
+		// Only the right lineage is ever captured TODO is this what we should do?
+		return make_shared<LineageDataWithOffset>(data[1][data[1].size() - 1]);
+	}
 	case PhysicalOperatorType::NESTED_LOOP_JOIN:
 	case PhysicalOperatorType::BLOCKWISE_NL_JOIN:
 	case PhysicalOperatorType::PIECEWISE_MERGE_JOIN:
-	case PhysicalOperatorType::INDEX_JOIN:
+	case PhysicalOperatorType::INDEX_JOIN: {
+		// 0 is the probe side for these joins
+		return make_shared<LineageDataWithOffset>(data[0][data[0].size() - 1]);
+	}
 	case PhysicalOperatorType::HASH_JOIN: {
 		// When being asked for latest, we'll always want to refer to the probe data
-		if (data[LINEAGE_PROBE].size() > 0) {
+		if (!data[LINEAGE_PROBE].empty()) {
 			return make_shared<LineageDataWithOffset>(data[LINEAGE_PROBE][data[LINEAGE_PROBE].size() - 1]);
 		} else {
 			// Mark Hash Join TODO is this right?
@@ -372,13 +378,21 @@ shared_ptr<LineageDataWithOffset> OperatorLineage::GetChildLatest(idx_t lineage_
 	case PhysicalOperatorType::WINDOW: {
 		return children[0]->GetMyLatest();
 	}
-	case PhysicalOperatorType::CROSS_PRODUCT:
+	case PhysicalOperatorType::INDEX_JOIN: {
+		// Index Join, despite being a join, just has 1 child
+		return children[0]->GetMyLatest();
+	}
+	case PhysicalOperatorType::CROSS_PRODUCT: {
+		// Always refer to 0th for cross product
+		return children[0]->GetMyLatest();
+	}
 	case PhysicalOperatorType::NESTED_LOOP_JOIN:
 	case PhysicalOperatorType::BLOCKWISE_NL_JOIN:
-	case PhysicalOperatorType::PIECEWISE_MERGE_JOIN:
-	case PhysicalOperatorType::INDEX_JOIN:
+	case PhysicalOperatorType::PIECEWISE_MERGE_JOIN: {
+		return children[lineage_idx]->GetMyLatest();
+	}
 	case PhysicalOperatorType::HASH_JOIN: {
-		// lineage_idx happens to refer to the correct left/right value in the child TODO confirm this
+		// We mix up Hash Join...
 		if (lineage_idx == LINEAGE_BUILD) {
 			return children[1]->GetMyLatest();
 		} else {
