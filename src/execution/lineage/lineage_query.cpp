@@ -16,9 +16,20 @@ void LineageManager::PostProcess(PhysicalOperator *op, bool should_index) {
 	    op->type == PhysicalOperatorType::HASH_GROUP_BY
 	    || op->type == PhysicalOperatorType::PERFECT_HASH_GROUP_BY
 	    || op->type == PhysicalOperatorType::HASH_JOIN;
-	if (always_post_process || should_index) {
+	bool never_post_process =
+	    op->type == PhysicalOperatorType::ORDER_BY; // 1 large chunk, so index is useless
+	if ((always_post_process || should_index) && !never_post_process) {
 		vector<vector<ColumnDefinition>> table_column_types = GetTableColumnTypes(op);
 		for (idx_t i = 0; i < table_column_types.size(); i++) {
+			bool skip_this_sel_vec =
+				(op->type == PhysicalOperatorType::HASH_GROUP_BY && i == LINEAGE_COMBINE)
+			    || (op->type == PhysicalOperatorType::PERFECT_HASH_GROUP_BY && i == LINEAGE_COMBINE)
+			    || (op->type == PhysicalOperatorType::HASH_GROUP_BY && i == LINEAGE_SOURCE && !should_index)
+			    || (op->type == PhysicalOperatorType::PERFECT_HASH_GROUP_BY && i == LINEAGE_SOURCE && !should_index)
+			    || (op->type == PhysicalOperatorType::HASH_JOIN && i == LINEAGE_PROBE && !should_index);
+			if (skip_this_sel_vec) {
+				continue;
+			}
 			// for hash join, build hash table on the build side that map the address to id
 			// for group by, build hash table on the unique groups
 			for (auto const& lineage_op : op->lineage_op) {
@@ -108,10 +119,10 @@ LineageProcessStruct OperatorLineage::PostProcess(idx_t count_so_far, idx_t size
 				size_so_far += this_data.data->Size();
 			} else if (finished_idx == LINEAGE_COMBINE) {
 			} else {
-				idx_t res_count = data[LINEAGE_PROBE][data_idx].data->Count();
+				idx_t res_count = data[LINEAGE_SOURCE][data_idx].data->Count();
 				index.push_back(res_count + count_so_far);
 				count_so_far += res_count;
-				size_so_far +=  data[LINEAGE_PROBE][data_idx].data->Size();
+				size_so_far +=  data[LINEAGE_SOURCE][data_idx].data->Size();
 			}
 			break;
 		}
@@ -142,26 +153,10 @@ LineageProcessStruct OperatorLineage::PostProcess(idx_t count_so_far, idx_t size
 			break;
 		}
 		case PhysicalOperatorType::ORDER_BY: {
-			LineageDataWithOffset this_data = data[LINEAGE_UNARY][data_idx];
-			idx_t res_count = this_data.data->Count();
-			if (res_count > STANDARD_VECTOR_SIZE) {
-				D_ASSERT(data_idx == 0);
-				// TODO is it faster to Divide which requires a data scan/copy? Or to access the data directly?
-				// If we choose to access the data directly, we'll need to turn off dividing in OperatorLineage::Process
-				// since it overwrites the values in data[]
-				data[LINEAGE_UNARY] = dynamic_cast<LineageSelVec *>(this_data.data.get())->Divide();
-				this_data = data[LINEAGE_UNARY][0];
-				res_count = this_data.data->Count();
-			}
-
-			index.push_back(res_count + count_so_far);
-
-			count_so_far += res_count;
-			size_so_far += this_data.data->Size();
-			break;
+			throw std::logic_error("Shouldn't post-process ORDER_BY");
 		}
 		default:
-			// We must capture lineage for everything getting processed
+			// We must capture lineage for everything getting post-processed
 			D_ASSERT(false);
 		}
 	}
@@ -388,11 +383,8 @@ vector<idx_t> OperatorLineage::Backward(PhysicalOperator *op, idx_t source, shar
 	}
 	case PhysicalOperatorType::ORDER_BY: {
 		if (maybe_lineage_data == nullptr) {
-			// get the address it maps to from probe, then use it to access all the groups
-			// that maps to this
-			auto bh = AccessLineageDataViaIndex(source, data[LINEAGE_UNARY], index);
-			this_data = bh.data;
-			source = bh.source;
+			// No OrderBy index since it's all one chunk - just get that chunk
+			this_data = data[LINEAGE_UNARY][0];
 		} else {
 			this_data = *maybe_lineage_data.get();
 		}
@@ -402,6 +394,8 @@ vector<idx_t> OperatorLineage::Backward(PhysicalOperator *op, idx_t source, shar
 		return child_lop->Backward(op->children[0].get(), res); // requires full scan
 	}
 	default: {
+		// We must capture lineage for everything that BACKWARD is called on
+		D_ASSERT(false);
 		return {};
 	}
 	}
