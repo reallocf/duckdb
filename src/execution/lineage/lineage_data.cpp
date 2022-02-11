@@ -36,6 +36,10 @@ void LineageDataRowVector::SetChild(shared_ptr<LineageDataWithOffset> c) {
 	child = c;
 }
 
+shared_ptr<LineageDataWithOffset> LineageDataRowVector::GetChild() {
+	return child;
+}
+
 
 // LineageDataVectorBufferArray
 
@@ -75,6 +79,10 @@ idx_t LineageDataVectorBufferArray::Backward(idx_t source) {
 
 void LineageDataVectorBufferArray::SetChild(shared_ptr<LineageDataWithOffset> c) {
 	child = c;
+}
+
+shared_ptr<LineageDataWithOffset> LineageDataVectorBufferArray::GetChild() {
+	return child;
 }
 
 
@@ -117,6 +125,10 @@ void LineageDataUIntPtrArray::SetChild(shared_ptr<LineageDataWithOffset> c) {
 	child = c;
 }
 
+shared_ptr<LineageDataWithOffset> LineageDataUIntPtrArray::GetChild() {
+	return child;
+}
+
 
 // LineageDataUInt32Array
 
@@ -155,6 +167,10 @@ idx_t LineageDataUInt32Array::Backward(idx_t source) {
 
 void LineageDataUInt32Array::SetChild(shared_ptr<LineageDataWithOffset> c) {
 	child = c;
+}
+
+shared_ptr<LineageDataWithOffset> LineageDataUInt32Array::GetChild() {
+	return child;
 }
 
 
@@ -220,6 +236,10 @@ void LineageSelVec::SetChild(shared_ptr<LineageDataWithOffset> c) {
 	child = c;
 }
 
+shared_ptr<LineageDataWithOffset> LineageSelVec::GetChild() {
+	return child;
+}
+
 
 // LineageRange
 
@@ -255,6 +275,10 @@ void LineageRange::SetChild(shared_ptr<LineageDataWithOffset> c) {
 	child = c;
 }
 
+shared_ptr<LineageDataWithOffset> LineageRange::GetChild() {
+	return child;
+}
+
 
 // LineageConstant
 
@@ -281,6 +305,10 @@ idx_t LineageConstant::Backward(idx_t source) {
 
 void LineageConstant::SetChild(shared_ptr<LineageDataWithOffset> c) {
 	child = c;
+}
+
+shared_ptr<LineageDataWithOffset> LineageConstant::GetChild() {
+	return child;
 }
 
 
@@ -321,6 +349,10 @@ idx_t LineageBinary::Backward(idx_t source) {
 
 void LineageBinary::SetChild(shared_ptr<LineageDataWithOffset> c) {
 	child = c;
+}
+
+shared_ptr<LineageDataWithOffset> LineageBinary::GetChild() {
+	return child;
 }
 
 
@@ -394,6 +426,10 @@ idx_t LineageNested::Backward(idx_t source) {
 
 void LineageNested::SetChild(shared_ptr<LineageDataWithOffset> c) {
 	// Do nothing since the children are set on the internal LineageData
+}
+
+shared_ptr<LineageDataWithOffset> LineageNested::GetChild() {
+	throw std::logic_error("Can't call GetChild on LineageNested");
 }
 
 } // namespace duckdb

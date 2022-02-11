@@ -30,6 +30,7 @@ public:
 	virtual void Debug() = 0;
 	virtual data_ptr_t Process(idx_t offset) = 0;
 	virtual void SetChild(shared_ptr<LineageDataWithOffset> c) = 0;
+	virtual shared_ptr<LineageDataWithOffset> GetChild() = 0;
 	virtual idx_t Size() = 0;
 	virtual idx_t Backward(idx_t) = 0;
 	virtual ~LineageData() {};
@@ -54,6 +55,7 @@ public:
 	void Debug() override;
 	data_ptr_t Process(idx_t offset) override;
 	void SetChild(shared_ptr<LineageDataWithOffset> c) override;
+	shared_ptr<LineageDataWithOffset> GetChild() override;
 	idx_t Size() override;
 	idx_t Backward(idx_t) override;
 
@@ -75,6 +77,7 @@ public:
 	void Debug() override;
 	data_ptr_t Process(idx_t offset) override;
 	void SetChild(shared_ptr<LineageDataWithOffset> c) override;
+	shared_ptr<LineageDataWithOffset> GetChild() override;
 	idx_t Size() override;
 	idx_t Backward(idx_t) override;
 
@@ -96,6 +99,7 @@ public:
 	void Debug() override;
 	data_ptr_t Process(idx_t offset) override;
 	void SetChild(shared_ptr<LineageDataWithOffset> c) override;
+	shared_ptr<LineageDataWithOffset> GetChild() override;
 	idx_t Size() override;
 	idx_t Backward(idx_t) override;
 
@@ -117,6 +121,7 @@ public:
 	void Debug() override;
 	data_ptr_t Process(idx_t offset) override;
 	void SetChild(shared_ptr<LineageDataWithOffset> c) override;
+	shared_ptr<LineageDataWithOffset> GetChild() override;
 	idx_t Size() override;
 	idx_t Backward(idx_t) override;
 
@@ -138,6 +143,7 @@ public:
 	void Debug() override;
 	data_ptr_t Process(idx_t offset) override;
 	void SetChild(shared_ptr<LineageDataWithOffset> c) override;
+	shared_ptr<LineageDataWithOffset> GetChild() override;
 	idx_t Size() override;
 	idx_t Backward(idx_t) override;
 
@@ -165,6 +171,7 @@ public:
 	void Debug() override;
 	data_ptr_t Process(idx_t offset) override;
 	void SetChild(shared_ptr<LineageDataWithOffset> c) override;
+	shared_ptr<LineageDataWithOffset> GetChild() override;
 	idx_t Size() override;
 	idx_t Backward(idx_t) override;
 
@@ -188,6 +195,7 @@ public:
 	void Debug() override;
 	data_ptr_t Process(idx_t offset) override;
 	void SetChild(shared_ptr<LineageDataWithOffset> c) override;
+	shared_ptr<LineageDataWithOffset> GetChild() override;
 	idx_t Size() override;
 	idx_t Backward(idx_t) override;
 
@@ -212,6 +220,7 @@ public:
 	void Debug() override;
 	data_ptr_t Process(idx_t offset) override;
 	void SetChild(shared_ptr<LineageDataWithOffset> c) override;
+	shared_ptr<LineageDataWithOffset> GetChild() override;
 	idx_t Size() override;
 	idx_t Backward(idx_t) override;
 
@@ -243,6 +252,7 @@ public:
 	void Debug() override;
 	data_ptr_t Process(idx_t offset) override;
 	void SetChild(shared_ptr<LineageDataWithOffset> c) override;
+	shared_ptr<LineageDataWithOffset> GetChild() override;
 	idx_t Size() override;
 	idx_t Backward(idx_t) override;
 
