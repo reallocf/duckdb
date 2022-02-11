@@ -112,11 +112,17 @@ std::vector<shared_ptr<OperatorLineage>> GetChildrenForOp(PhysicalOperator *op, 
 	case PhysicalOperatorType::NESTED_LOOP_JOIN:
 	case PhysicalOperatorType::BLOCKWISE_NL_JOIN:
 	case PhysicalOperatorType::PIECEWISE_MERGE_JOIN:
-	case PhysicalOperatorType::INDEX_JOIN:
-	case PhysicalOperatorType::HASH_JOIN: {
+	case PhysicalOperatorType::INDEX_JOIN: {
 		return {
 		    GetThisLineageOp(op->children[0].get(), thd_id),
 		    GetThisLineageOp(op->children[1].get(), thd_id)
+		};
+	}
+	case PhysicalOperatorType::HASH_JOIN: {
+		// Things swapped for Hash Join :(
+		return {
+			GetThisLineageOp(op->children[1].get(), thd_id),
+			GetThisLineageOp(op->children[0].get(), thd_id)
 		};
 	}
 	case PhysicalOperatorType::DELIM_JOIN: {
