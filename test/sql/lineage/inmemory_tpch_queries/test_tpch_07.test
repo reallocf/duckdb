@@ -1,0 +1,27 @@
+# name: test/sql/lineage/inmemory_tpch_queries/test_tpch_07.test
+# description: Test TPC-H Query 7 in-memory
+# group: [inmemory_tpch_queries]
+
+require tpch
+
+statement ok
+CALL dbgen(sf=0.01);
+
+statement ok
+PRAGMA trace_lineage = "ON";
+
+statement ok
+SELECT supp_nation, cust_nation, l_year, sum(volume) AS revenue FROM (SELECT n1.n_name AS supp_nation, n2.n_name AS cust_nation, extract(year FROM l_shipdate) AS l_year, l_extendedprice * (1 - l_discount) AS volume FROM supplier, lineitem, orders, customer, nation n1, nation n2 WHERE s_suppkey = l_suppkey AND o_orderkey = l_orderkey AND c_custkey = o_custkey AND s_nationkey = n1.n_nationkey AND c_nationkey = n2.n_nationkey AND ((n1.n_name = 'FRANCE' AND n2.n_name = 'GERMANY') OR (n1.n_name = 'GERMANY' AND n2.n_name = 'FRANCE')) AND l_shipdate BETWEEN CAST('1995-01-01' AS date) AND CAST('1996-12-31' AS date)) AS shipping GROUP BY supp_nation, cust_nation, l_year ORDER BY supp_nation, cust_nation, l_year
+
+statement ok
+PRAGMA trace_lineage = "OFF";
+
+query I
+PRAGMA backward_lineage("SELECT supp_nation, cust_nation, l_year, sum(volume) AS revenue FROM (SELECT n1.n_name AS supp_nation, n2.n_name AS cust_nation, extract(year FROM l_shipdate) AS l_year, l_extendedprice * (1 - l_discount) AS volume FROM supplier, lineitem, orders, customer, nation n1, nation n2 WHERE s_suppkey = l_suppkey AND o_orderkey = l_orderkey AND c_custkey = o_custkey AND s_nationkey = n1.n_nationkey AND c_nationkey = n2.n_nationkey AND ((n1.n_name = 'FRANCE' AND n2.n_name = 'GERMANY') OR (n1.n_name = 'GERMANY' AND n2.n_name = 'FRANCE')) AND l_shipdate BETWEEN CAST('1995-01-01' AS date) AND CAST('1996-12-31' AS date)) AS shipping GROUP BY supp_nation, cust_nation, l_year ORDER BY supp_nation, cust_nation, l_year", '0')
+----
+[4780, 1189, 636, 7, 69, 6, 6258, 1560, 135, 7, 89, 6, 6259, 1560, 135, 7, 69, 6, 8191, 2050, 282, 7, 69, 6, 14007, 3488, 387, 7, 69, 6, 33528, 8326, 1443, 7, 69, 6, 34759, 8645, 378, 7, 69, 6, 41160, 10223, 1324, 7, 69, 6, 43527, 10825, 636, 7, 69, 6]
+
+query I
+PRAGMA backward_lineage("SELECT supp_nation, cust_nation, l_year, sum(volume) AS revenue FROM (SELECT n1.n_name AS supp_nation, n2.n_name AS cust_nation, extract(year FROM l_shipdate) AS l_year, l_extendedprice * (1 - l_discount) AS volume FROM supplier, lineitem, orders, customer, nation n1, nation n2 WHERE s_suppkey = l_suppkey AND o_orderkey = l_orderkey AND c_custkey = o_custkey AND s_nationkey = n1.n_nationkey AND c_nationkey = n2.n_nationkey AND ((n1.n_name = 'FRANCE' AND n2.n_name = 'GERMANY') OR (n1.n_name = 'GERMANY' AND n2.n_name = 'FRANCE')) AND l_shipdate BETWEEN CAST('1995-01-01' AS date) AND CAST('1996-12-31' AS date)) AS shipping GROUP BY supp_nation, cust_nation, l_year ORDER BY supp_nation, cust_nation, l_year", '2')
+----
+[3517, 871, 1476, 6, 32, 7, 7108, 1771, 1401, 6, 52, 7, 9162, 2293, 270, 6, 43, 7, 10890, 2735, 318, 6, 32, 7, 17251, 4316, 45, 6, 76, 7, 22782, 5664, 451, 6, 32, 7, 29392, 7293, 666, 6, 84, 7, 30551, 7587, 685, 6, 43, 7, 30552, 7587, 685, 6, 52, 7, 30866, 7664, 1020, 6, 32, 7, 36881, 9170, 454, 6, 52, 7, 37234, 9249, 1110, 6, 32, 7, 38755, 9633, 1476, 6, 52, 7, 39144, 9730, 451, 6, 32, 7, 43100, 10713, 1110, 6, 43, 7, 46750, 11644, 454, 6, 43, 7, 52777, 13145, 45, 6, 52, 7, 55820, 13913, 685, 6, 43, 7]

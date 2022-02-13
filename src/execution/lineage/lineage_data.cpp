@@ -402,12 +402,12 @@ int LineageNested::LocateChunkIndex(idx_t source) {
 	// (1) locate which internal lineage_data to use
 	auto lower = lower_bound(index.begin(), index.end(), source);
 	if (lower == index.end()) {
-		std::cout << " source (" << source <<") not found in index" << std::endl;
-		return -1;
+		throw std::logic_error("Source not found in index");
 	}
 	// exact match, the value is in the next chunk
-	if (*lower == source)
+	if (*lower == source) {
 		return lower-index.begin()+1;
+	}
 
 	return lower-index.begin();
 }
