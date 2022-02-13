@@ -382,21 +382,19 @@ shared_ptr<LineageDataWithOffset> OperatorLineage::GetChildLatest(idx_t lineage_
 		// Index Join, despite being a join, just has 1 child
 		return children[0]->GetMyLatest();
 	}
-	case PhysicalOperatorType::CROSS_PRODUCT: {
-		// Always refer to 0th for cross product
-		return children[0]->GetMyLatest();
-	}
+	case PhysicalOperatorType::CROSS_PRODUCT:
 	case PhysicalOperatorType::NESTED_LOOP_JOIN:
 	case PhysicalOperatorType::BLOCKWISE_NL_JOIN:
 	case PhysicalOperatorType::PIECEWISE_MERGE_JOIN: {
-		return children[lineage_idx]->GetMyLatest();
+		// These only capture 1 lineage on PROBE side and we really care about BUILD side child
+		return children[0]->GetMyLatest();
 	}
 	case PhysicalOperatorType::HASH_JOIN: {
 		// We mix up Hash Join...
 		if (lineage_idx == LINEAGE_BUILD) {
-			return children[1]->GetMyLatest();
-		} else {
 			return children[0]->GetMyLatest();
+		} else {
+			return children[1]->GetMyLatest();
 		}
 	}
 	case PhysicalOperatorType::DELIM_JOIN: {

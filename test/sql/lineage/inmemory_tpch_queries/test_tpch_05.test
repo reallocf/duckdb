@@ -1,0 +1,27 @@
+# name: test/sql/lineage/inmemory_tpch_queries/test_tpch_05.test
+# description: Test TPC-H Query 5 in-memory
+# group: [inmemory_tpch_queries]
+
+require tpch
+
+statement ok
+CALL dbgen(sf=0.01);
+
+statement ok
+PRAGMA trace_lineage = "ON";
+
+statement ok
+SELECT n_name, sum(l_extendedprice * (1 - l_discount)) AS revenue FROM customer, orders, lineitem, supplier, nation, region WHERE c_custkey = o_custkey AND l_orderkey = o_orderkey AND l_suppkey = s_suppkey AND c_nationkey = s_nationkey AND s_nationkey = n_nationkey AND n_regionkey = r_regionkey AND r_name = 'ASIA' AND o_orderdate >= CAST('1994-01-01' AS date) AND o_orderdate < CAST('1995-01-01' AS date) GROUP BY n_name ORDER BY revenue DESC
+
+statement ok
+PRAGMA trace_lineage = "OFF";
+
+query I
+PRAGMA backward_lineage("SELECT n_name, sum(l_extendedprice * (1 - l_discount)) AS revenue FROM customer, orders, lineitem, supplier, nation, region WHERE c_custkey = o_custkey AND l_orderkey = o_orderkey AND l_suppkey = s_suppkey AND c_nationkey = s_nationkey AND s_nationkey = n_nationkey AND n_regionkey = r_regionkey AND r_name = 'ASIA' AND o_orderdate >= CAST('1994-01-01' AS date) AND o_orderdate < CAST('1995-01-01' AS date) GROUP BY n_name ORDER BY revenue DESC", '0')
+----
+[136, 34, 21, 2, 34, 927, 1802, 99, 21, 2, 450, 927, 2849, 25, 21, 2, 706, 1018, 3168, 99, 21, 2, 783, 229, 3433, 99, 21, 2, 852, 1296, 3485, 79, 21, 2, 865, 945, 3526, 67, 21, 2, 875, 1018, 8430, 34, 21, 2, 2109, 177, 9600, 67, 21, 2, 2412, 1410, 14234, 25, 21, 2, 3543, 990, 14518, 34, 21, 2, 3612, 720, 14519, 97, 21, 2, 3612, 720, 14967, 97, 21, 2, 3728, 1410, 16878, 99, 21, 2, 4222, 945, 20323, 25, 21, 2, 5069, 1438, 21457, 25, 21, 2, 5350, 177, 22486, 25, 21, 2, 5594, 1149, 22256, 34, 21, 2, 5543, 1414, 24329, 34, 21, 2, 6041, 1086, 24331, 97, 21, 2, 6041, 1086, 24449, 97, 21, 2, 6069, 1410, 24538, 97, 21, 2, 6093, 1084, 29405, 97, 21, 2, 7298, 1149, 34344, 67, 21, 2, 8535, 480, 41686, 99, 21, 2, 10359, 1149, 44198, 34, 21, 2, 11001, 480, 49096, 97, 21, 2, 12227, 1062, 49097, 79, 21, 2, 12227, 1062, 49806, 25, 21, 2, 12406, 720, 58813, 79, 21, 2, 14667, 460, 59379, 34, 21, 2, 14806, 1414]
+
+query I
+PRAGMA backward_lineage("SELECT n_name, sum(l_extendedprice * (1 - l_discount)) AS revenue FROM customer, orders, lineitem, supplier, nation, region WHERE c_custkey = o_custkey AND l_orderkey = o_orderkey AND l_suppkey = s_suppkey AND c_nationkey = s_nationkey AND s_nationkey = n_nationkey AND n_regionkey = r_regionkey AND r_name = 'ASIA' AND o_orderdate >= CAST('1994-01-01' AS date) AND o_orderdate < CAST('1995-01-01' AS date) GROUP BY n_name ORDER BY revenue DESC", '3')
+----
+[2480, 88, 9, 2, 617, 180, 18512, 88, 9, 2, 4636, 1488, 18570, 88, 9, 2, 4650, 93, 19094, 50, 9, 2, 4776, 840, 22956, 88, 9, 2, 5705, 703, 24794, 22, 9, 2, 6155, 180, 39385, 50, 9, 2, 9788, 1488, 40925, 50, 9, 2, 10166, 622, 41995, 49, 9, 2, 10435, 138, 45452, 50, 9, 2, 11315, 421, 34651, 88, 9, 2, 8618, 66, 47637, 88, 9, 2, 11864, 141, 48383, 22, 9, 2, 12047, 891, 54694, 88, 9, 2, 13630, 405, 57191, 44, 9, 2, 14268, 1230, 59167, 50, 9, 2, 14755, 909]

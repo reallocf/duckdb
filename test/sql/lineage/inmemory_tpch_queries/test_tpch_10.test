@@ -1,0 +1,27 @@
+# name: test/sql/lineage/inmemory_tpch_queries/test_tpch_10.test
+# description: Test TPC-H Query 10 in-memory
+# group: [inmemory_tpch_queries]
+
+require tpch
+
+statement ok
+CALL dbgen(sf=0.01);
+
+statement ok
+PRAGMA trace_lineage = "ON";
+
+statement ok
+SELECT c_custkey, c_name, sum(l_extendedprice * (1 - l_discount)) AS revenue, c_acctbal, n_name, c_address, c_phone, c_comment FROM customer, orders, lineitem, nation WHERE c_custkey = o_custkey AND l_orderkey = o_orderkey AND o_orderdate >= CAST('1993-10-01' AS date) AND o_orderdate < CAST('1994-01-01' AS date) AND l_returnflag = 'R' AND c_nationkey = n_nationkey GROUP BY c_custkey, c_name, c_acctbal, c_phone, n_name, c_address, c_comment ORDER BY revenue DESC LIMIT 20
+
+statement ok
+PRAGMA trace_lineage = "OFF";
+
+query I
+PRAGMA backward_lineage("SELECT c_custkey, c_name, sum(l_extendedprice * (1 - l_discount)) AS revenue, c_acctbal, n_name, c_address, c_phone, c_comment FROM customer, orders, lineitem, nation WHERE c_custkey = o_custkey AND l_orderkey = o_orderkey AND o_orderdate >= CAST('1993-10-01' AS date) AND o_orderdate < CAST('1994-01-01' AS date) AND l_returnflag = 'R' AND c_nationkey = n_nationkey GROUP BY c_custkey, c_name, c_acctbal, c_phone, n_name, c_address, c_comment ORDER BY revenue DESC LIMIT 20", '0')
+----
+[9084, 2274, 678, 10, 9085, 2274, 678, 10, 9087, 2274, 678, 10, 9089, 2274, 678, 10, 15038, 3748, 678, 10, 15041, 3748, 678, 10, 32336, 8038, 678, 10, 32337, 8038, 678, 10, 32339, 8038, 678, 10, 32340, 8038, 678, 10]
+
+query I
+PRAGMA backward_lineage("SELECT c_custkey, c_name, sum(l_extendedprice * (1 - l_discount)) AS revenue, c_acctbal, n_name, c_address, c_phone, c_comment FROM customer, orders, lineitem, nation WHERE c_custkey = o_custkey AND l_orderkey = o_orderkey AND o_orderdate >= CAST('1993-10-01' AS date) AND o_orderdate < CAST('1994-01-01' AS date) AND l_returnflag = 'R' AND c_nationkey = n_nationkey GROUP BY c_custkey, c_name, c_acctbal, c_phone, n_name, c_address, c_comment ORDER BY revenue DESC LIMIT 20", '19')
+----
+[6794, 1685, 1093, 2, 6795, 1685, 1093, 2, 6796, 1685, 1093, 2, 6798, 1685, 1093, 2, 37244, 9252, 1093, 2]

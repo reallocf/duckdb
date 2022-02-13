@@ -114,15 +114,16 @@ std::vector<shared_ptr<OperatorLineage>> GetChildrenForOp(PhysicalOperator *op, 
 	case PhysicalOperatorType::PIECEWISE_MERGE_JOIN:
 	case PhysicalOperatorType::INDEX_JOIN: {
 		return {
-		    GetThisLineageOp(op->children[0].get(), thd_id),
-		    GetThisLineageOp(op->children[1].get(), thd_id)
+			GetThisLineageOp(op->children[0].get(), thd_id),
+			GetThisLineageOp(op->children[1].get(), thd_id)
 		};
+
 	}
 	case PhysicalOperatorType::HASH_JOIN: {
-		// Things swapped for Hash Join :(
+		// Hash joins are all flipped around
 		return {
-			GetThisLineageOp(op->children[1].get(), thd_id),
-			GetThisLineageOp(op->children[0].get(), thd_id)
+		    GetThisLineageOp(op->children[1].get(), thd_id),
+		    GetThisLineageOp(op->children[0].get(), thd_id)
 		};
 	}
 	case PhysicalOperatorType::DELIM_JOIN: {
@@ -136,8 +137,8 @@ std::vector<shared_ptr<OperatorLineage>> GetChildrenForOp(PhysicalOperator *op, 
 		};
 	}
 	case PhysicalOperatorType::PROJECTION: {
-		// Doesn't matter - PROJECTION is skipped!
-		return {};
+		// Set projection if it's the root (others will be skipped!)
+		return {GetThisLineageOp(op->children[0].get(), thd_id)};
 	}
 	default:
 		// Lineage unimplemented! TODO these :)
