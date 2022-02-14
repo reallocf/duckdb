@@ -7,11 +7,13 @@
 #include "duckdb/planner/binder.hpp"
 #include "duckdb/planner/parsed_data/bound_create_table_info.hpp"
 #include "duckdb/execution/operator/join/physical_delim_join.hpp"
+#include "duckdb/execution/operator/join/physical_join.hpp"
 
 #include <utility>
 
 namespace duckdb {
 class PhysicalDelimJoin;
+class PhysicalJoin;
 
 shared_ptr<PipelineLineage> LineageManager::GetPipelineLineageNodeForOp(PhysicalOperator *op, int thd_id) {
 	switch (op->type) {
@@ -72,13 +74,21 @@ shared_ptr<OperatorLineage> GetThisLineageOp(PhysicalOperator *op, int thd_id) {
 	case PhysicalOperatorType::BLOCKWISE_NL_JOIN:
 	case PhysicalOperatorType::PIECEWISE_MERGE_JOIN:
 	case PhysicalOperatorType::INDEX_JOIN:
-	case PhysicalOperatorType::HASH_JOIN:
 	case PhysicalOperatorType::DELIM_JOIN: {
 		return op->lineage_op[thd_id];
 	}
+	case PhysicalOperatorType::HASH_JOIN: {
+		JoinType join_type = dynamic_cast<PhysicalJoin *>(op)->join_type;
+		if (join_type == JoinType::MARK) {
+			// Pass through Mark Joins
+			return GetThisLineageOp(op->children[0].get(), thd_id);
+		} else {
+			return op->lineage_op[thd_id];
+		}
+	}
 	case PhysicalOperatorType::PROJECTION: {
 		// Skip projection!
-		return GetThisLineageOp((PhysicalOperator *)op->children[0].get(), thd_id);
+		return GetThisLineageOp(op->children[0].get(), thd_id);
 	}
 	default:
 		// Lineage unimplemented! TODO these :)

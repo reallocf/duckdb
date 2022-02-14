@@ -1,0 +1,29 @@
+# name: test/sql/lineage/inmemory_tpch_queries/test_tpch_18.test
+# description: Test TPC-H Query 18 in-memory
+# group: [inmemory_tpch_queries]
+
+require tpch
+
+statement ok
+CALL dbgen(sf=0.01);
+
+statement ok
+PRAGMA trace_lineage = "ON";
+
+statement ok
+SELECT c_name, c_custkey, o_orderkey, o_orderdate, o_totalprice, sum(l_quantity) FROM customer, orders, lineitem WHERE o_orderkey IN (SELECT l_orderkey FROM lineitem GROUP BY l_orderkey HAVING sum(l_quantity) > 300) AND c_custkey = o_custkey AND o_orderkey = l_orderkey GROUP BY c_name, c_custkey, o_orderkey, o_orderdate, o_totalprice ORDER BY o_totalprice DESC, o_orderdate LIMIT 100
+
+statement ok
+PRAGMA trace_lineage = "OFF";
+
+# TODO not sure about this one - getting different results compared to old method. Something weird with SEMI joins?
+
+query I
+PRAGMA backward_lineage("SELECT c_name, c_custkey, o_orderkey, o_orderdate, o_totalprice, sum(l_quantity) FROM customer, orders, lineitem WHERE o_orderkey IN (SELECT l_orderkey FROM lineitem GROUP BY l_orderkey HAVING sum(l_quantity) > 300) AND c_custkey = o_custkey AND o_orderkey = l_orderkey GROUP BY c_name, c_custkey, o_orderkey, o_orderdate, o_totalprice ORDER BY o_totalprice DESC, o_orderdate LIMIT 100", '0')
+----
+[29387, 7293, 666, 59514, 59515, 59516, 59517, 59518, 29388, 7293, 666, 59514, 59515, 59516, 59517, 59518, 29389, 7293, 666, 59514, 59515, 59516, 59517, 59518, 29390, 7293, 666, 59514, 59515, 59516, 59517, 59518, 29391, 7293, 666, 59514, 59515, 59516, 59517, 59518, 29392, 7293, 666, 59514, 59515, 59516, 59517, 59518, 29393, 7293, 666, 59514, 59515, 59516, 59517, 59518]
+
+query I
+PRAGMA backward_lineage("SELECT c_name, c_custkey, o_orderkey, o_orderdate, o_totalprice, sum(l_quantity) FROM customer, orders, lineitem WHERE o_orderkey IN (SELECT l_orderkey FROM lineitem GROUP BY l_orderkey HAVING sum(l_quantity) > 300) AND c_custkey = o_custkey AND o_orderkey = l_orderkey GROUP BY c_name, c_custkey, o_orderkey, o_orderdate, o_totalprice ORDER BY o_totalprice DESC, o_orderdate LIMIT 100", '1')
+----
+[6929, 1721, 177, 60085, 60086, 60087, 60088, 60089, 60090, 60091, 6930, 1721, 177, 60085, 60086, 60087, 60088, 60089, 60090, 60091, 6931, 1721, 177, 60085, 60086, 60087, 60088, 60089, 60090, 60091, 6932, 1721, 177, 60085, 60086, 60087, 60088, 60089, 60090, 60091, 6933, 1721, 177, 60085, 60086, 60087, 60088, 60089, 60090, 60091, 6934, 1721, 177, 60085, 60086, 60087, 60088, 60089, 60090, 60091, 6935, 1721, 177, 60085, 60086, 60087, 60088, 60089, 60090, 60091]
