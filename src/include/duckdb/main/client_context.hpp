@@ -24,6 +24,10 @@
 #include <random>
 #include "duckdb/common/atomic.hpp"
 
+#ifdef LINEAGE
+#define LINEAGE_INDEXES_ON true
+#endif
+
 namespace duckdb {
 class Appender;
 class Catalog;
