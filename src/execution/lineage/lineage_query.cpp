@@ -4,11 +4,13 @@
 
 #include "duckdb/main/client_context.hpp"
 #include "duckdb/execution/operator/join/physical_delim_join.hpp"
+#include "duckdb/execution/operator/join/physical_join.hpp"
 
 #include <utility>
 
 namespace duckdb {
 class PhysicalDelimJoin;
+class PhysicalJoin;
 
 void LineageManager::PostProcess(PhysicalOperator *op, bool should_index) {
 	// massage the data to make it easier to query
@@ -26,7 +28,8 @@ void LineageManager::PostProcess(PhysicalOperator *op, bool should_index) {
 			    || (op->type == PhysicalOperatorType::PERFECT_HASH_GROUP_BY && i == LINEAGE_COMBINE)
 			    || (op->type == PhysicalOperatorType::HASH_GROUP_BY && i == LINEAGE_SOURCE && !should_index)
 			    || (op->type == PhysicalOperatorType::PERFECT_HASH_GROUP_BY && i == LINEAGE_SOURCE && !should_index)
-			    || (op->type == PhysicalOperatorType::HASH_JOIN && i == LINEAGE_PROBE && !should_index);
+			    || (op->type == PhysicalOperatorType::HASH_JOIN && i == LINEAGE_PROBE && !should_index
+			        && dynamic_cast<PhysicalJoin *>(op)->join_type != JoinType::MARK);
 			if (skip_this_sel_vec) {
 				continue;
 			}
@@ -191,7 +194,7 @@ BackwardHelper AccessLineageDataViaIndex(idx_t source, vector<LineageDataWithOff
 	return {this_data, source};
 }
 
-vector<idx_t> OperatorLineage::Backward(idx_t source, shared_ptr<LineageDataWithOffset> maybe_lineage_data) {
+vector<idx_t> OperatorLineage::Backward(idx_t source, const shared_ptr<LineageDataWithOffset>& maybe_lineage_data) {
 	LineageDataWithOffset this_data;
 	switch (this->type) {
 	case PhysicalOperatorType::TABLE_SCAN: {
@@ -324,7 +327,6 @@ vector<idx_t> OperatorLineage::Backward(idx_t source, shared_ptr<LineageDataWith
 			this_data = *maybe_lineage_data.get();
 		}
 
-		// TODO iteration on these
 		if (dynamic_cast<LineageBinary&>(*this_data.data).right != nullptr) {
 			auto right = dynamic_cast<LineageBinary&>(*this_data.data).right->Backward(source);
 			auto right_lineage = children[1]->Backward(right); // Full scan

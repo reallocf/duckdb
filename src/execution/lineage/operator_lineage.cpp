@@ -306,12 +306,15 @@ shared_ptr<LineageDataWithOffset> OperatorLineage::GetMyLatest() {
 			return nullptr;
 		}
 	}
+	case PhysicalOperatorType::SIMPLE_AGGREGATE: {
+		// Simple agg = ALL lineage, so child lineage data ptrs are meaningless
+		return nullptr;
+	}
 	case PhysicalOperatorType::FILTER:
 	case PhysicalOperatorType::HASH_GROUP_BY:
 	case PhysicalOperatorType::LIMIT:
 	case PhysicalOperatorType::ORDER_BY:
 	case PhysicalOperatorType::PERFECT_HASH_GROUP_BY:
-	case PhysicalOperatorType::SIMPLE_AGGREGATE:
 	case PhysicalOperatorType::WINDOW: {
 		return make_shared<LineageDataWithOffset>(data[0][data[0].size() - 1]);
 	}
@@ -331,8 +334,8 @@ shared_ptr<LineageDataWithOffset> OperatorLineage::GetMyLatest() {
 		if (!data[LINEAGE_PROBE].empty()) {
 			return make_shared<LineageDataWithOffset>(data[LINEAGE_PROBE][data[LINEAGE_PROBE].size() - 1]);
 		} else {
-			// Mark Hash Join TODO is this right?
-			return {};
+			// Pass through child for Mark Hash Join TODO is this right?
+			return children[LINEAGE_PROBE]->GetMyLatest();
 		}
 	}
 	case PhysicalOperatorType::PROJECTION: {
