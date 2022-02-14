@@ -177,21 +177,90 @@ struct BackwardHelper {
 };
 
 BackwardHelper AccessLineageDataViaIndex(idx_t source, vector<LineageDataWithOffset> data, vector<idx_t> index) {
-	// we need a way to locate the exact data we should access
-	// from the source index
-	auto lower = lower_bound(index.begin(), index.end(), source);
-	if (lower == index.end()) {
-		throw std::logic_error("Out of bounds lineage requested");
+	if (LINEAGE_INDEXES_ON) {
+		// we need a way to locate the exact data we should access
+		// from the source index
+		auto lower = lower_bound(index.begin(), index.end(), source);
+		if (lower == index.end()) {
+			throw std::logic_error("Out of bounds lineage requested");
+		}
+		auto chunk_id = std::distance(index.begin(), lower);
+		if (*lower == source) {
+			chunk_id += 1;
+		}
+		auto this_data = data[chunk_id];
+		if (chunk_id > 0) {
+			source -= index[chunk_id-1];
+		}
+		return {this_data, source};
+	} else {
+		// Iterate through all chunks until we find the right one
+		idx_t last_count = 0;
+		for (const auto& this_data : data) {
+			if (source < last_count + this_data.data->Count()) {
+				return {this_data, source - last_count};
+			}
+			last_count += this_data.data->Count();
+		}
+		throw std::logic_error("Out of bounds lineage requested without an index");
 	}
-	auto chunk_id = std::distance(index.begin(), lower);
-	if (*lower == source) {
-		chunk_id += 1;
+}
+
+vector<idx_t> AccessLineageDataViaAggHashMap(
+    idx_t source,
+	PhysicalOperatorType type,
+	const vector<LineageDataWithOffset>& data,
+	std::unordered_map<idx_t, vector<idx_t>> hash_map_agg
+) {
+	if (LINEAGE_INDEXES_ON) {
+		return hash_map_agg[source];
+	} else {
+		vector<idx_t> res;
+		idx_t count_so_far = 0;
+		for (const auto& this_data : data) {
+			idx_t res_count = this_data.data->Count();
+			if (type == PhysicalOperatorType::PERFECT_HASH_GROUP_BY) {
+				auto payload = (sel_t*)this_data.data->Process(0);
+				for (idx_t i=0; i < res_count; ++i) {
+					if (payload[i] == source) {
+						res.push_back(i + count_so_far);
+					}
+				}
+			} else {
+				auto payload = (uint64_t*)this_data.data->Process(0);
+				for (idx_t i=0; i < res_count; ++i) {
+					if (payload[i] == source) {
+						res.push_back(i + count_so_far);
+					}
+				}
+			}
+			count_so_far += res_count;
+		}
+		return res;
 	}
-	auto this_data = data[chunk_id];
-	if (chunk_id > 0) {
-		source -= index[chunk_id-1];
+}
+
+idx_t AccessLineageDataViaJoinHashMap(
+    idx_t source,
+    const vector<LineageDataWithOffset>& data,
+    std::unordered_map<idx_t, idx_t> hash_map_join
+) {
+	if (LINEAGE_INDEXES_ON) {
+		return hash_map_join[source];
+	} else {
+		idx_t count_so_far = 0;
+		for (const auto& this_data : data) {
+			auto payload = (uint64_t*)this_data.data->Process(0);
+			idx_t res_count = this_data.data->Count();
+			for (idx_t i=0; i < res_count; ++i) {
+				if (payload[i] == source) {
+					return i + count_so_far;
+				}
+			}
+			count_so_far += res_count;
+		}
+		return 0; // Is this right? This is the behavior of a hash map miss. Can happen for OUTER joins.
 	}
-	return {this_data, source};
 }
 
 vector<idx_t> OperatorLineage::Backward(idx_t source, const shared_ptr<LineageDataWithOffset>& maybe_lineage_data) {
@@ -260,7 +329,7 @@ vector<idx_t> OperatorLineage::Backward(idx_t source, const shared_ptr<LineageDa
 
 		if (dynamic_cast<LineageBinary&>(*binary_data->data).left != nullptr) {
 			auto left = dynamic_cast<LineageBinary&>(*binary_data->data).left->Backward(source - adjust_offset);
-			left = hash_map[left];
+			left = AccessLineageDataViaJoinHashMap(left, data[LINEAGE_BUILD], hash_map);
 			vector<idx_t> left_lineage = children[0]->Backward(left); // requires full scan
 			lineage.reserve(lineage.size() + left_lineage.size());
 			lineage.insert(lineage.end(), left_lineage.begin(), left_lineage.end());
@@ -281,7 +350,7 @@ vector<idx_t> OperatorLineage::Backward(idx_t source, const shared_ptr<LineageDa
 		}
 
 		auto payload = (uint64_t*)this_data.data->Process(0);
-		for (auto val : hash_map_agg[payload[source]]) {
+		for (auto val : AccessLineageDataViaAggHashMap(payload[source], this->type, data[LINEAGE_SINK], hash_map_agg)) {
 			vector<idx_t> elem_lineage = children[0]->Backward(val); // requires full scan
 			lineage.reserve(lineage.size() + elem_lineage.size());
 			lineage.insert(lineage.end(), elem_lineage.begin(), elem_lineage.end());
@@ -302,7 +371,7 @@ vector<idx_t> OperatorLineage::Backward(idx_t source, const shared_ptr<LineageDa
 		}
 
 		auto payload = (sel_t *)this_data.data->Process(0);
-		for (auto val : hash_map_agg[payload[source]]) {
+		for (auto val : AccessLineageDataViaAggHashMap(payload[source], this->type, data[LINEAGE_SINK], hash_map_agg)) {
 			vector<idx_t> elem_lineage = children[0]->Backward(val); // requires full scan
 			lineage.reserve(lineage.size() + elem_lineage.size());
 			lineage.insert(lineage.end(), elem_lineage.begin(), elem_lineage.end());
