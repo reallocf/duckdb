@@ -13,38 +13,34 @@ PRAGMA trace_lineage = "ON";
 
 statement ok
 create table q1 as (SELECT
-                        c_name,
-                        c_custkey,
-                        o_orderkey,
-                        o_orderdate,
-                        o_totalprice,
-                        sum(l_quantity)
+                        sum(l_extendedprice * (1 - l_discount)) AS revenue
                     FROM
-                        customer,
-                        orders,
-                        lineitem
-                    WHERE
-                        o_orderkey IN (
-                            SELECT
-                                l_orderkey
-                            FROM
-                                lineitem
-                            GROUP BY
-                                l_orderkey
-                            HAVING
-                                sum(l_quantity) > 300)
-                        AND c_custkey = o_custkey
-                        AND o_orderkey = l_orderkey
-                    GROUP BY
-                        c_name,
-                        c_custkey,
-                        o_orderkey,
-                        o_orderdate,
-                        o_totalprice
-                    ORDER BY
-                        o_totalprice DESC,
-                        o_orderdate
-                    LIMIT 100
+                        lineitem,
+                        part
+                    WHERE (p_partkey = l_partkey
+                        AND p_brand = 'Brand#12'
+                        AND p_container IN ('SM CASE', 'SM BOX', 'SM PACK', 'SM PKG')
+                        AND l_quantity >= 1
+                        AND l_quantity <= 1 + 10
+                        AND p_size BETWEEN 1 AND 5
+                        AND l_shipmode IN ('AIR', 'AIR REG')
+                        AND l_shipinstruct = 'DELIVER IN PERSON')
+                        OR (p_partkey = l_partkey
+                            AND p_brand = 'Brand#23'
+                            AND p_container IN ('MED BAG', 'MED BOX', 'MED PKG', 'MED PACK')
+                            AND l_quantity >= 10
+                            AND l_quantity <= 10 + 10
+                            AND p_size BETWEEN 1 AND 10
+                            AND l_shipmode IN ('AIR', 'AIR REG')
+                            AND l_shipinstruct = 'DELIVER IN PERSON')
+                        OR (p_partkey = l_partkey
+                            AND p_brand = 'Brand#34'
+                            AND p_container IN ('LG CASE', 'LG BOX', 'LG PACK', 'LG PKG')
+                            AND l_quantity >= 20
+                            AND l_quantity <= 20 + 10
+                            AND p_size BETWEEN 1 AND 15
+                            AND l_shipmode IN ('AIR', 'AIR REG')
+                            AND l_shipinstruct = 'DELIVER IN PERSON')
 )
 
 statement ok
@@ -56,30 +52,9 @@ PRAGMA disable_profiling;
 #----
 
 query III
-SELECT LINEAGE_1_HASH_JOIN_2_1.rhs_index as lineitem_rowid_0,
-         LINEAGE_1_HASH_JOIN_2_0.in_index as orders_rowid_1,
-         LINEAGE_1_HASH_JOIN_4_0.in_index as customer_rowid_3,
-         LINEAGE_1_HASH_GROUP_BY_7_0.in_index as lineitem_rowid_5
-  FROM LINEAGE_1_LIMIT_14_0, LINEAGE_1_ORDER_BY_13_0,
-       LINEAGE_1_HASH_GROUP_BY_12_1, LINEAGE_1_HASH_GROUP_BY_12_0,
-       LINEAGE_1_HASH_JOIN_10_1, LINEAGE_1_HASH_JOIN_10_0,
-       LINEAGE_1_HASH_JOIN_4_1, LINEAGE_1_HASH_JOIN_4_0,
-       LINEAGE_1_HASH_JOIN_2_1, LINEAGE_1_HASH_JOIN_2_0,
-       LINEAGE_1_FILTER_8_0, LINEAGE_1_HASH_GROUP_BY_7_1,
-      LINEAGE_1_HASH_GROUP_BY_7_0
-  WHERE LINEAGE_1_ORDER_BY_13_0.out_index=LINEAGE_1_LIMIT_14_0.in_index
-    and LINEAGE_1_HASH_GROUP_BY_12_1.out_index=LINEAGE_1_ORDER_BY_13_0.in_index
-    and LINEAGE_1_HASH_GROUP_BY_12_1.in_index=LINEAGE_1_HASH_GROUP_BY_12_0.out_index
-    and LINEAGE_1_HASH_JOIN_10_1.out_index=LINEAGE_1_HASH_GROUP_BY_12_0.in_index
-    and LINEAGE_1_HASH_JOIN_10_0.out_address=LINEAGE_1_HASH_JOIN_10_1.lhs_address
-    and LINEAGE_1_HASH_JOIN_10_1.rhs_index=LINEAGE_1_HASH_JOIN_4_1.out_index
-    and LINEAGE_1_HASH_JOIN_4_0.out_address=LINEAGE_1_HASH_JOIN_4_1.lhs_address
-    and LINEAGE_1_HASH_JOIN_4_1.rhs_index=LINEAGE_1_HASH_JOIN_2_1.out_index
-    and LINEAGE_1_HASH_JOIN_2_0.out_address=LINEAGE_1_HASH_JOIN_2_1.lhs_address
-    and LINEAGE_1_HASH_JOIN_10_0.in_index=LINEAGE_1_FILTER_8_0.out_index
-    and LINEAGE_1_HASH_GROUP_BY_7_1.out_index=LINEAGE_1_FILTER_8_0.in_index
-    and LINEAGE_1_HASH_GROUP_BY_7_1.in_index=LINEAGE_1_HASH_GROUP_BY_7_0.out_index
-AND LINEAGE_1_LIMIT_14_0.out_index = 0
+SELECT LINEAGE_1_SEQ_SCAN_0_0.in_index as lineitem_rowid_0, LINEAGE_1_HASH_JOIN_4_0.in_index as part_rowid_3
+from LINEAGE_1_FILTER_5_0, LINEAGE_1_HASH_JOIN_4_1, LINEAGE_1_HASH_JOIN_4_0, LINEAGE_1_FILTER_1_0, LINEAGE_1_SEQ_SCAN_0_0
+where LINEAGE_1_HASH_JOIN_4_1.out_index=LINEAGE_1_FILTER_5_0.in_index and LINEAGE_1_HASH_JOIN_4_0.out_address=LINEAGE_1_HASH_JOIN_4_1.lhs_address and LINEAGE_1_HASH_JOIN_4_1.rhs_index=LINEAGE_1_FILTER_1_0.out_index and LINEAGE_1_SEQ_SCAN_0_0.out_index=LINEAGE_1_FILTER_1_0.in_index
 ----
 
 
