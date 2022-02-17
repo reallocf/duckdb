@@ -45,11 +45,18 @@ if args.show_tables:
 if args.query_lineage:
     if args.enable_lineage:
         args.profile=False
+        query_id = con.execute("select max(query_id) as qid from queries_list").fetchdf().loc[0, 'qid'] 
+        query_info = con.execute("select * from queries_list where query_id='{}'".format(query_id)).fetchdf()
+        lineage_size = query_info.loc[0, 'lineage_size']
+
         lineage_prefix = "extension/tpch/dbgen/queries/lineage_queries/q"
         lineage_q = lineage_prefix+str(args.query_id).zfill(2)+".sql"
         text_file = open(lineage_q, "r")
         lineage_q = text_file.read()
-        query_id = con.execute("select max(query_id) as qid from queries_list").fetchdf().loc[0, 'qid'] - 1
         avg, output_size = Run(lineage_q.format(query_id), args, con)
+        print("Query ID: ", query_id, " output size: ", output_size, " Lineage Size: ", lineage_size/(1024.0*1024), " MB")
     elif args.perm:
         print(con.execute("select * from lineage").fetchdf())
+        df = con.execute("select count(*) as c from lineage").fetchdf()
+        output_size = df.loc[0,'c']
+        print("Lineage output size: ", output_size)

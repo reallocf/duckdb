@@ -20,6 +20,7 @@ def execute(Q, con, args):
     return df, end - start
 
 def DropLineageTables(con):
+    con.execute("DELETE FROM queries_list")
     tables = con.execute("PRAGMA show_tables").fetchdf()
     for index, row in tables.iterrows():
         if row["name"][:7] == "LINEAGE":
@@ -86,3 +87,19 @@ class ZipfanGenerator(object):
         for i in range(0, self.card):
             result.append(self.nextVal())
         return result
+
+import random
+
+def SelectivityGenerator(selectivity, card):
+    card = card
+    sel = selectivity
+    n = int(float(card) * sel)
+    print(card, sel, n)
+    result = [0] * n
+    for i in range(card-n):
+        result.append(random.randint(1, card))
+
+    random.shuffle(result)
+    test_sel = [a for a in result if a == 0]
+    print("execpted selectivity : ", sel, " actual: ", len(test_sel)/float(card))
+    return result
