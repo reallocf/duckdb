@@ -16,6 +16,7 @@
 #include "duckdb/catalog/catalog.hpp"
 #include "duckdb/common/types/chunk_collection.hpp"
 #include "duckdb/catalog/catalog_entry/table_catalog_entry.hpp"
+#include "operator_lineage.hpp"
 
 #include <iostream>
 #include <utility>
@@ -34,7 +35,7 @@ public:
 	explicit LineageManager(ClientContext &context) : context(context) {};
 	vector<vector<ColumnDefinition>> GetTableColumnTypes(PhysicalOperator *op);
 	void PostProcess(PhysicalOperator *op, bool should_index);
-	vector<idx_t> Backward(PhysicalOperator *op, idx_t source);
+	vector<SourceAndMaybeData> Backward(PhysicalOperator *op, idx_t source);
 	void InitOperatorPlan(PhysicalOperator *op, bool trace_lineage);
 	idx_t CreateLineageTables(PhysicalOperator *op);
 	void CreateQueryTable();

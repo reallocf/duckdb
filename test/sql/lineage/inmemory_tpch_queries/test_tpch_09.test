@@ -19,7 +19,7 @@ PRAGMA trace_lineage = "OFF";
 query I
 PRAGMA backward_lineage("SELECT nation, o_year, sum(amount) AS sum_profit FROM (SELECT n_name AS nation, extract(year FROM o_orderdate) AS o_year, l_extendedprice * (1 - l_discount) - ps_supplycost * l_quantity AS amount FROM part, supplier, lineitem, partsupp, orders, nation WHERE s_suppkey = l_suppkey AND ps_suppkey = l_suppkey AND ps_partkey = l_partkey AND p_partkey = l_partkey AND o_orderkey = l_orderkey AND s_nationkey = n_nationkey AND p_name LIKE '%green%') AS profit GROUP BY nation, o_year ORDER BY nation, o_year DESC", '0')
 ----
-[17358, 342, 4347, 36, 0, 85, 17696, 1304, 4433, 27, 0, 326, 28787, 5402, 7143, 27, 0, 1350, 34064, 4904, 8462, 27, 0, 1226, 37981, 5688, 9440, 23, 0, 1422, 50812, 5537, 12652, 23, 0, 1384, 50380, 1340, 12544, 36, 0, 335, 51593, 5402, 12860, 27, 0, 1350]
+[17358, 17696, 28787, 34064, 37981, 50812, 50380, 51593, 342, 1304, 5402, 4904, 5688, 5537, 1340, 5402, 4347, 4433, 7143, 8462, 9440, 12652, 12544, 12860, 36, 27, 27, 27, 23, 23, 36, 27, 0, 0, 0, 0, 0, 0, 0, 0, 85, 326, 1350, 1226, 1422, 1384, 335, 1350]
 
 query I
 PRAGMA backward_lineage("SELECT nation, o_year, sum(amount) AS sum_profit FROM (SELECT n_name AS nation, extract(year FROM o_orderdate) AS o_year, l_extendedprice * (1 - l_discount) - ps_supplycost * l_quantity AS amount FROM part, supplier, lineitem, partsupp, orders, nation WHERE s_suppkey = l_suppkey AND ps_suppkey = l_suppkey AND ps_partkey = l_partkey AND p_partkey = l_partkey AND o_orderkey = l_orderkey AND s_nationkey = n_nationkey AND p_name LIKE '%green%') AS profit GROUP BY nation, o_year ORDER BY nation, o_year DESC", '100')

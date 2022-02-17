@@ -1,6 +1,6 @@
-# name: test/sql/lineage/groupby_lineage/test_groupby_hash_aggregate_lineage.test
+# name: test/sql/lineage/inmemory_lineage_query/test_bw_groupby_hash_aggregate_lineage.test
 # description: Test Group By linage -- hash aggregate
-# group: [groupby_hash_aggregate_lineage]
+# group: [inmemory_lineage_query]
 
 statement ok
 PRAGMA trace_lineage = "OFF";
