@@ -1,5 +1,5 @@
 CREATE TABLE lineage AS (
-  select groups.*, joins1.*, subq.*
+  select groups.*, customer_rowid_1, customer_rowid_0
   from (
     SELECT cntrycode, count(*) AS numcust, sum(c_acctbal) AS totacctbal
     FROM (
@@ -15,7 +15,7 @@ CREATE TABLE lineage AS (
     GROUP BY cntrycode
     ORDER BY cntrycode
   ) as groups join (
-    SELECT customer.rowid as customer_rowid_1, substring(c_phone FROM 1 FOR 2) AS cntrycode
+    SELECT customer.rowid as customer_rowid_1, substring(c_phone FROM 1 FOR 2) AS cntrycode, c_custkey
     FROM customer
     WHERE substring(c_phone FROM 1 FOR 2) IN ('13', '31', '23', '29', '30', '18', '17')
           AND c_acctbal >  (select avg(c_acctbal) from (
@@ -24,7 +24,7 @@ CREATE TABLE lineage AS (
           ))
           AND NOT EXISTS (SELECT * FROM orders WHERE o_custkey=c_custkey)
   ) as joins1 using (cntrycode),
-    (select group_concat(customer.rowid) as customer_rowid_0
+    (select customer.rowid as customer_rowid_0
       FROM customer
         WHERE c_acctbal > 0.00 AND substring(c_phone FROM 1 FOR 2) IN ('13', '31', '23', '29', '30', '18', '17')
     ) as subq

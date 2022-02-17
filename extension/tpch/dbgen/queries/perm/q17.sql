@@ -1,5 +1,6 @@
 CREATE TABLE lineage as (
-  select groups.*, joins.*, lineitem.rowid as lineitem_rowid_2
+  select groups.*, lineitem.rowid as lineitem_rowid_2,
+         lineitem_rowid, part_rowid
   from  (
         SELECT
             sum(l_extendedprice) / 7.0 AS avg_yearly
