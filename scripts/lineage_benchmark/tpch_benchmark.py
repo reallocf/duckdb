@@ -1,3 +1,5 @@
+# python3.7 scripts/lineage_benchmark/tpch_benchmark.py feb11  --repeat 3  --save_csv  --perm --csv_append
+# python3.7 scripts/lineage_benchmark/tpch_benchmark.py feb11  --repeat 3  --save_csv  --csv_append
 import duckdb
 import pandas as pd
 import argparse
