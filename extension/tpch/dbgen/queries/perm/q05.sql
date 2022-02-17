@@ -1,5 +1,6 @@
 create table lineage as (
-  select groups.*, joins.*
+  select groups.*, customer_rowid, orders_rowid, lineitem_rowid, supplier_rowid,
+         nation_rowid, region_rowid
   from (
     SELECT n_name, sum(l_extendedprice * (1 - l_discount)) AS revenue
     FROM (

@@ -1,5 +1,5 @@
 create table lineage as (
-  select groups.*, joins.*
+  select groups.*,  lineitem_rowid, part_rowid
   from (
     SELECT lineitem.rowid as lineitem_rowid, part.rowid as part_rowid
     FROM  lineitem, part

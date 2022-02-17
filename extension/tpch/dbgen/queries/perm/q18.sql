@@ -1,5 +1,5 @@
 CREATE TABLE lineage as (
-  select  
+  select groups.*,
       customer_rowid,
       orders_rowid,
       lineitem_rowid,

@@ -1,5 +1,5 @@
 create table lineage as (
-  SELECT joins.*, groups.*
+  SELECT groups.*, customer_rowid, orders_rowid, lineitem_rowid,  nation_rowid
   FROM (
     SELECT customer.rowid as customer_rowid, orders.rowid as orders_rowid,
            lineitem.rowid as lineitem_rowid, nation.rowid as nation_rowid,

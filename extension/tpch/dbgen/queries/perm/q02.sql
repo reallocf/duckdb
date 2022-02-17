@@ -1,5 +1,5 @@
 create table lineage as (
-  select joins2.*, joins1.*
+  select joins2.*, partsupp_rowid2, supplier_rowid2, nation_rowid2, region_rowid2
   from (
     SELECT partsupp.rowid as partsupp_rowid2, supplier.rowid as supplier_rowid2,
            nation.rowid as nation_rowid2, region.rowid as region_rowid2, ps_partkey, ps_supplycost
@@ -21,7 +21,12 @@ create table lineage as (
         AND s_suppkey = partsupp.ps_suppkey AND p_size = 15
         AND p_type LIKE '%BRASS' AND s_nationkey = n_nationkey
         AND n_regionkey = r_regionkey AND r_name = 'EUROPE'
+      AND ps_supplycost = (
+          SELECT min(ps_supplycost)
+          FROM partsupp, supplier, nation, region
+          WHERE p_partkey = ps_partkey AND s_suppkey = ps_suppkey AND s_nationkey = n_nationkey
+              AND n_regionkey = r_regionkey AND r_name = 'EUROPE')
     ORDER BY s_acctbal DESC, n_name, s_name, p_partkey
     LIMIT 100
-  ) as joins2 on (group1.ps_partkey=joins2.p_partkey and group1.min_ps_supplycost=joins2.ps_supplycost)
+  ) as joins2 on (group1.min_ps_supplycost=joins2.ps_supplycost)
 )
