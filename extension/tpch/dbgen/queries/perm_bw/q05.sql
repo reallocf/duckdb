@@ -27,5 +27,7 @@ with lineage as (
   ) as joins using (n_name)
 )
 
-select count(*) as c from lineage
+select count(*) as c,
+    max(customer_rowid), max(orders_rowid), max(lineitem_rowid), max(supplier_rowid),
+    max(nation_rowid), max(region_rowid) from lineage
 

@@ -25,4 +25,8 @@ with lineage as (
     SELECT l_orderkey FROM lineitem GROUP BY l_orderkey HAVING sum(l_quantity) > 300
   ) as in1 on (in1.l_orderkey=joins.o_orderkey) join lineitem as l2 on (l2.l_orderkey=in1.l_orderkey)
 )
-select count(*) as c from lineage
+select count(*) as c,
+        max(customer_rowid),
+        max(orders_rowid), 
+        max(lineitem_rowid),
+        max(lineitem_rowid_2) from lineage

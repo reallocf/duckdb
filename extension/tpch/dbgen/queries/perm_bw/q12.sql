@@ -24,4 +24,6 @@ with lineage as (
   ) as joins using (l_shipmode)
 )
 
-select count(*) as c from lineage
+select count(*) as c,
+    max(orders_rowid), 
+    max(lineitem_rowid) from lineage

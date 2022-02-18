@@ -25,4 +25,4 @@ with lineage as (
     ORDER BY custdist DESC, c_count DESC
   ) as groups2 using (c_count)
 )
-select count(*) as c from lineage
+select count(*) as c, max(customer_rowid), max(orders_rowid) from lineage

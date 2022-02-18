@@ -26,4 +26,8 @@ with lineage as (
     LIMIT 20
   ) as g using (c_custkey, c_name, c_acctbal, c_phone, c_name, c_address, c_comment)
 )
-select count(*) as c from lineage
+select count(*) as c,
+    max(customer_rowid), 
+    max(orders_rowid),
+    max(lineitem_rowid),
+    max(nation_rowid) from lineage

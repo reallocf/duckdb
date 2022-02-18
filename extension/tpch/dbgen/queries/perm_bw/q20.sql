@@ -39,4 +39,9 @@ with lineage as (
   and in3_select.l_partkey=in1.ps_partkey
   and in3_select.l_suppkey=in1.ps_suppkey
 )
-select count(*) as c  from lineage
+select count(*) as c,
+    max(supplier_rowid), 
+    max(nation_rowid),
+    max(partsupp_rowid), 
+    max(part_rowid),
+    max(lineitem_rowid) from lineage

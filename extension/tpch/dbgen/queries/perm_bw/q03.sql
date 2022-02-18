@@ -22,8 +22,6 @@ with lineage as (
     ORDER BY revenue DESC, o_orderdate
     LIMIT 10
   ) as groups using (l_orderkey, o_orderdate, o_shippriority)
-), bw as (
-select * from lineage
 )
 
-select count(*) as c from bw
+select count(*) as c, max(customer_rowid), max(orders_rowid), max(lineitem_rowid) from lineage

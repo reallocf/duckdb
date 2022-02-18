@@ -28,4 +28,4 @@ with lineage as (
     WHERE l_commitdate < l_receiptdate
   ) as exists_st on ( select_st.o_orderkey=exists_st.l_orderkey)
 )
-select count(*) as c from lineage
+select count(*) as c, max(orders_rowid), max(lineitem_rowid) from lineage

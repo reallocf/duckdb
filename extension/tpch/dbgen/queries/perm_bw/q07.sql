@@ -35,4 +35,5 @@ with lineage as (
   ) as groups using (supp_nation, cust_nation, l_year)
 )
 
-select count(*) as c from lineage
+select count(*) as c, max(supplier_rowid), max(lineitem_rowid), 
+    max(orders_rowid), max(customer_rowid), max(n2_rowid), max(n2_rowid) from lineage

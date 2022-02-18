@@ -5,7 +5,7 @@ CREATE TABLE lineage as (
         SELECT
             sum(l_extendedprice) / 7.0 AS avg_yearly
         FROM (
-            SELECT lineitem.rowid as lineitem_rowid, part.rowid as part_rowid, l_extendedprice, l_partkey
+            SELECT l_extendedprice, l_partkey
             FROM lineitem, part
             WHERE p_partkey = l_partkey
                 AND p_brand = 'Brand#23'
