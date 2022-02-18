@@ -67,7 +67,7 @@ if args.perm_bw:
             elif isinstance(row[k], str):
                 predicate+=k+ "='"+str(val)+"'"
             elif isinstance(row[k],datetime.date):
-                predicate+=k+"='"+val.strftime('%d-%m-%y')+"'"
+                predicate+=k+"='"+str(val)+"'"
             else:
                 predicate+=k+"="+str(val)
         if len(predicate) > 0:

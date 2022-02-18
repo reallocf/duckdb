@@ -30,4 +30,6 @@ with lineage as (
               AND l_shipmode IN ('AIR', 'AIR REG')
               AND l_shipinstruct = 'DELIVER IN PERSON')
 )
-select count(*) as  c from lineage
+select count(*) as  c,
+          max(lineitem_rowid),
+          max(part_rowid) from lineage

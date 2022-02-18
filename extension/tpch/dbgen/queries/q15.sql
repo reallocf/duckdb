@@ -1,3 +1,16 @@
+with revenue0 (supplier_no, total_revenue) as (
+	select
+		l_suppkey,
+		sum(l_extendedprice * (1 - l_discount))
+	from
+		lineitem
+	where
+		l_shipdate >= date '1996-01-01'
+		and l_shipdate < date '1996-01-01' + interval '3' month
+	group by
+		l_suppkey
+)
+
 SELECT
     s_suppkey,
     s_name,
@@ -5,33 +18,12 @@ SELECT
     s_phone,
     total_revenue
 FROM
-    supplier,
-    (
-        SELECT
-            l_suppkey AS supplier_no,
-            sum(l_extendedprice * (1 - l_discount)) AS total_revenue
-        FROM
-            lineitem
-        WHERE
-            l_shipdate >= CAST('1996-01-01' AS date)
-            AND l_shipdate < CAST('1996-04-01' AS date)
-        GROUP BY
-            supplier_no) revenue0
+    supplier, revenue0
 WHERE
     s_suppkey = supplier_no
     AND total_revenue = (
         SELECT
             max(total_revenue)
-        FROM (
-            SELECT
-                l_suppkey AS supplier_no,
-                sum(l_extendedprice * (1 - l_discount)) AS total_revenue
-            FROM
-                lineitem
-            WHERE
-                l_shipdate >= CAST('1996-01-01' AS date)
-                AND l_shipdate < CAST('1996-04-01' AS date)
-            GROUP BY
-                supplier_no) revenue1)
+        FROM revenue0)
 ORDER BY
     s_suppkey;

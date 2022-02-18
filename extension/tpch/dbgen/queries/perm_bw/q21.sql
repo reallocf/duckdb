@@ -28,4 +28,9 @@ with lineage as (
   ) as joins using (s_name) join
   lineitem as l2 on (l2.l_orderkey = joins.l_orderkey AND l2.l_suppkey <> joins.l_suppkey)
 )
-select count(*) as c from lineage
+select count(*) as c,
+    max(lineitem_rowid_0),
+    max(supplier_rowid),
+    max(lineitem_rowid),
+    max(orders_rowid),
+    max(nation_rowid) from lineage

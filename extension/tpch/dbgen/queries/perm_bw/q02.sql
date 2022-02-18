@@ -30,4 +30,4 @@ with lineage as (
     LIMIT 100
   ) as joins2 on (group1.min_ps_supplycost=joins2.ps_supplycost)
 )
-select count(*) as c from lineage
+select count(*) as c, max(part_rowid), max(supplier_rowid), max(partsupp_rowid),max(nation_rowid), max(region_rowid) from lineage

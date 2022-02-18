@@ -1,5 +1,5 @@
 CREATE TABLE lineage as (
-  select groups.*, joins.*, l2.rowid as lineitem_rowid_0, l3.rowid as lineitem_rowid_1
+  select groups.*, joins.*, l2.rowid as lineitem_rowid_0
   from (
       SELECT s_name, count(*) AS numwait
       FROM (
@@ -26,6 +26,5 @@ CREATE TABLE lineage as (
         AND s_nationkey = n_nationkey
         AND n_name = 'SAUDI ARABIA'
   ) as joins using (s_name) join
-  lineitem as l2 on (l2.l_orderkey = joins.l_orderkey AND l2.l_suppkey <> joins.l_suppkey) join
-  lineitem as l3 on (l3.l_orderkey = joins.l_orderkey AND l3.l_suppkey <> joins.l_suppkey AND l3.l_receiptdate > joins.l_commitdate)
+  lineitem as l2 on (l2.l_orderkey = joins.l_orderkey AND l2.l_suppkey <> joins.l_suppkey)
 )

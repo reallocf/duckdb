@@ -18,8 +18,6 @@ with lineage as (
     FROM lineitem
     WHERE l_shipdate <= CAST('1998-09-02' AS date)
   ) using (l_returnflag, l_linestatus)
-), bw as (
-  select * from lineage
 )
 
-select count(*) as c from bw
+select count(*), max(lineitem_rowid) as c from lineage

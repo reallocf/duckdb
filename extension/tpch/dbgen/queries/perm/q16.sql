@@ -1,5 +1,5 @@
 create table lineage as (
-  select groups.*, partsupp_rowid, part_rowid
+  select groups.*, partsupp_rowid, part_rowid, subq.*
   from (
         SELECT p_brand, p_type, p_size, count(DISTINCT ps_suppkey) AS supplier_cnt
         FROM (
@@ -35,10 +35,10 @@ create table lineage as (
                   s_comment LIKE '%Customer%Complaints%')
   ) as joins using (p_brand, p_type, p_size), (
           SELECT
-              s_suppkey, supplier.rowid
+              supplier.rowid as supplier_rowid
           FROM
               supplier
           WHERE
               s_comment LIKE '%Customer%Complaints%'
-  )
+  ) as subq
 )

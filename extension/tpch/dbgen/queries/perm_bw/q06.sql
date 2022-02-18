@@ -6,4 +6,4 @@ with lineage as (
         AND l_discount BETWEEN 0.05 AND 0.07
         AND l_quantity < 24
 )
-select count(*) as c from lineage
+select count(*) as c, max(lineitem_rowid) from lineage

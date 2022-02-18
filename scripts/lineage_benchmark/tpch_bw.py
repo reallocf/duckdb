@@ -1,3 +1,6 @@
+### for Q11, use for queries/q11.sql and perm_bw/q11.sql
+### sf10: sum(ps_supplycost * ps_availqty) * 0.0000100000
+### sf1: sum(ps_supplycost * ps_availqty) * 0.0001000000
 import duckdb
 import datetime
 import pandas as pd
@@ -53,6 +56,8 @@ for qid in range(1, 23):
     print(sample_size)
     test_out = random.sample(range(0, len(df)), sample_size)
     print(test_out)
+    if sample_size == 0:
+        continue
     for i in test_out:
         predicate=''
         for k in qkeys:
@@ -66,7 +71,7 @@ for qid in range(1, 23):
             elif isinstance(val, str):
                 predicate+=k+ "='"+str(val)+"'"
             elif isinstance(val,datetime.date):
-                predicate+=k+"='"+val.strftime('%d-%m-%y')+"'"
+                predicate+=k+"='"+str(val)+"'"
             else:
                 predicate+=k+"="+str(val)
         if len(predicate) > 0:
