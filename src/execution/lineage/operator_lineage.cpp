@@ -364,10 +364,13 @@ shared_ptr<LineageDataWithOffset> OperatorLineage::GetMyLatest() {
 	}
 	case PhysicalOperatorType::NESTED_LOOP_JOIN:
 	case PhysicalOperatorType::BLOCKWISE_NL_JOIN:
-	case PhysicalOperatorType::PIECEWISE_MERGE_JOIN:
 	case PhysicalOperatorType::INDEX_JOIN: {
 		// 0 is the probe side for these joins
 		return make_shared<LineageDataWithOffset>(data[0][data[0].size() - 1]);
+	}
+	case PhysicalOperatorType::PIECEWISE_MERGE_JOIN: {
+		// 1 is the probe side for this join
+		return make_shared<LineageDataWithOffset>(data[1][data[1].size() - 1]);
 	}
 	case PhysicalOperatorType::HASH_JOIN: {
 		// When being asked for latest, we'll always want to refer to the probe data
