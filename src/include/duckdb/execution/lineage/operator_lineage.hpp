@@ -45,8 +45,9 @@ public:
 	explicit OperatorLineage(
 		shared_ptr<PipelineLineage> pipeline_lineage,
 		std::vector<shared_ptr<OperatorLineage>> children,
-	    PhysicalOperatorType type
-	) : pipeline_lineage(move(pipeline_lineage)), type(type), children(move(children))  {}
+	    PhysicalOperatorType type,
+	    bool should_index
+	) : pipeline_lineage(move(pipeline_lineage)), type(type), children(move(children)), should_index(should_index) {}
 
 	void Capture(const shared_ptr<LineageData>& datum, idx_t lineage_idx, int thread_id=-1);
 
@@ -55,13 +56,14 @@ public:
 	// Leaky... should refactor this so we don't need a pure pass-through function like this
 	void MarkChunkReturned();
 	LineageProcessStruct Process(const vector<LogicalType>& types, idx_t count_so_far, DataChunk &insert_chunk, idx_t size=0, int thread_id=-1);
-	LineageProcessStruct PostProcess(idx_t count_so_far, idx_t size=0, int thread_id=-1);
+	LineageProcessStruct PostProcess(idx_t chunk_count, idx_t count_so_far, int thread_id=-1);
 	void Backward(const shared_ptr<vector<SourceAndMaybeData>>& lineage);
 	// Leaky... should refactor this so we don't need a pure pass-through function like this
 	void SetChunkId(idx_t idx);
 	idx_t Size();
 	shared_ptr<LineageDataWithOffset> GetMyLatest();
 	shared_ptr<LineageDataWithOffset> GetChildLatest(idx_t lineage_idx);
+	idx_t GetThisOffset(idx_t lineage_idx);
 
 public:
 	bool trace_lineage;
@@ -83,6 +85,7 @@ public:
    //        which helps in locating the one needed
    //        using binary-search.
    vector<idx_t> index;
+   bool should_index;
 };
 
 struct LineageProcessStruct {

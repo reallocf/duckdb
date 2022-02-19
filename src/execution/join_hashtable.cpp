@@ -842,8 +842,9 @@ void JoinHashTable::ScanFullOuter(DataChunk &result, JoinHTScanState &state) {
 #ifdef LINEAGE
 		auto lhs_lineage = make_unique<LineageDataVectorBufferArray>(move(addresses.GetBuffer()->data), found_entries);
 		auto lineage_data = make_shared<LineageBinary>(move(lhs_lineage), nullptr);
-		int offset = context.GetCurrentLineageOp()->GetPipelineLineage()->GetChildChunkOffset(LINEAGE_PROBE);
-		auto lineage_data_with_offset = make_shared<LineageDataWithOffset>(LineageDataWithOffset{lineage_data, offset});
+		int child_offset = context.GetCurrentLineageOp()->GetPipelineLineage()->GetChildChunkOffset(LINEAGE_PROBE);
+		idx_t this_offset = context.GetCurrentLineageOp()->GetThisOffset(LINEAGE_PROBE);
+		auto lineage_data_with_offset = make_shared<LineageDataWithOffset>(LineageDataWithOffset{lineage_data, child_offset, this_offset});
 		auto nested_lineage = make_shared<LineageNested>(LineageNested(lineage_data_with_offset));
 		context.GetCurrentLineageOp()->Capture(nested_lineage, LINEAGE_PROBE);
 		context.GetCurrentLineageOp()->MarkChunkReturned();

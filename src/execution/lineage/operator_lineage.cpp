@@ -16,11 +16,51 @@ void OperatorLineage::Capture(const shared_ptr<LineageData>& datum, idx_t lineag
 	datum->SetChild(GetChildLatest(lineage_idx));
 
 	// Capture this vector
-	idx_t offset = pipeline_lineage->GetChildChunkOffset(lineage_idx);
+	idx_t child_offset = pipeline_lineage->GetChildChunkOffset(lineage_idx);
+	idx_t this_offset = GetThisOffset(lineage_idx);
 	if (lineage_idx == LINEAGE_COMBINE) {
-		data[lineage_idx].push_back(LineageDataWithOffset{datum, thread_id});
+		data[lineage_idx].push_back(LineageDataWithOffset{datum, thread_id, this_offset});
 	} else {
-		data[lineage_idx].push_back(LineageDataWithOffset{datum, (int)offset});
+		data[lineage_idx].push_back(LineageDataWithOffset{datum, (int)child_offset, this_offset});
+	}
+
+	// Add to index
+	if (should_index && LINEAGE_INDEX_TYPE == 0) {
+		switch (type) {
+		case PhysicalOperatorType::FILTER:
+		case PhysicalOperatorType::INDEX_JOIN:
+		case PhysicalOperatorType::LIMIT:
+		case PhysicalOperatorType::TABLE_SCAN: {
+			// Binary Search index
+			idx_t index_last = index.empty() ? 0 : index[index.size() - 1];
+			index.push_back(index_last + datum->Count());
+			break;
+		}
+		case PhysicalOperatorType::BLOCKWISE_NL_JOIN:
+		case PhysicalOperatorType::CROSS_PRODUCT:
+		case PhysicalOperatorType::HASH_JOIN:
+		case PhysicalOperatorType::PIECEWISE_MERGE_JOIN:
+		case PhysicalOperatorType::NESTED_LOOP_JOIN: {
+			if (lineage_idx == LINEAGE_PROBE) {
+				// Binary Search index
+				idx_t index_last = index.empty() ? 0 : index[index.size() - 1];
+				index.push_back(index_last + datum->Count());
+			}
+			break;
+		}
+		case PhysicalOperatorType::HASH_GROUP_BY:
+		case PhysicalOperatorType::PERFECT_HASH_GROUP_BY: {
+			if (lineage_idx == LINEAGE_SOURCE) {
+				// Binary Search index
+				idx_t index_last = index.empty() ? 0 : index[index.size() - 1];
+				index.push_back(index_last + datum->Count());
+			}
+			break;
+		}
+		default:
+			// We must capture lineage for everything getting indexed
+			D_ASSERT(false);
+		}
 	}
 }
 
@@ -51,7 +91,7 @@ LineageProcessStruct OperatorLineage::Process(const vector<LogicalType>& types, 
 			idx_t res_count = this_data.data->Count();
 
 
-			Vector lhs_payload(types[1], this_data.data->Process(this_data.offset));
+			Vector lhs_payload(types[1], this_data.data->Process(this_data.child_offset));
 			// sink side, offset is adjusted during capture
 			Vector rhs_payload(types[0], this_data.data->Process(0));
 
@@ -73,7 +113,7 @@ LineageProcessStruct OperatorLineage::Process(const vector<LogicalType>& types, 
 			idx_t res_count = this_data.data->Count();
 
 			Vector lhs_payload(types[0], this_data.data->Process(0)); // TODO is this right?
-			Vector rhs_payload(types[1], this_data.data->Process(this_data.offset));
+			Vector rhs_payload(types[1], this_data.data->Process(this_data.child_offset));
 
 			insert_chunk.SetCardinality(res_count);
 			insert_chunk.data[0].Reference(lhs_payload);
@@ -91,7 +131,7 @@ LineageProcessStruct OperatorLineage::Process(const vector<LogicalType>& types, 
 			Vector rhs_payload(Value::Value::INTEGER(((int*)this_data.data->Process(0))[0]));
 
 			insert_chunk.SetCardinality(res_count);
-			insert_chunk.data[0].Sequence(this_data.offset, 1);
+			insert_chunk.data[0].Sequence(this_data.child_offset, 1);
 			insert_chunk.data[1].Reference(rhs_payload);
 			insert_chunk.data[2].Sequence(count_so_far, 1);
 			insert_chunk.data[3].Reference(thread_id_vec);
@@ -104,7 +144,7 @@ LineageProcessStruct OperatorLineage::Process(const vector<LogicalType>& types, 
 			idx_t res_count = this_data.data->Count();
 
 			// constant value
-			Vector lhs_payload(Value::Value::INTEGER(this_data.offset+((int*)this_data.data->Process(0))[0]));
+			Vector lhs_payload(Value::Value::INTEGER(this_data.child_offset +((int*)this_data.data->Process(0))[0]));
 			Vector rhs_payload(types[1], this_data.data->Process(0));
 
 			insert_chunk.SetCardinality(res_count);
@@ -125,7 +165,7 @@ LineageProcessStruct OperatorLineage::Process(const vector<LogicalType>& types, 
 			LineageDataWithOffset this_data = data[LINEAGE_UNARY][data_idx];
 			idx_t res_count = this_data.data->Count();
 
-			Vector payload(types[0], this_data.data->Process(this_data.offset));
+			Vector payload(types[0], this_data.data->Process(this_data.child_offset));
 
 			insert_chunk.SetCardinality(res_count);
 			insert_chunk.data[0].Reference(payload);
@@ -187,7 +227,7 @@ LineageProcessStruct OperatorLineage::Process(const vector<LogicalType>& types, 
 					rhs_payload.SetVectorType(VectorType::CONSTANT_VECTOR);
 					ConstantVector::SetNull(rhs_payload, true);
 				} else {
-					Vector temp(types[1],  this_data->data->Process(this_data->offset));
+					Vector temp(types[1],  this_data->data->Process(this_data->child_offset));
 					rhs_payload.Reference(temp);
 				}
 
@@ -408,6 +448,11 @@ shared_ptr<LineageDataWithOffset> OperatorLineage::GetChildLatest(idx_t lineage_
 		// Lineage unimplemented! TODO these :)
 		return {};
 	}
+}
+
+idx_t OperatorLineage::GetThisOffset(idx_t lineage_idx) {
+	idx_t last_data_idx = data[lineage_idx].size() - 1;
+	return data[lineage_idx].empty() ? 0 : data[lineage_idx][last_data_idx].this_offset + data[lineage_idx][last_data_idx].data->Count();
 }
 
 } // namespace duckdb
