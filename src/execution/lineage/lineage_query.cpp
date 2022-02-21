@@ -439,6 +439,9 @@ void OperatorLineage::Backward(const shared_ptr<vector<SourceAndMaybeData>>& lin
 		}
 
 		lineage->clear(); // We don't care about lineage passed here since simple agg always yields EVERY child value
+		if (child_lineage_data_vector.empty()) {
+			return;
+		}
 		LineageDataWithOffset last = child_lineage_data_vector[child_lineage_data_vector.size() - 1];
 		idx_t output_size = last.offset + last.data->Count();
 		lineage->reserve(output_size);

@@ -316,18 +316,28 @@ shared_ptr<LineageDataWithOffset> OperatorLineage::GetMyLatest() {
 	case PhysicalOperatorType::ORDER_BY:
 	case PhysicalOperatorType::PERFECT_HASH_GROUP_BY:
 	case PhysicalOperatorType::WINDOW: {
-		return make_shared<LineageDataWithOffset>(data[0][data[0].size() - 1]);
+		if (!data[0].empty()) {
+			return make_shared<LineageDataWithOffset>(data[0][data[0].size() - 1]);
+		}
+		return nullptr;
 	}
 	case PhysicalOperatorType::CROSS_PRODUCT: {
 		// Only the right lineage is ever captured TODO is this what we should do?
-		return make_shared<LineageDataWithOffset>(data[1][data[1].size() - 1]);
+		if (!data[0].empty()) {
+			return make_shared<LineageDataWithOffset>(data[1][data[1].size() - 1]);
+		}
+		return nullptr;
 	}
 	case PhysicalOperatorType::NESTED_LOOP_JOIN:
 	case PhysicalOperatorType::BLOCKWISE_NL_JOIN:
 	case PhysicalOperatorType::PIECEWISE_MERGE_JOIN:
 	case PhysicalOperatorType::INDEX_JOIN: {
 		// 0 is the probe side for these joins
-		return make_shared<LineageDataWithOffset>(data[0][data[0].size() - 1]);
+		if (!data[0].empty()) {
+			return make_shared<LineageDataWithOffset>(data[0][data[0].size() - 1]);
+		} else {
+			return nullptr;
+		}
 	}
 	case PhysicalOperatorType::HASH_JOIN: {
 		// When being asked for latest, we'll always want to refer to the probe data
