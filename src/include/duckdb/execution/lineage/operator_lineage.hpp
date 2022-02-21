@@ -38,7 +38,11 @@ namespace duckdb {
 enum class PhysicalOperatorType : uint8_t;
 struct LineageDataWithOffset;
 struct LineageProcessStruct;
-struct SourceAndMaybeData;
+struct SourceAndMaybeData {
+	idx_t source;
+	shared_ptr<LineageDataWithOffset> data;
+};
+
 
 class OperatorLineage {
 public:
@@ -92,11 +96,6 @@ struct LineageProcessStruct {
 	idx_t count_so_far;
 	idx_t size_so_far;
 	bool still_processing;
-};
-
-struct SourceAndMaybeData {
-	idx_t source;
-	shared_ptr<LineageDataWithOffset> data;
 };
 
 } // namespace duckdb
