@@ -45,8 +45,8 @@ public:
 	explicit OperatorLineage(
 		shared_ptr<PipelineLineage> pipeline_lineage,
 		std::vector<shared_ptr<OperatorLineage>> children,
-	    PhysicalOperatorType type
-	) : pipeline_lineage(move(pipeline_lineage)), type(type), children(move(children))  {}
+	    PhysicalOperatorType type, idx_t opid
+	) : opid(opid), pipeline_lineage(move(pipeline_lineage)), type(type), children(move(children))  {}
 
 	void Capture(const shared_ptr<LineageData>& datum, idx_t lineage_idx, int thread_id=-1);
 
@@ -64,6 +64,7 @@ public:
 	shared_ptr<LineageDataWithOffset> GetChildLatest(idx_t lineage_idx);
 
 public:
+	idx_t opid;
 	bool trace_lineage;
 	shared_ptr<PipelineLineage> pipeline_lineage;
 	// data[0] used by all ops; data[1] used by pipeline breakers
