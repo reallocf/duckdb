@@ -172,7 +172,7 @@ void LineageManager::CreateOperatorLineage(PhysicalOperator *op, int thd_id, boo
 		op->lineage_op[thd_id] = make_shared<OperatorLineage>(
 			GetPipelineLineageNodeForOp(op, thd_id),
 			GetChildrenForOp(op, thd_id),
-			op->type
+			op->type, op->id
 		);
 	op->lineage_op[thd_id]->trace_lineage = trace_lineage;
 }
