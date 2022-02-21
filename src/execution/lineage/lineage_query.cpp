@@ -46,11 +46,10 @@ void LineageManager::PostProcess(PhysicalOperator *op, bool should_index) {
 	}
 
 	if (op->type == PhysicalOperatorType::DELIM_JOIN) {
-		PostProcess( dynamic_cast<PhysicalDelimJoin *>(op)->join.get(), false);
-		PostProcess( (PhysicalOperator *)dynamic_cast<PhysicalDelimJoin *>(op)->distinct.get(), false);
-		for (idx_t i = 0; i < dynamic_cast<PhysicalDelimJoin *>(op)->delim_scans.size(); ++i) {
-			PostProcess( dynamic_cast<PhysicalDelimJoin *>(op)->delim_scans[i], false);
-		}
+		PostProcess( dynamic_cast<PhysicalDelimJoin *>(op)->children[0].get(), true);
+		PostProcess( dynamic_cast<PhysicalDelimJoin *>(op)->join.get(), true);
+		PostProcess( (PhysicalOperator *)dynamic_cast<PhysicalDelimJoin *>(op)->distinct.get(), true);
+		return;
 	}
 	for (idx_t i = 0; i < op->children.size(); i++) {
 		bool child_should_index =
@@ -202,6 +201,19 @@ void OperatorLineage::Backward(const shared_ptr<vector<SourceAndMaybeData>>& lin
 		return;
 	}
 	switch (this->type) {
+	case (PhysicalOperatorType::DELIM_JOIN): {
+		// distinct input is delim join input
+		// distinct should be the input to delim scan
+		children[2]->children.push_back(children[0]);
+
+		// chunk scan input is delim join input
+		children[1]->children[1] = children[0];
+		children[1]->Backward(lineage);
+		break;
+	}
+	case PhysicalOperatorType::DELIM_SCAN: {
+		break;
+	}
 	case PhysicalOperatorType::TABLE_SCAN: {
 		// End of the recursion!
 		if (data[LINEAGE_UNARY].empty() && (*lineage.get())[0].data == nullptr) {
