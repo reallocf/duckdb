@@ -158,19 +158,22 @@ std::vector<shared_ptr<OperatorLineage>> GetChildrenForOp(PhysicalOperator *op, 
 
 void LineageManager::CreateOperatorLineage(PhysicalOperator *op, int thd_id, bool trace_lineage) {
 	if (op->type == PhysicalOperatorType::DELIM_JOIN) {
+		auto distinct = (PhysicalOperator *)dynamic_cast<PhysicalDelimJoin *>(op)->distinct.get();
+		CreateOperatorLineage( distinct, thd_id, trace_lineage);
+		for (idx_t i = 0; i < dynamic_cast<PhysicalDelimJoin *>(op)->delim_scans.size(); ++i) {
+			dynamic_cast<PhysicalDelimJoin *>(op)->delim_scans[i]->lineage_op  = distinct->lineage_op;
+		}
 		CreateOperatorLineage( dynamic_cast<PhysicalDelimJoin *>(op)->join.get(), thd_id, trace_lineage);
-		CreateOperatorLineage( (PhysicalOperator *)dynamic_cast<PhysicalDelimJoin *>(op)->distinct.get(), thd_id, trace_lineage);
-		for (idx_t i = 0; i < dynamic_cast<PhysicalDelimJoin *>(op)->delim_scans.size(); ++i)
-			CreateOperatorLineage( dynamic_cast<PhysicalDelimJoin *>(op)->delim_scans[i], thd_id, trace_lineage);
 	}
 	for (idx_t i = 0; i < op->children.size(); i++) {
 		CreateOperatorLineage(op->children[i].get(), thd_id, trace_lineage);
 	}
-	op->lineage_op[thd_id] = make_shared<OperatorLineage>(
-		GetPipelineLineageNodeForOp(op, thd_id),
-		GetChildrenForOp(op, thd_id),
-		op->type
-	);
+	if (op->lineage_op.empty())
+		op->lineage_op[thd_id] = make_shared<OperatorLineage>(
+			GetPipelineLineageNodeForOp(op, thd_id),
+			GetChildrenForOp(op, thd_id),
+			op->type
+		);
 	op->lineage_op[thd_id]->trace_lineage = trace_lineage;
 }
 

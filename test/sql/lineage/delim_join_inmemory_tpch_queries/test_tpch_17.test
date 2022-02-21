@@ -1,0 +1,23 @@
+# name: test/sql/lineage/delim_join_inmemory_tpch_queries/test_tpch_02.test
+# description: Test TPC-H Query 2 in-memory
+# group: [delim_join_inmemory_tpch_queries]
+
+require tpch
+
+statement ok
+CALL dbgen(sf=0.1);
+
+statement ok
+PRAGMA trace_lineage = "ON";
+
+statement ok
+SELECT sum(l_extendedprice) / 7.0 AS avg_yearly FROM lineitem, part WHERE p_partkey = l_partkey AND p_brand = 'Brand#23' AND p_container = 'MED BOX' AND l_quantity < (  SELECT 0.2 * avg(l_quantity)  FROM  lineitem   WHERE  l_partkey = p_partkey);
+
+statement ok
+PRAGMA trace_lineage = "OFF";
+
+
+query I
+PRAGMA backward_lineage("SELECT sum(l_extendedprice) / 7.0 AS avg_yearly FROM lineitem, part WHERE p_partkey = l_partkey AND p_brand = 'Brand#23' AND p_container = 'MED BOX' AND l_quantity < (  SELECT 0.2 * avg(l_quantity)  FROM  lineitem   WHERE  l_partkey = p_partkey);", '0')
+----
+3045
