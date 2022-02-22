@@ -64,17 +64,10 @@ select rowid, chunk_id, index, value from SEQ_SCAN_11_0_filter;
 
 
 query IIII
-select rowid, chunk_id, index, value from FILTER_11_0;
+select rowid, chunk_id, index, value from FILTER_9_0;
 ----
 0	0	0	0
-1	0	1	1
-2	0	2	2
-3	0	3	3
-4	0	4	4
-5	1	0	52
-6	1	1	53
-7	1	2	54
-8	1	3	55
+
 
 # todo: how to map final rowid to (chunk_id, index) within lineage?
 query II

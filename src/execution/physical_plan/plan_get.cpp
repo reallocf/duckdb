@@ -1,12 +1,13 @@
 #include "duckdb/execution/operator/projection/physical_projection.hpp"
 #include "duckdb/execution/operator/projection/physical_tableinout_function.hpp"
-
 #include "duckdb/execution/operator/scan/physical_table_scan.hpp"
+#include "duckdb/execution/physical_plan_generator.hpp"
+#include "duckdb/function/table/table_scan.hpp"
 #include "duckdb/planner/expression/bound_constant_expression.hpp"
 #include "duckdb/planner/expression/bound_reference_expression.hpp"
-#include "duckdb/execution/physical_plan_generator.hpp"
 #include "duckdb/planner/operator/logical_get.hpp"
-#include "duckdb/function/table/table_scan.hpp"
+
+#include <duckdb/execution/operator/scan/physical_lineage_scan.hpp>
 
 namespace duckdb {
 
@@ -92,6 +93,12 @@ unique_ptr<PhysicalOperator> PhysicalPlanGenerator::CreatePlan(LogicalGet &op) {
 		projection->children.push_back(move(node));
 		return move(projection);
 	} else {
+		TableScanBindData* tbldata = dynamic_cast<TableScanBindData *>(op.bind_data.get());
+		DataTable* tbl = tbldata->table->storage.get();
+		DataTableInfo *info = tbl->info.get();
+		if(info->table.find("filter_9_0") != string::npos)
+			return make_unique<PhysicalLineageScan>(op.types, op.function, move(op.bind_data), op.column_ids, op.names,
+			                                      move(table_filters), op.estimated_cardinality);
 		return make_unique<PhysicalTableScan>(op.types, op.function, move(op.bind_data), op.column_ids, op.names,
 		                                      move(table_filters), op.estimated_cardinality);
 	}

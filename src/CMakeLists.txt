@@ -65,7 +65,7 @@ else()
       utf8proc
       hyperloglog)
 
-  add_library(duckdb SHARED ${ALL_OBJECT_FILES})
+  add_library(duckdb SHARED ${ALL_OBJECT_FILES} execution/operator/scan/physical_lineage_scan.cpp include/duckdb/execution/operator/scan/physical_lineage_scan.hpp)
   target_link_libraries(duckdb ${DUCKDB_LINK_LIBS})
   link_threads(duckdb)
 
