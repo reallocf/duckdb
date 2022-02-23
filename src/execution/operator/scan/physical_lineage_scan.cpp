@@ -45,6 +45,11 @@ void PhysicalLineageScan::GetChunkInternal(ExecutionContext &context, DataChunk 
 	// set the cardinality after reading from the data structure?
 	insert_chunk.SetCardinality(1);
 
+	TableFilterCollection filters(table_filters.get());
+	TableFilterSet *filterSet = filters.table_filters;
+
+	// Iterate through all the filters (unordered set idx VS (Constant, ExpresssionType, column_idx)) apply the relevant conditions with values on the column_idx
+
 	// row id
 	Vector rowid;
 	rowid.SetType(table->GetTypes()[0]);
