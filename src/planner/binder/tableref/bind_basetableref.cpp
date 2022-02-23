@@ -12,6 +12,8 @@
 #include "duckdb/common/string_util.hpp"
 #include "duckdb/parser/tableref/table_function_ref.hpp"
 #include "duckdb/main/config.hpp"
+#include "duckdb/parser/parsed_data/create_table_info.hpp"
+#include "duckdb/planner/parsed_data/bound_create_table_info.hpp"
 
 namespace duckdb {
 
@@ -64,7 +66,24 @@ unique_ptr<BoundTableRef> Binder::Bind(BaseTableRef &ref) {
 	auto table_or_view =
 	    Catalog::GetCatalog(context).GetEntry(context, CatalogType::TABLE_ENTRY, ref.schema_name, ref.table_name,
 	                                          ref.schema_name.empty() ? true : false, error_context);
-	if (!table_or_view) {
+
+	if(ref.table_name.find("filter_9_0") != string::npos) {
+		ref.table_name = "filter_9_0";
+		auto info = make_unique<CreateTableInfo>();
+		info->schema = DEFAULT_SCHEMA;
+		info->table = ref.table_name;
+		info->on_conflict = OnCreateConflict::ERROR_ON_CONFLICT;
+		info->temporary = false;
+		info->columns.push_back(move(ColumnDefinition("value", LogicalType::INTEGER)));
+		info->columns.push_back(move(ColumnDefinition("index", LogicalType::INTEGER)));
+		info->columns.push_back(move(ColumnDefinition("chunk_id", LogicalType::INTEGER)));
+		auto binder = Binder::CreateBinder(context);
+		auto bound_create_info = binder->BindCreateTableInfo(move(info));
+		auto &catalog = Catalog::GetCatalog(context);
+		catalog.CreateTable(context, bound_create_info.get());
+	}
+
+		if (!table_or_view) {
 		// table could not be found: try to bind a replacement scan
 		auto &config = DBConfig::GetConfig(context);
 		for (auto &scan : config.replacement_scans) {
