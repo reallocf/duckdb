@@ -38,10 +38,9 @@ string PragmaBackwardLineage(ClientContext &context, const FunctionParameters &p
 		idx_t out_idx;
 		while (ss >> word) {
 			clock_t start = clock();
-			auto lineage = context.lineage_manager->Backward(op, (idx_t)stoi(word));
+			out_idx = context.lineage_manager->BackwardCount(op, (idx_t)stoi(word));
 			clock_t end = clock();
 			std::cout << "Root Backward time: " << ((float) end - start) / CLOCKS_PER_SEC << std::endl;
-			out_idx = lineage.size();
 		}
 
 		return StringUtil::Format("SELECT %i", out_idx);
