@@ -744,6 +744,7 @@ void ScanStructure::NextSingleJoin(DataChunk &keys, DataChunk &input, DataChunk 
 #ifdef LINEAGE
 	auto ptrs = FlatVector::GetData<uintptr_t>(pointers);
 	unique_ptr<uintptr_t[]> key_locations_lineage(new uintptr_t[input.size()]);
+	memset(key_locations_lineage.get(), 0, input.size() * sizeof(uintptr_t));
 #endif
 	while (this->count > 0) {
 		// resolve the predicates for the current set of pointers
