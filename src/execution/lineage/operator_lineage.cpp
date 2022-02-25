@@ -311,13 +311,18 @@ shared_ptr<LineageDataWithOffset> OperatorLineage::GetMyLatest() {
 		return nullptr;
 	}
 	case PhysicalOperatorType::FILTER:
-	case PhysicalOperatorType::HASH_GROUP_BY:
 	case PhysicalOperatorType::LIMIT:
-	case PhysicalOperatorType::ORDER_BY:
+	case PhysicalOperatorType::ORDER_BY: {
+		if (!data[LINEAGE_UNARY].empty()) {
+			return make_shared<LineageDataWithOffset>(data[LINEAGE_UNARY][data[LINEAGE_UNARY].size() - 1]);
+		}
+		return nullptr;
+	}
+	case PhysicalOperatorType::HASH_GROUP_BY:
 	case PhysicalOperatorType::PERFECT_HASH_GROUP_BY:
 	case PhysicalOperatorType::WINDOW: {
-		if (!data[0].empty()) {
-			return make_shared<LineageDataWithOffset>(data[0][data[0].size() - 1]);
+		if (!data[LINEAGE_SOURCE].empty()) {
+			return make_shared<LineageDataWithOffset>(data[LINEAGE_SOURCE][data[LINEAGE_SOURCE].size() - 1]);
 		}
 		return nullptr;
 	}
