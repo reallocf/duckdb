@@ -311,20 +311,25 @@ shared_ptr<LineageDataWithOffset> OperatorLineage::GetMyLatest() {
 		return nullptr;
 	}
 	case PhysicalOperatorType::FILTER:
-	case PhysicalOperatorType::HASH_GROUP_BY:
 	case PhysicalOperatorType::LIMIT:
-	case PhysicalOperatorType::ORDER_BY:
+	case PhysicalOperatorType::ORDER_BY: {
+		if (!data[LINEAGE_UNARY].empty()) {
+			return make_shared<LineageDataWithOffset>(data[LINEAGE_UNARY][data[LINEAGE_UNARY].size() - 1]);
+		}
+		return nullptr;
+	}
+	case PhysicalOperatorType::HASH_GROUP_BY:
 	case PhysicalOperatorType::PERFECT_HASH_GROUP_BY:
 	case PhysicalOperatorType::WINDOW: {
-		if (!data[0].empty()) {
-			return make_shared<LineageDataWithOffset>(data[0][data[0].size() - 1]);
+		if (!data[LINEAGE_SOURCE].empty()) {
+			return make_shared<LineageDataWithOffset>(data[LINEAGE_SOURCE][data[LINEAGE_SOURCE].size() - 1]);
 		}
 		return nullptr;
 	}
 	case PhysicalOperatorType::CROSS_PRODUCT: {
 		// Only the right lineage is ever captured TODO is this what we should do?
-		if (!data[0].empty()) {
-			return make_shared<LineageDataWithOffset>(data[1][data[1].size() - 1]);
+		if (!data[LINEAGE_PROBE].empty()) {
+			return make_shared<LineageDataWithOffset>(data[LINEAGE_PROBE][data[LINEAGE_PROBE].size() - 1]);
 		}
 		return nullptr;
 	}
@@ -333,8 +338,8 @@ shared_ptr<LineageDataWithOffset> OperatorLineage::GetMyLatest() {
 	case PhysicalOperatorType::PIECEWISE_MERGE_JOIN:
 	case PhysicalOperatorType::INDEX_JOIN: {
 		// 0 is the probe side for these joins
-		if (!data[0].empty()) {
-			return make_shared<LineageDataWithOffset>(data[0][data[0].size() - 1]);
+		if (!data[LINEAGE_PROBE].empty()) {
+			return make_shared<LineageDataWithOffset>(data[LINEAGE_PROBE][data[LINEAGE_PROBE].size() - 1]);
 		} else {
 			return nullptr;
 		}
