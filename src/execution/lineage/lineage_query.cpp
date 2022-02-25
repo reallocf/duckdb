@@ -485,20 +485,39 @@ void OperatorLineage::Backward(const shared_ptr<vector<SourceAndMaybeData>>& lin
 	}
 }
 
-idx_t LineageManager::BackwardCount(PhysicalOperator *op, idx_t source) {
-	// an operator can have lineage from multiple threads, how to decide which one to check?
-	shared_ptr<vector<SourceAndMaybeData>> lineage = make_shared<vector<SourceAndMaybeData>>();
-	lineage->push_back({source, nullptr});
-	op->lineage_op.at(-1)->Backward(lineage);
-	return lineage->size();
-}
-
 vector<SourceAndMaybeData> LineageManager::Backward(PhysicalOperator *op, idx_t source) {
 	// an operator can have lineage from multiple threads, how to decide which one to check?
-	shared_ptr<vector<SourceAndMaybeData>> lineage = make_shared<vector<SourceAndMaybeData>>();
-	lineage->push_back({source, nullptr});
-	op->lineage_op.at(-1)->Backward(lineage);
-	return *lineage.get();
+	shared_ptr<vector<SourceAndMaybeData>> total_lineage = make_shared<vector<SourceAndMaybeData>>();
+	shared_ptr<vector<SourceAndMaybeData>> partial_lineage = make_shared<vector<SourceAndMaybeData>>();
+	partial_lineage->push_back({source, nullptr});
+	while (true) {
+		op->lineage_op.at(-1)->Backward(partial_lineage);
+		if (partial_lineage->empty()) {
+			break;
+		} else {
+			total_lineage->reserve(total_lineage->size() + partial_lineage->size());
+			total_lineage->insert(total_lineage->end(), partial_lineage->begin(), partial_lineage->end());
+			partial_lineage->clear();
+		}
+	}
+	return *total_lineage.get();
+}
+
+idx_t LineageManager::BackwardCount(PhysicalOperator *op, idx_t source) {
+	// an operator can have partial_lineage from multiple threads, how to decide which one to check?
+	idx_t total_count = 0;
+	shared_ptr<vector<SourceAndMaybeData>> partial_lineage = make_shared<vector<SourceAndMaybeData>>();
+	partial_lineage->push_back({source, nullptr});
+	while (true) {
+		op->lineage_op.at(-1)->Backward(partial_lineage);
+		if (partial_lineage->empty()) {
+			break;
+		} else {
+			total_count += partial_lineage->size();
+			partial_lineage->clear();
+		}
+	}
+	return total_count;
 }
 
 } // namespace duckdb
