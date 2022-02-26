@@ -96,6 +96,47 @@ shared_ptr<OperatorLineage> GetThisLineageOp(PhysicalOperator *op, int thd_id) {
 	}
 }
 
+// This is used to recursively skip projections
+shared_ptr<OperatorLineage> GetThisParentOp(PhysicalOperator *op, int thd_id) {
+	switch (op->type) {
+	case PhysicalOperatorType::CHUNK_SCAN:
+	case PhysicalOperatorType::DELIM_SCAN:
+	case PhysicalOperatorType::DUMMY_SCAN:
+	case PhysicalOperatorType::TABLE_SCAN:
+	case PhysicalOperatorType::FILTER:
+	case PhysicalOperatorType::HASH_GROUP_BY:
+	case PhysicalOperatorType::LIMIT:
+	case PhysicalOperatorType::ORDER_BY:
+	case PhysicalOperatorType::PERFECT_HASH_GROUP_BY:
+	case PhysicalOperatorType::SIMPLE_AGGREGATE:
+	case PhysicalOperatorType::WINDOW:
+	case PhysicalOperatorType::CROSS_PRODUCT:
+	case PhysicalOperatorType::NESTED_LOOP_JOIN:
+	case PhysicalOperatorType::BLOCKWISE_NL_JOIN:
+	case PhysicalOperatorType::PIECEWISE_MERGE_JOIN:
+	case PhysicalOperatorType::INDEX_JOIN:
+	case PhysicalOperatorType::DELIM_JOIN: {
+		return op->lineage_op[thd_id];
+	}
+	case PhysicalOperatorType::HASH_JOIN: {
+		JoinType join_type = dynamic_cast<PhysicalJoin *>(op)->join_type;
+		if (join_type == JoinType::MARK) {
+			// Pass through Mark Joins
+			return GetThisLineageOp(op->children[0].get(), thd_id);
+		} else {
+			return op->lineage_op[thd_id];
+		}
+	}
+	case PhysicalOperatorType::PROJECTION: {
+		// Skip projection!
+		return GetThisLineageOp(op->children[0].get(), thd_id);
+	}
+	default:
+		// Lineage unimplemented! TODO these :)
+		return {};
+	}
+}
+
 std::vector<shared_ptr<OperatorLineage>> GetChildrenForOp(PhysicalOperator *op, int thd_id) {
 	switch (op->type) {
 	case PhysicalOperatorType::CHUNK_SCAN:
@@ -156,7 +197,7 @@ std::vector<shared_ptr<OperatorLineage>> GetChildrenForOp(PhysicalOperator *op, 
 	}
 }
 
-void LineageManager::CreateOperatorLineage(PhysicalOperator *op, int thd_id, bool trace_lineage, bool should_index) {
+void LineageManager::CreateOperatorLineage(PhysicalOperator *op, int thd_id, bool trace_lineage, bool should_index, bool is_root) {
 	should_index = should_index
 	    && op->type != PhysicalOperatorType::ORDER_BY; // Order by is one chunk, so no need to index
 	if (op->type == PhysicalOperatorType::DELIM_JOIN) {
@@ -186,6 +227,21 @@ void LineageManager::CreateOperatorLineage(PhysicalOperator *op, int thd_id, boo
 	    should_index
 	);
 	op->lineage_op[thd_id]->trace_lineage = trace_lineage;
+	// Set parent pointers
+	if (is_root || op->type != PhysicalOperatorType::PROJECTION) {
+		if (op->type == PhysicalOperatorType::HASH_JOIN) {
+			// Skip MARK join
+			if (dynamic_cast<PhysicalJoin *>(op)->join_type != JoinType::MARK) {
+				for (const auto& child : op->lineage_op[thd_id]->children) {
+					child->parents.push_back(op->lineage_op[thd_id]);
+				}
+			}
+		} else {
+			for (const auto& child : op->lineage_op[thd_id]->children) {
+				child->parents.push_back(op->lineage_op[thd_id]);
+			}
+		}
+	}
 }
 
 // Iterate through in Postorder to ensure that children have PipelineLineageNodes set before parents
@@ -212,7 +268,7 @@ idx_t PlanAnnotator(PhysicalOperator *op, idx_t counter, bool trace_lineage) {
  */
 void LineageManager::InitOperatorPlan(PhysicalOperator *op, bool trace_lineage) {
 	PlanAnnotator(op, 0, trace_lineage);
-	CreateOperatorLineage(op, -1, trace_lineage, true); // Always index root
+	CreateOperatorLineage(op, -1, trace_lineage, true, true); // Always index root
 }
 
 // Get the column types for this operator

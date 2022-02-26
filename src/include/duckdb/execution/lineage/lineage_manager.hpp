@@ -42,7 +42,7 @@ public:
 	void CreateQueryTable();
 	void LogQuery(const string& input_query, idx_t lineage_size=0);
 	static shared_ptr<PipelineLineage> GetPipelineLineageNodeForOp(PhysicalOperator *op, int thd_id=-1);
-	static void CreateOperatorLineage(PhysicalOperator *op, int thd_id=-1, bool trace_lineage=true, bool should_index=true);
+	static void CreateOperatorLineage(PhysicalOperator *op, int thd_id=-1, bool trace_lineage=true, bool should_index=true, bool is_root=false);
 
 private:
 	ClientContext &context;

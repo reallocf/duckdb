@@ -88,7 +88,18 @@ enum class PhysicalOperatorType : uint8_t {
 	EXPORT,
 	SET,
 	LOAD,
+#ifdef LINEAGE
+	INOUT_FUNCTION,
+
+	// -----------------------------
+	// Lineage
+	// -----------------------------
+	LINEAGE_ROOT,
+	LINEAGE_LEAF
+
+#else
 	INOUT_FUNCTION
+#endif
 };
 
 string PhysicalOperatorToString(PhysicalOperatorType type);

@@ -162,7 +162,7 @@ bool Pipeline::LaunchScanTasks(PhysicalOperator *op, idx_t max_threads, unique_p
 	}
 #ifdef LINEAGE
 	for (idx_t i = 0; i < max_threads; i++) {
-		LineageManager::CreateOperatorLineage(top, i, executor.context.trace_lineage, true);
+		LineageManager::CreateOperatorLineage(top, i, executor.context.trace_lineage, true, true);
 	}
 #endif
 
