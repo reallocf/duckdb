@@ -44,6 +44,7 @@ struct BoundCreateTableInfo {
 	CreateTableInfo &Base() {
 		return (CreateTableInfo &)*base;
 	}
+public: bool isLineageTable = false;
 };
 
 } // namespace duckdb

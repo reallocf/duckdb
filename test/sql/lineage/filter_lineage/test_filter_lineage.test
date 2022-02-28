@@ -25,11 +25,11 @@ select * from t1 where 2 > i  OR i > 1998
 statement ok
 PRAGMA trace_lineage = "OFF";
 
-query II
+query III
 SELECT * FROM queries_list;
 ----
-1	select * from t1 where 2 > i  OR i > 1998
-2	PRAGMA trace_lineage = "OFF";
+0	PRAGMA trace_lineage = "ON";	0
+1	select * from t1 where 2 > i  OR i > 1998	8024
 
 query III
 SELECT rowid, in_index, out_index FROM LINEAGE_1_FILTER_1_0
@@ -37,9 +37,3 @@ SELECT rowid, in_index, out_index FROM LINEAGE_1_FILTER_1_0
 0	0	0
 1	1	1
 2	1999	2
-
-
-# We don't capture anything for the SEQ_SCAN because nothing is filtered out
-query III
-SELECT rowid, in_index, out_index FROM LINEAGE_1_SEQ_SCAN_0_0
-----
