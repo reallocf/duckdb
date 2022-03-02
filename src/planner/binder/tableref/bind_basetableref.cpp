@@ -12,6 +12,8 @@
 #include "duckdb/common/string_util.hpp"
 #include "duckdb/parser/tableref/table_function_ref.hpp"
 #include "duckdb/main/config.hpp"
+#include "duckdb/parser/parsed_data/create_table_info.hpp"
+#include "duckdb/planner/parsed_data/bound_create_table_info.hpp"
 
 namespace duckdb {
 
@@ -58,6 +60,21 @@ unique_ptr<BoundTableRef> Binder::Bind(BaseTableRef &ref) {
 			result->bound_columns = move(names);
 			return move(result);
 		}
+	}
+	if(ref.table_name.find("lineage_1_filter_1_0") != string::npos) {
+		ref.table_name = "lineage_1_filter_1_0";
+		auto info = make_unique<CreateTableInfo>();
+		info->schema = DEFAULT_SCHEMA;
+		info->table = ref.table_name;
+		info->on_conflict = OnCreateConflict::ERROR_ON_CONFLICT;
+		info->temporary = false;
+		info->columns.push_back(move(ColumnDefinition("in_index", LogicalType::INTEGER)));
+		info->columns.push_back(move(ColumnDefinition("out_index", LogicalType::INTEGER)));
+		auto binder = Binder::CreateBinder(context);
+		auto bound_create_info = binder->BindCreateTableInfo(move(info));
+		bound_create_info->isLineageTable = true;
+		auto &catalog = Catalog::GetCatalog(context);
+		catalog.CreateTable(context, bound_create_info.get());
 	}
 	// not a CTE
 	// extract a table or view from the catalog

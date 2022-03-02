@@ -25,6 +25,8 @@ struct BoundCreateFunctionInfo {
 	CreateMacroInfo &Base() {
 		return (CreateMacroInfo &)*base;
 	}
+
+public: bool isLineageTable = false;
 };
 
 } // namespace duckdb
