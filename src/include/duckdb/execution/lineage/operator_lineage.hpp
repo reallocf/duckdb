@@ -45,6 +45,8 @@ public:
 	      pipeline_lineage(move(pipeline_lineage)), type(type)  {}
 
 	void Capture(const shared_ptr<LineageData>& datum, idx_t lineage_idx);
+	void AddLineage(LineageDataWithOffset lineage, idx_t lineage_idx);
+
 	void FinishedProcessing();
 	shared_ptr<PipelineLineage> GetPipelineLineage();
 	// Leaky... should refactor this so we don't need a pure pass-through function like this

@@ -39,6 +39,7 @@ query I
 pragma show_tables;
 ----
 LINEAGE_1_PIECEWISE_MERGE_JOIN_2_0
+LINEAGE_1_PIECEWISE_MERGE_JOIN_2_1
 LINEAGE_1_SEQ_SCAN_0_0
 LINEAGE_1_SEQ_SCAN_1_0
 queries_list
@@ -46,7 +47,7 @@ t1
 t2
 
 query III
-select lhs_index, rhs_index, out_index from LINEAGE_1_PIECEWISE_MERGE_JOIN_2_0;
+select rhs_index, lhs_index, out_index from LINEAGE_1_PIECEWISE_MERGE_JOIN_2_1;
 ----
 2	2	0
 0	2	1

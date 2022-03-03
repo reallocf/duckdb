@@ -43,6 +43,7 @@ void LineageDataVectorBufferArray::Debug() {
 }
 
 data_ptr_t LineageDataVectorBufferArray::Process(idx_t offset) {
+	if (offset == 0) return (data_ptr_t)vec.get();
 	for (idx_t i = 0; i < count; i++) {
 		vec[i] += offset;
 	}
@@ -173,6 +174,26 @@ data_ptr_t LineageRange::Process(idx_t offset) {
 
 idx_t LineageRange::Size() {
 	return 2*sizeof(start);
+}
+
+
+// LineageConstant
+
+idx_t LineageConstant::Count() {
+	return count;
+}
+
+void LineageConstant::Debug() {
+	std::cout << "LineageConstant - value: " << value << " Count: " << count << std::endl;
+}
+
+data_ptr_t LineageConstant::Process(idx_t offset) {
+	vec.push_back(value);
+	return (data_ptr_t)vec.data();
+}
+
+idx_t LineageConstant::Size() {
+	return 1*sizeof(value);
 }
 
 

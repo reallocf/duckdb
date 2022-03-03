@@ -74,11 +74,21 @@ void PhysicalIndexJoin::Output(ExecutionContext &context, DataChunk &chunk, Phys
 	sel.Initialize(STANDARD_VECTOR_SIZE);
 	idx_t output_sel_idx = 0;
 	vector<row_t> fetch_rows;
+#ifdef LINEAGE
+	bool do_not_fetch = false;
+#endif
 	auto state = reinterpret_cast<PhysicalIndexJoinOperatorState *>(state_p);
 	while (output_sel_idx < STANDARD_VECTOR_SIZE && state->lhs_idx < state->child_chunk.size()) {
 		if (state->rhs_idx < state->result_sizes[state->lhs_idx]) {
 			sel.set_index(output_sel_idx++, state->lhs_idx);
+#ifdef LINEAGE
+			if (!fetch_types.empty() || context.client.trace_lineage) {
+				if (fetch_types.empty()) {
+					do_not_fetch = true;
+				}
+#else
 			if (!fetch_types.empty()) {
+#endif
 				//! We need to collect the rows we want to fetch
 				fetch_rows.push_back(state->rhs_rows[state->lhs_idx][state->rhs_idx]);
 			}
@@ -90,12 +100,12 @@ void PhysicalIndexJoin::Output(ExecutionContext &context, DataChunk &chunk, Phys
 		}
 	}
 
-#ifdef LINEAGE
-	unique_ptr<LineageDataRowVector> rhs_lineage;
-#endif
-
 	//! Now we fetch the RHS data
+#ifdef LINEAGE
+	if (!fetch_types.empty() && !do_not_fetch) {
+#else
 	if (!fetch_types.empty()) {
+#endif
 		if (fetch_rows.empty()) {
 			return;
 		}
@@ -103,12 +113,6 @@ void PhysicalIndexJoin::Output(ExecutionContext &context, DataChunk &chunk, Phys
 		ColumnFetchState fetch_state;
 		Vector row_ids(LOGICAL_ROW_TYPE, (data_ptr_t)&fetch_rows[0]);
 		tbl->Fetch(transaction, rhs_chunk, fetch_ids, row_ids, output_sel_idx, fetch_state);
-#ifdef LINEAGE
-		rhs_lineage = make_unique<LineageDataRowVector>(fetch_rows, output_sel_idx);
-	} else {
-		// TODO what's going on in this case?
-		rhs_lineage = make_unique<LineageDataRowVector>(vector<row_t>(), 0);
-#endif
 	}
 
 	//! Now we actually produce our result chunk
@@ -130,6 +134,7 @@ void PhysicalIndexJoin::Output(ExecutionContext &context, DataChunk &chunk, Phys
 
 #ifdef LINEAGE
 	auto lhs_lineage = make_unique<LineageSelVec>(move(sel), output_sel_idx);
+	auto rhs_lineage = make_unique<LineageDataRowVector>(fetch_rows, output_sel_idx);
 	lineage_op->Capture(make_shared<LineageBinary>(move(lhs_lineage), move(rhs_lineage)), LINEAGE_UNARY);
 #endif
 
@@ -146,7 +151,11 @@ void PhysicalIndexJoin::GetRHSMatches(ExecutionContext &context, PhysicalOperato
 		auto index_state = art.InitializeScanSinglePredicate(transaction, equal_value, ExpressionType::COMPARE_EQUAL);
 		state->rhs_rows[i].clear();
 		if (!equal_value.is_null) {
+#ifdef LINEAGE
+			if (fetch_types.empty() && !context.client.trace_lineage) {
+#else
 			if (fetch_types.empty()) {
+#endif
 				IndexLock lock;
 				index->InitializeLock(lock);
 				art.SearchEqualJoinNoFetch(equal_value, state->result_sizes[i]);

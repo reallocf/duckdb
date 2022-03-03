@@ -51,7 +51,6 @@ void PipelineJoinLineage::AdjustChunkOffsets(idx_t chunk_size, idx_t lineage_idx
 			next = false;
 		} else {
 			// If we haven't pushed to the parent operator, offset remains the same (chunk merge)
-			chunk_offset->offset = chunk_offset->offset;
 			chunk_offset->size = chunk_offset->size + chunk_size;
 		}
 	} else {

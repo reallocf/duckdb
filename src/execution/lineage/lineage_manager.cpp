@@ -15,6 +15,7 @@ class PhysicalDelimJoin;
 
 shared_ptr<PipelineLineage> GetPipelineLineageNodeForOp(PhysicalOperator *op) {
 	switch (op->type) {
+	case PhysicalOperatorType::DUMMY_SCAN:
 	case PhysicalOperatorType::DELIM_SCAN:
 	case PhysicalOperatorType::CHUNK_SCAN:
 	case PhysicalOperatorType::TABLE_SCAN: {
@@ -30,6 +31,9 @@ shared_ptr<PipelineLineage> GetPipelineLineageNodeForOp(PhysicalOperator *op) {
 	case PhysicalOperatorType::ORDER_BY: {
 		return make_shared<PipelineBreakerLineage>();
 	}
+	case PhysicalOperatorType::CROSS_PRODUCT:
+	case PhysicalOperatorType::NESTED_LOOP_JOIN:
+	case PhysicalOperatorType::BLOCKWISE_NL_JOIN:
 	case PhysicalOperatorType::PIECEWISE_MERGE_JOIN:
 	case PhysicalOperatorType::INDEX_JOIN:
 	case PhysicalOperatorType::HASH_JOIN: {
@@ -90,8 +94,7 @@ vector<vector<ColumnDefinition>> GetTableColumnTypes(PhysicalOperator *op) {
 		res.emplace_back(move(table_columns));
 		break;
 	}
-	case PhysicalOperatorType::PERFECT_HASH_GROUP_BY:
-	case PhysicalOperatorType::HASH_GROUP_BY: {
+	case PhysicalOperatorType::PERFECT_HASH_GROUP_BY: {
 		// sink schema: [INTEGER in_index, INTEGER out_index]
 		vector<ColumnDefinition> sink_table_columns;
 		sink_table_columns.emplace_back("in_index", LogicalType::INTEGER);
@@ -104,7 +107,28 @@ vector<vector<ColumnDefinition>> GetTableColumnTypes(PhysicalOperator *op) {
 		res.emplace_back(move(source_table_columns));
 		break;
 	}
+	case PhysicalOperatorType::HASH_GROUP_BY: {
+		// sink schema: [INTEGER in_index, BIGINT out_index]
+		vector<ColumnDefinition> sink_table_columns;
+		sink_table_columns.emplace_back("in_index", LogicalType::INTEGER);
+		sink_table_columns.emplace_back("out_index", LogicalType::BIGINT);
+		res.emplace_back(move(sink_table_columns));
+		// source schema: [BIGINT in_index, INTEGER out_index]
+		vector<ColumnDefinition> source_table_columns;
+		source_table_columns.emplace_back("in_index", LogicalType::BIGINT);
+		source_table_columns.emplace_back("out_index", LogicalType::INTEGER);
+		res.emplace_back(move(source_table_columns));
+		break;
+	}
+	case PhysicalOperatorType::BLOCKWISE_NL_JOIN:
+	case PhysicalOperatorType::CROSS_PRODUCT:
+	case PhysicalOperatorType::NESTED_LOOP_JOIN:
 	case PhysicalOperatorType::PIECEWISE_MERGE_JOIN: {
+		// sink: [INTEGER in_index, INTEGER out_index]
+		vector<ColumnDefinition> sink;
+		sink.emplace_back("in_index", LogicalType::INTEGER);
+		sink.emplace_back("out_index", LogicalType::INTEGER);
+		res.emplace_back(move(sink));
 		// schema: [INTEGER lhs_index, BIGINT rhs_index, INTEGER out_index]
 		vector<ColumnDefinition> table_columns;
 		table_columns.emplace_back("lhs_index", LogicalType::INTEGER);
