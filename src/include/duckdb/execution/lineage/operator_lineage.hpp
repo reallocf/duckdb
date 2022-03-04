@@ -15,7 +15,6 @@
 
 #include "duckdb/catalog/catalog.hpp"
 #include "duckdb/common/types/chunk_collection.hpp"
-#include "duckdb/catalog/catalog_entry/table_catalog_entry.hpp"
 #include "duckdb/execution/lineage/lineage_data.hpp"
 #include "duckdb/execution/lineage/pipeline_lineage.hpp"
 

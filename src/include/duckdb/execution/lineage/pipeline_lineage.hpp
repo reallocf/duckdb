@@ -15,7 +15,6 @@
 
 #include "duckdb/catalog/catalog.hpp"
 #include "duckdb/common/types/chunk_collection.hpp"
-#include "duckdb/catalog/catalog_entry/table_catalog_entry.hpp"
 
 #include <iostream>
 #include <utility>

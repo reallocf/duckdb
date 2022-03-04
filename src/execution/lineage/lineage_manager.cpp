@@ -401,7 +401,9 @@ idx_t LineageManager::CreateLineageTables(PhysicalOperator *op) {
 		TableCatalogEntry *table =
 			dynamic_cast<TableCatalogEntry *>(catalog.CreateTable(context, bound_create_info.get()));
 
-		// Persist Data
+		table->opLineage = op->lineage_op.at(-1);
+
+		/*// Persist Data
 		DataChunk insert_chunk;
 		vector<LogicalType> types = table->GetTypes();
 		insert_chunk.Initialize(types);
@@ -425,7 +427,7 @@ idx_t LineageManager::CreateLineageTables(PhysicalOperator *op) {
 			lineage_op.second->FinishedProcessing();
 			op_size += lps.size_so_far;
 			total_size += op_size;
-		}
+		}*/
 		//std::cout << table_name << " count: " << op_count << " size: " << op_size << std::endl;
 	}
 

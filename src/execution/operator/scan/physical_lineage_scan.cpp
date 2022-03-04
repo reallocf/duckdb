@@ -18,9 +18,9 @@
 
 namespace duckdb {
 
-class PhysicalTableScanOperatorState : public PhysicalOperatorState {
+class PhysicalLineageTableScanOperatorState : public PhysicalOperatorState {
 public:
-	explicit PhysicalTableScanOperatorState(PhysicalOperator &op)
+	explicit PhysicalLineageTableScanOperatorState(PhysicalOperator &op)
 	    : PhysicalOperatorState(op, nullptr), initialized(false) {
 	}
 
@@ -28,6 +28,7 @@ public:
 	unique_ptr<FunctionOperatorData> operator_data;
 	//! Whether or not the scan has been initialized
 	bool initialized;
+	std::shared_ptr<LineageProcessStruct> lineageProcessStruct;
 };
 
 
@@ -41,37 +42,31 @@ PhysicalLineageScan::PhysicalLineageScan(vector<LogicalType> types, TableFunctio
 }
 
 void PhysicalLineageScan::GetChunkInternal(ExecutionContext &context, DataChunk &chunk, PhysicalOperatorState *state_p) const {
-	auto &state = (PhysicalTableScanOperatorState &)*state_p;
+	auto &state = (PhysicalLineageTableScanOperatorState &)*state_p;
 
 	TableScanBindData* tbldata = dynamic_cast<TableScanBindData *>(this->bind_data.get());
 	DataTable* tbl = tbldata->table->storage.get();
 	shared_ptr<DataTableInfo> info = tbl->info;
 	TableCatalogEntry * table = Catalog::GetCatalog(context.client).GetEntry<TableCatalogEntry>(context.client,  DEFAULT_SCHEMA, info->table);
-	DataChunk insert_chunk;
-	insert_chunk.Initialize(table->GetTypes());
-	// set the cardinality after reading from the data structure?
-	insert_chunk.SetCardinality(1);
 
-	const string query = context.client.query;
-	auto op = context.client.query_to_plan[query].get();
-/*
-	if (op == nullptr) {
-		throw std::logic_error("Querying non-existent lineage");
+
+	shared_ptr<OperatorLineage> opLineage = table->opLineage;
+	if(state.lineageProcessStruct == nullptr){
+		LineageProcessStruct lps = opLineage.get()->Process(table->GetTypes(),0,chunk ,0,-1);
+		state.lineageProcessStruct = std::make_shared<LineageProcessStruct>(lps);
 	}
-*/
+	else{
+		LineageProcessStruct *lps = state.lineageProcessStruct.get();
+		LineageProcessStruct lps1 = opLineage.get()->Process(table->GetTypes(),lps->count_so_far,chunk ,lps->size_so_far,-1);
+		state.lineageProcessStruct = std::make_shared<LineageProcessStruct>(lps1);
+	}
 
-	query.substr(16,1);
 
-
-
-
-	TableFilterCollection filters(table_filters.get());
-	TableFilterSet *filterSet = filters.table_filters;
 
 	// Iterate through all the filters (unordered set idx VS (Constant, ExpresssionType, column_idx)) apply the relevant conditions with values on the column_idx
 
 
-	// populate chunk
+/*	// populate chunk
 	chunk.SetValue(0,0,0);
 	chunk.SetValue(0,1,1);
 	chunk.SetValue(0,2,2);
@@ -84,10 +79,7 @@ void PhysicalLineageScan::GetChunkInternal(ExecutionContext &context, DataChunk 
 	chunk.SetValue(2,1,1);
 	chunk.SetValue(2,2,2);
 
-	chunk.SetCardinality(3);
-
-	state.initialized = true;
-	state.finished = true;
+	chunk.SetCardinality(3);*/
 
 }
 
@@ -127,7 +119,7 @@ string PhysicalLineageScan::ParamsToString() const {
 }
 
 unique_ptr<PhysicalOperatorState> PhysicalLineageScan::GetOperatorState() {
-	return make_unique<PhysicalTableScanOperatorState>(*this);
+	return make_unique<PhysicalLineageTableScanOperatorState>(*this);
 }
 
 

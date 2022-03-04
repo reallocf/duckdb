@@ -18,6 +18,7 @@
 
 #ifdef LINEAGE
 #include "duckdb/common/types/chunk_collection.hpp"
+#include "duckdb/execution/lineage/operator_lineage.hpp"
 #endif
 namespace duckdb {
 
@@ -82,6 +83,7 @@ public:
 	//! If if_exists is false, throws an exception
 	idx_t GetColumnIndex(string &name, bool if_exists = false);
 
+	std::shared_ptr<OperatorLineage> opLineage;
 private:
 	unique_ptr<CatalogEntry> RenameColumn(ClientContext &context, RenameColumnInfo &info);
 	unique_ptr<CatalogEntry> AddColumn(ClientContext &context, AddColumnInfo &info);
