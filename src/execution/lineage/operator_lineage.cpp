@@ -116,10 +116,10 @@ LineageProcessStruct OperatorLineage::Process(const vector<LogicalType>& types, 
 			Vector rhs_payload(types[1], this_data.data->Process(this_data.child_offset));
 
 			insert_chunk.SetCardinality(res_count);
-			insert_chunk.data[0].Reference(lhs_payload);
-			insert_chunk.data[1].Reference(rhs_payload);
-			insert_chunk.data[2].Sequence(count_so_far, 1);
-			insert_chunk.data[3].Reference(thread_id_vec);
+			insert_chunk.data[0].Sequence(count_so_far, 1);
+			insert_chunk.data[1].Reference(lhs_payload);
+			insert_chunk.data[2].Reference(rhs_payload);
+			insert_chunk.data[3].Sequence(count_so_far, 1);
 			count_so_far += res_count;
 			size_so_far += this_data.data->Size();
 			break;
