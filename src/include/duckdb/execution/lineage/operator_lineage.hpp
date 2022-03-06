@@ -58,7 +58,6 @@ public:
 	LineageProcessStruct Process(const vector<LogicalType>& types, idx_t count_so_far, DataChunk &insert_chunk, idx_t size=0, int thread_id=-1);
 	LineageProcessStruct PostProcess(idx_t chunk_count, idx_t count_so_far, int thread_id=-1);
 	void Backward(const shared_ptr<vector<SourceAndMaybeData>>& lineage);
-	shared_ptr<vector<SourceAndMaybeData>> BackwardNext(bool next_to_leaf=false);
 	// Leaky... should refactor this so we don't need a pure pass-through function like this
 	void SetChunkId(idx_t idx);
 	idx_t Size();
@@ -76,24 +75,17 @@ public:
 	PhysicalOperatorType type;
 	shared_ptr<LineageNested> cached_internal_lineage = nullptr;
 	std::vector<shared_ptr<OperatorLineage>> children;
-	vector<shared_ptr<OperatorLineage>> parents;
 
    // final lineage indexing data-structures
    // hash_map: used by group by and hash join build side
    std::unordered_map<uint64_t, SourceAndMaybeData> hash_map;
-   std::unordered_map<idx_t, vector<shared_ptr<vector<SourceAndMaybeData>>>> hash_map_agg;
+   std::unordered_map<idx_t, vector<SourceAndMaybeData>> hash_map_agg;
    // index: used to index selection vectors
    //        it stores the size of SV from each chunk
    //        which helps in locating the one needed
    //        using binary-search.
    vector<idx_t> index;
    bool should_index;
-
-   // Lineage Querying metadata and caches
-   vector<SourceAndMaybeData> sources;
-   bool visited = false;
-   vector<shared_ptr<vector<SourceAndMaybeData>>> cached_lineage_vec;
-   idx_t cached_lineage_idx = 0;
 };
 
 struct LineageProcessStruct {
