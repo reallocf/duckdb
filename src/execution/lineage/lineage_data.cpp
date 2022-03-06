@@ -227,7 +227,7 @@ vector<LineageDataWithOffset> LineageSelVec::Divide() {
 		);
 		auto this_lineage = make_shared<LineageSelVec>(SelectionVector(this_data), this_count);
 		this_lineage->SetChild(child);
-		res[i] = {this_lineage, (int)this_offset};
+		res[i] = {this_lineage, (int)this_offset, this_offset}; // I don't think this offset management is correct, but we don't use this anymore so it's fine
 	}
 	return res;
 }

@@ -26,6 +26,9 @@
 
 #ifdef LINEAGE
 #define LINEAGE_INDEXES_ON true
+// 0 => Binary Search index
+// 1 => Array index
+#define LINEAGE_INDEX_TYPE 0
 #endif
 
 namespace duckdb {

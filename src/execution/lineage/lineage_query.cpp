@@ -20,15 +20,15 @@ void LineageManager::PostProcess(PhysicalOperator *op, bool should_index) {
 	    || op->type == PhysicalOperatorType::HASH_JOIN;
 	bool never_post_process =
 	    op->type == PhysicalOperatorType::ORDER_BY; // 1 large chunk, so index is useless
-	if ((always_post_process || should_index) && !never_post_process) {
+	if ((always_post_process || (should_index && LINEAGE_INDEX_TYPE == 1)) && !never_post_process) {
 		vector<vector<ColumnDefinition>> table_column_types = GetTableColumnTypes(op);
 		for (idx_t i = 0; i < table_column_types.size(); i++) {
 			bool skip_this_sel_vec =
 				(op->type == PhysicalOperatorType::HASH_GROUP_BY && i == LINEAGE_COMBINE)
 			    || (op->type == PhysicalOperatorType::PERFECT_HASH_GROUP_BY && i == LINEAGE_COMBINE)
-			    || (op->type == PhysicalOperatorType::HASH_GROUP_BY && i == LINEAGE_SOURCE && !should_index)
-			    || (op->type == PhysicalOperatorType::PERFECT_HASH_GROUP_BY && i == LINEAGE_SOURCE && !should_index)
-			    || (op->type == PhysicalOperatorType::HASH_JOIN && i == LINEAGE_PROBE && !should_index
+			    || (op->type == PhysicalOperatorType::HASH_GROUP_BY && i == LINEAGE_SOURCE && !(should_index && LINEAGE_INDEX_TYPE == 1))
+			    || (op->type == PhysicalOperatorType::PERFECT_HASH_GROUP_BY && i == LINEAGE_SOURCE && !(should_index && LINEAGE_INDEX_TYPE == 1))
+			    || (op->type == PhysicalOperatorType::HASH_JOIN && i == LINEAGE_PROBE && !(should_index && LINEAGE_INDEX_TYPE == 1)
 			        && dynamic_cast<PhysicalJoin *>(op)->join_type != JoinType::MARK);
 			if (skip_this_sel_vec) {
 				continue;
@@ -36,9 +36,10 @@ void LineageManager::PostProcess(PhysicalOperator *op, bool should_index) {
 			// for hash join, build hash table on the build side that map the address to id
 			// for group by, build hash table on the unique groups
 			for (auto const& lineage_op : op->lineage_op) {
-				LineageProcessStruct lps = lineage_op.second->PostProcess(0, 0, lineage_op.first);
+				idx_t chunk_count = 0;
+				LineageProcessStruct lps = lineage_op.second->PostProcess(chunk_count, 0, lineage_op.first);
 				while (lps.still_processing) {
-					lps = lineage_op.second->PostProcess(lps.count_so_far,  lps.size_so_far, lineage_op.first);
+					lps = lineage_op.second->PostProcess(++chunk_count,  lps.count_so_far, lineage_op.first);
 				}
 				lineage_op.second->FinishedProcessing();
 			}
@@ -67,18 +68,25 @@ void LineageManager::PostProcess(PhysicalOperator *op, bool should_index) {
 }
 
 
-LineageProcessStruct OperatorLineage::PostProcess(idx_t count_so_far, idx_t size_so_far, int thread_id) {
+LineageProcessStruct OperatorLineage::PostProcess(idx_t chunk_count, idx_t count_so_far, int thread_id) {
 	if (data[finished_idx].size() > data_idx) {
-		Vector thread_id_vec(Value::INTEGER(thread_id));
 		switch (this->type) {
 		case PhysicalOperatorType::FILTER:
+		case PhysicalOperatorType::INDEX_JOIN:
 		case PhysicalOperatorType::LIMIT:
 		case PhysicalOperatorType::TABLE_SCAN: {
+			// Array index
+			if (chunk_count == 0) {
+				// Reserve index array
+				LineageDataWithOffset last_data = data[LINEAGE_UNARY][data[LINEAGE_UNARY].size() - 1];
+				index.reserve(last_data.child_offset + last_data.data->Size());
+			}
 			LineageDataWithOffset this_data = data[LINEAGE_UNARY][data_idx];
 			idx_t res_count = this_data.data->Count();
-			index.push_back(res_count + count_so_far);
-			count_so_far += res_count;
-			size_so_far += this_data.data->Size();
+			index.reserve(index.size() + res_count);
+			for (idx_t i = 0; i < res_count; i++) {
+				index.push_back(chunk_count);
+			}
 			break;
 		}
 		case PhysicalOperatorType::HASH_JOIN: {
@@ -126,13 +134,18 @@ LineageProcessStruct OperatorLineage::PostProcess(idx_t count_so_far, idx_t size
 					}
 				}
 				count_so_far += res_count;
-				size_so_far += this_data.data->Size();
 			} else {
-				idx_t res_count = data[LINEAGE_PROBE][data_idx].data->Count();
-				index.push_back(res_count + count_so_far);
-
-				count_so_far += res_count;
-				size_so_far +=  data[LINEAGE_PROBE][data_idx].data->Size();
+				// Array index
+				if (chunk_count == 0) {
+					// Reserve index array
+					LineageDataWithOffset last_data = data[LINEAGE_PROBE][data[LINEAGE_PROBE].size() - 1];
+					index.reserve(last_data.child_offset + last_data.data->Size());
+				}
+				LineageDataWithOffset this_data = data[LINEAGE_PROBE][data_idx];
+				idx_t res_count = this_data.data->Count();
+				for (idx_t i = 0; i < res_count; i++) {
+					index.push_back(chunk_count);
+				}
 			}
 			break;
 		}
@@ -156,40 +169,37 @@ LineageProcessStruct OperatorLineage::PostProcess(idx_t count_so_far, idx_t size
 					}
 				}
 				count_so_far += res_count;
-				size_so_far += this_data.data->Size();
 			} else if (finished_idx == LINEAGE_COMBINE) {
 			} else {
-				idx_t res_count = data[LINEAGE_SOURCE][data_idx].data->Count();
-				index.push_back(res_count + count_so_far);
-				count_so_far += res_count;
-				size_so_far +=  data[LINEAGE_SOURCE][data_idx].data->Size();
+				// Array index
+				if (chunk_count == 0) {
+					// Reserve index array
+					LineageDataWithOffset last_data = data[LINEAGE_SOURCE][data[LINEAGE_SOURCE].size() - 1];
+					index.reserve(last_data.child_offset + last_data.data->Size());
+				}
+				LineageDataWithOffset this_data = data[LINEAGE_SOURCE][data_idx];
+				idx_t res_count = this_data.data->Count();
+				for (idx_t i = 0; i < res_count; i++) {
+					index.push_back(chunk_count);
+				}
 			}
 			break;
 		}
 		case PhysicalOperatorType::BLOCKWISE_NL_JOIN:
+		case PhysicalOperatorType::CROSS_PRODUCT:
 		case PhysicalOperatorType::PIECEWISE_MERGE_JOIN:
 		case PhysicalOperatorType::NESTED_LOOP_JOIN: {
+			// Array index
+			if (chunk_count == 0) {
+				// Reserve index array
+				LineageDataWithOffset last_data = data[LINEAGE_PROBE][data[LINEAGE_PROBE].size() - 1];
+				index.reserve(last_data.child_offset + last_data.data->Size());
+			}
 			LineageDataWithOffset this_data = data[LINEAGE_PROBE][data_idx];
 			idx_t res_count = this_data.data->Count();
-			index.push_back(res_count + count_so_far);
-			count_so_far += res_count;
-			size_so_far += this_data.data->Size();
-			break;
-		}
-		case PhysicalOperatorType::CROSS_PRODUCT: {
-			LineageDataWithOffset this_data = data[LINEAGE_PROBE][data_idx];
-			idx_t res_count = this_data.data->Count();
-			index.push_back(res_count + count_so_far);
-			count_so_far += res_count;
-			size_so_far += this_data.data->Size();
-			break;
-		}
-		case PhysicalOperatorType::INDEX_JOIN: {
-			LineageDataWithOffset this_data = data[0][data_idx];
-			idx_t res_count = this_data.data->Count();
-			index.push_back(res_count + count_so_far);
-			count_so_far += res_count;
-			size_so_far += this_data.data->Size();
+			for (idx_t i = 0; i < res_count; i++) {
+				index.push_back(chunk_count);
+			}
 			break;
 		}
 		case PhysicalOperatorType::ORDER_BY: {
@@ -201,7 +211,7 @@ LineageProcessStruct OperatorLineage::PostProcess(idx_t count_so_far, idx_t size
 		}
 	}
 	data_idx++;
-	return LineageProcessStruct{ count_so_far, size_so_far, data[finished_idx].size() > data_idx };
+	return LineageProcessStruct{ count_so_far, 0, data[finished_idx].size() > data_idx };
 }
 
 void AccessLineageDataViaIndex(
@@ -209,23 +219,37 @@ void AccessLineageDataViaIndex(
     const vector<LineageDataWithOffset>& data,
     const vector<idx_t>& index
 ) {
-	for (idx_t i = 0; i < lineage->size(); i++) {
-		SourceAndMaybeData source = (*lineage.get())[i];
-		// we need a way to locate the exact data we should access
-		// from the source index
-		auto lower = lower_bound(index.begin(), index.end(), source.source);
-		if (lower == index.end()) {
-			throw std::logic_error("Out of bounds lineage requested");
+	if (LINEAGE_INDEX_TYPE == 0) {
+		// Binary Search index
+		for (idx_t i = 0; i < lineage->size(); i++) {
+			SourceAndMaybeData source = (*lineage.get())[i];
+			// we need a way to locate the exact data we should access
+			// from the source index
+			auto lower = lower_bound(index.begin(), index.end(), source.source);
+			if (lower == index.end()) {
+				throw std::logic_error("Out of bounds lineage requested");
+			}
+			auto chunk_id = lower - index.begin();
+			if (*lower == source.source) {
+				chunk_id += 1;
+			}
+			auto this_data = data[chunk_id];
+			if (chunk_id > 0) {
+				(*lineage.get())[i].source -= index[chunk_id-1];
+			}
+			(*lineage.get())[i].data = make_shared<LineageDataWithOffset>(this_data);
 		}
-		auto chunk_id = std::distance(index.begin(), lower);
-		if (*lower == source.source) {
-			chunk_id += 1;
+	} else {
+		// Array index
+		for (idx_t i = 0; i < lineage->size(); i++) {
+			SourceAndMaybeData source = (*lineage.get())[i];
+			idx_t chunk_id = index[source.source];
+			auto this_data = data[chunk_id];
+			(*lineage.get())[i] = {
+				(*lineage.get())[i].source - this_data.this_offset,
+				make_shared<LineageDataWithOffset>(this_data)
+			};
 		}
-		auto this_data = data[chunk_id];
-		if (chunk_id > 0) {
-			(*lineage.get())[i].source -= index[chunk_id-1];
-		}
-		(*lineage.get())[i].data = make_shared<LineageDataWithOffset>(this_data);
 	}
 }
 
@@ -258,7 +282,7 @@ void OperatorLineage::Backward(const shared_ptr<vector<SourceAndMaybeData>>& lin
 			}
 			for (idx_t i = 0; i < lineage->size(); i++) {
 				shared_ptr<LineageDataWithOffset> this_data = (*lineage.get())[i].data;
-				(*lineage.get())[i].source = this_data->data->Backward((*lineage.get())[i].source) + this_data->offset;
+				(*lineage.get())[i].source = this_data->data->Backward((*lineage.get())[i].source) + this_data->child_offset;
 			}
 		}
 		break;
@@ -510,7 +534,7 @@ void OperatorLineage::Backward(const shared_ptr<vector<SourceAndMaybeData>>& lin
 			return;
 		}
 		LineageDataWithOffset last = child_lineage_data_vector[child_lineage_data_vector.size() - 1];
-		idx_t output_size = last.offset + last.data->Count();
+		idx_t output_size = last.child_offset + last.data->Count();
 		lineage->reserve(output_size);
 		for (const LineageDataWithOffset& child_lineage_data : child_lineage_data_vector) {
 			shared_ptr<vector<SourceAndMaybeData>> child_lineage = make_shared<vector<SourceAndMaybeData>>();
