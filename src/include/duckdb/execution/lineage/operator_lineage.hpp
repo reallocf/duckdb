@@ -46,8 +46,9 @@ public:
 		shared_ptr<PipelineLineage> pipeline_lineage,
 		std::vector<shared_ptr<OperatorLineage>> children,
 	    PhysicalOperatorType type,
+      idx_t opid,
 	    bool should_index
-	) : pipeline_lineage(move(pipeline_lineage)), type(type), children(move(children)), should_index(should_index) {}
+	) : pipeline_lineage(move(pipeline_lineage)), type(type), children(move(children)), opid(opid), should_index(should_index) {}
 
 	void Capture(const shared_ptr<LineageData>& datum, idx_t lineage_idx, int thread_id=-1);
 
@@ -66,6 +67,7 @@ public:
 	idx_t GetThisOffset(idx_t lineage_idx);
 
 public:
+	idx_t opid;
 	bool trace_lineage;
 	shared_ptr<PipelineLineage> pipeline_lineage;
 	// data[0] used by all ops; data[1] used by pipeline breakers
@@ -75,10 +77,16 @@ public:
 	PhysicalOperatorType type;
 	shared_ptr<LineageNested> cached_internal_lineage = nullptr;
 	std::vector<shared_ptr<OperatorLineage>> children;
+	// final lineage indexing data-structures
+	// hash_chunk_count: maintain count of data that belong to previous ranges
+	vector<idx_t> hash_chunk_count;
+	// hm_range: maintains the existing ranges in hash join build side
+	std::vector<std::pair<idx_t, idx_t>> hm_range;
+	// offset: difference between two consecutive values with a range
+	uint64_t offset = 0;
+	idx_t start_base = 0;
+	idx_t last_base = 0;
 
-   // final lineage indexing data-structures
-   // hash_map: used by group by and hash join build side
-   std::unordered_map<uint64_t, SourceAndMaybeData> hash_map;
    std::unordered_map<idx_t, vector<SourceAndMaybeData>> hash_map_agg;
    // index: used to index selection vectors
    //        it stores the size of SV from each chunk

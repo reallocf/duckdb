@@ -47,11 +47,10 @@ void LineageManager::PostProcess(PhysicalOperator *op, bool should_index) {
 	}
 
 	if (op->type == PhysicalOperatorType::DELIM_JOIN) {
-		PostProcess( dynamic_cast<PhysicalDelimJoin *>(op)->join.get(), false);
-		PostProcess( (PhysicalOperator *)dynamic_cast<PhysicalDelimJoin *>(op)->distinct.get(), false);
-		for (idx_t i = 0; i < dynamic_cast<PhysicalDelimJoin *>(op)->delim_scans.size(); ++i) {
-			PostProcess( dynamic_cast<PhysicalDelimJoin *>(op)->delim_scans[i], false);
-		}
+		PostProcess( dynamic_cast<PhysicalDelimJoin *>(op)->children[0].get(), true);
+		PostProcess( dynamic_cast<PhysicalDelimJoin *>(op)->join.get(), true);
+		PostProcess( (PhysicalOperator *)dynamic_cast<PhysicalDelimJoin *>(op)->distinct.get(), true);
+		return;
 	}
 	for (idx_t i = 0; i < op->children.size(); i++) {
 		bool child_should_index =
@@ -93,12 +92,46 @@ LineageProcessStruct OperatorLineage::PostProcess(idx_t chunk_count, idx_t count
 		case PhysicalOperatorType::HASH_JOIN: {
 			// Hash Join - other joins too?
 			if (finished_idx == LINEAGE_BUILD) {
-				// build hash table
+				// build hash table with range -> acc
+				// if x in range -> then use range.start and adjust the value using acc
 				LineageDataWithOffset this_data = data[LINEAGE_BUILD][data_idx];
 				auto payload = (uint64_t*)this_data.data->Process(0);
 				idx_t res_count = this_data.data->Count();
-				for (idx_t i=0; i < res_count; ++i) {
-					hash_map[payload[i]] = {i + count_so_far, nullptr};
+				if (offset == 0 && res_count > 1) {
+					offset = payload[1] - payload[0];
+				}
+
+				// init base
+				if (start_base == 0) {
+					start_base = payload[0];
+					last_base = payload[res_count-1];
+					hm_range.push_back(std::make_pair(start_base, last_base));
+					hash_chunk_count.push_back(0);
+				} else {
+					if (offset == 0) {
+						offset = payload[res_count-1] -start_base;
+					}
+					auto diff = (payload[res_count-1] - start_base)/offset;
+					if (diff+1 !=  count_so_far+res_count-hash_chunk_count.back()) {
+						// update the range and log the old one
+						// range -> count
+						// if value fall in this range, then remove the start / offset
+						for (idx_t j=0; j < res_count; ++j) {
+							auto f = ((payload[j] - start_base)/offset);
+							auto s =  count_so_far+j-hash_chunk_count.back();
+							if ( f !=  s) {
+								if (j > 1)
+									hm_range.back().second = payload[j-1]; // the previous one
+								hash_chunk_count.push_back(count_so_far+j);
+								start_base = payload[j];
+								last_base = payload[res_count-1];
+								hm_range.push_back(std::make_pair(start_base, last_base));
+								break;
+							}
+						}
+					} else {
+						hm_range.back().second = payload[res_count-1];
+					}
 				}
 				count_so_far += res_count;
 			} else {
@@ -226,6 +259,19 @@ void OperatorLineage::Backward(const shared_ptr<vector<SourceAndMaybeData>>& lin
 		return;
 	}
 	switch (this->type) {
+	case (PhysicalOperatorType::DELIM_JOIN): {
+		// distinct input is delim join input
+		// distinct should be the input to delim scan
+		children[2]->children.push_back(children[0]);
+
+		// chunk scan input is delim join input
+		children[1]->children[1] = children[0];
+		children[1]->Backward(lineage);
+		break;
+	}
+	case PhysicalOperatorType::DELIM_SCAN: {
+		break;
+	}
 	case PhysicalOperatorType::TABLE_SCAN: {
 		// End of the recursion!
 		if (data[LINEAGE_UNARY].empty() && (*lineage.get())[0].data == nullptr) {
@@ -262,7 +308,10 @@ void OperatorLineage::Backward(const shared_ptr<vector<SourceAndMaybeData>>& lin
 			AccessLineageDataViaIndex(lineage, data[LINEAGE_PROBE], index);
 		}
 		shared_ptr<vector<SourceAndMaybeData>> right_lineage = make_shared<vector<SourceAndMaybeData>>();
+		shared_ptr<vector<SourceAndMaybeData>> left_lineage = make_shared<vector<SourceAndMaybeData>>();
+
 		right_lineage->reserve(lineage->size());
+		left_lineage->reserve(lineage->size());
 		for (idx_t i = 0; i < lineage->size(); i++) {
 			// get the backward lineage for id=source
 			SourceAndMaybeData source = (*lineage.get())[i];
@@ -282,13 +331,31 @@ void OperatorLineage::Backward(const shared_ptr<vector<SourceAndMaybeData>>& lin
 
 			if (dynamic_cast<LineageBinary&>(*binary_data->data).left != nullptr) {
 				auto left = dynamic_cast<LineageBinary&>(*binary_data->data).left->Backward(source.source - adjust_offset);
-				(*lineage.get())[i] = hash_map[left]; // Full scan
+				if (left == 0) {
+					continue;
+				}
+				if (offset == 0) {
+					left_lineage->push_back({0, nullptr});
+				} else {
+					bool flag = false;
+					for (auto it=0; it < hm_range.size();  ++it) {
+						if (left >= hm_range[it].first && left <= hm_range[it].second) {
+							auto val = ((left - hm_range[it].first) / offset) + hash_chunk_count[it];
+							left_lineage->push_back({val, nullptr}); // Full scan
+							flag = true;
+							break;
+						}
+					}
+					if (!flag) std::cout << left << " " << hm_range.size() << "flag is not set" << std::endl;
+				}
 			}
 		}
-		children[0]->Backward(lineage);
 		children[1]->Backward(right_lineage);
-		lineage->reserve(lineage->size() + right_lineage->size());
+		children[0]->Backward(left_lineage);
+		lineage->clear();
+		lineage->reserve(left_lineage->size() + right_lineage->size());
 		lineage->insert(lineage->begin(), right_lineage->begin(), right_lineage->end());
+		lineage->insert(lineage->begin(), left_lineage->begin(), left_lineage->end());
 		break;
 	}
 	case PhysicalOperatorType::HASH_GROUP_BY: {
@@ -463,6 +530,9 @@ void OperatorLineage::Backward(const shared_ptr<vector<SourceAndMaybeData>>& lin
 		}
 
 		lineage->clear(); // We don't care about lineage passed here since simple agg always yields EVERY child value
+		if (child_lineage_data_vector.empty()) {
+			return;
+		}
 		LineageDataWithOffset last = child_lineage_data_vector[child_lineage_data_vector.size() - 1];
 		idx_t output_size = last.child_offset + last.data->Count();
 		lineage->reserve(output_size);

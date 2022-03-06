@@ -50,7 +50,7 @@ idx_t LineageDataVectorBufferArray::Count() {
 void LineageDataVectorBufferArray::Debug() {
 	std::cout << "LineageDataVectorBufferArray " << " " << typeid(vec).name() << std::endl;
 	for (idx_t i = 0; i < count; i++) {
-		std::cout << " (" << i << " -> " << vec[i] << ") ";
+		std::cout << " (" << i << " -> " << (idx_t)((uintptr_t*)vec.get())[i] << ") ";
 	}
 	std::cout << std::endl;
 }
@@ -74,7 +74,7 @@ idx_t LineageDataVectorBufferArray::Size() {
 }
 
 idx_t LineageDataVectorBufferArray::Backward(idx_t source) {
-	return (idx_t)vec[source];
+	return (idx_t)((uintptr_t*)vec.get())[source];
 }
 
 void LineageDataVectorBufferArray::SetChild(shared_ptr<LineageDataWithOffset> c) {
