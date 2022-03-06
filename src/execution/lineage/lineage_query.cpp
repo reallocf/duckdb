@@ -485,14 +485,6 @@ void OperatorLineage::Backward(const shared_ptr<vector<SourceAndMaybeData>>& lin
 	}
 }
 
-idx_t LineageManager::BackwardCount(PhysicalOperator *op, idx_t source) {
-	// an operator can have lineage from multiple threads, how to decide which one to check?
-	shared_ptr<vector<SourceAndMaybeData>> lineage = make_shared<vector<SourceAndMaybeData>>();
-	lineage->push_back({source, nullptr});
-	op->lineage_op.at(-1)->Backward(lineage);
-	return lineage->size();
-}
-
 vector<SourceAndMaybeData> LineageManager::Backward(PhysicalOperator *op, idx_t source) {
 	// an operator can have lineage from multiple threads, how to decide which one to check?
 	shared_ptr<vector<SourceAndMaybeData>> lineage = make_shared<vector<SourceAndMaybeData>>();

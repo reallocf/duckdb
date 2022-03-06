@@ -25,13 +25,3 @@ query I
 PRAGMA backward_lineage("SELECT n_name, sum(l_extendedprice * (1 - l_discount)) AS revenue FROM customer, orders, lineitem, supplier, nation, region WHERE c_custkey = o_custkey AND l_orderkey = o_orderkey AND l_suppkey = s_suppkey AND c_nationkey = s_nationkey AND s_nationkey = n_nationkey AND n_regionkey = r_regionkey AND r_name = 'ASIA' AND o_orderdate >= CAST('1994-01-01' AS date) AND o_orderdate < CAST('1995-01-01' AS date) GROUP BY n_name ORDER BY revenue DESC", 'VALUE', '3')
 ----
 [2480, 18512, 18570, 19094, 22956, 24794, 39385, 40925, 41995, 45452, 34651, 47637, 48383, 54694, 57191, 59167, 88, 88, 88, 50, 88, 22, 50, 50, 49, 50, 88, 88, 22, 88, 44, 50, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 617, 4636, 4650, 4776, 5705, 6155, 9788, 10166, 10435, 11315, 8618, 11864, 12047, 13630, 14268, 14755, 180, 1488, 93, 840, 703, 180, 1488, 622, 138, 421, 66, 141, 891, 405, 1230, 909]
-
-query I
-PRAGMA backward_lineage("SELECT n_name, sum(l_extendedprice * (1 - l_discount)) AS revenue FROM customer, orders, lineitem, supplier, nation, region WHERE c_custkey = o_custkey AND l_orderkey = o_orderkey AND l_suppkey = s_suppkey AND c_nationkey = s_nationkey AND s_nationkey = n_nationkey AND n_regionkey = r_regionkey AND r_name = 'ASIA' AND o_orderdate >= CAST('1994-01-01' AS date) AND o_orderdate < CAST('1995-01-01' AS date) GROUP BY n_name ORDER BY revenue DESC", 'COUNT', '0')
-----
-186
-
-query I
-PRAGMA backward_lineage("SELECT n_name, sum(l_extendedprice * (1 - l_discount)) AS revenue FROM customer, orders, lineitem, supplier, nation, region WHERE c_custkey = o_custkey AND l_orderkey = o_orderkey AND l_suppkey = s_suppkey AND c_nationkey = s_nationkey AND s_nationkey = n_nationkey AND n_regionkey = r_regionkey AND r_name = 'ASIA' AND o_orderdate >= CAST('1994-01-01' AS date) AND o_orderdate < CAST('1995-01-01' AS date) GROUP BY n_name ORDER BY revenue DESC", 'COUNT', '3')
-----
-96
