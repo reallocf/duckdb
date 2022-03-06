@@ -26,11 +26,11 @@ statement ok
 PRAGMA trace_lineage = "OFF";
 
 query I
-PRAGMA backward_lineage('select t1.i, avg(t1.j) from t1 GROUP BY t1.i', 'VALUE', '0')
+PRAGMA backward_lineage('select t1.i, avg(t1.j) from t1 GROUP BY t1.i', '0')
 ----
 [0, 2, 5]
 
 query I
-PRAGMA backward_lineage('select t1.i, avg(t1.j) from t1 GROUP BY t1.i', 'VALUE', '1')
+PRAGMA backward_lineage('select t1.i, avg(t1.j) from t1 GROUP BY t1.i', '1')
 ----
 [1, 4, 7]

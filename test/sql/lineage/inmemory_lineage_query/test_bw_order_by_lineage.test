@@ -30,12 +30,12 @@ statement ok
 PRAGMA trace_lineage = "OFF";
 
 query I
-PRAGMA backward_lineage('select rowid, i from t1 order by i;', 'VALUE', '7')
+PRAGMA backward_lineage('select rowid, i from t1 order by i;', '7')
 ----
 [2]
 
 query I
-PRAGMA backward_lineage('select rowid, i from t1 order by i;', 'VALUE', '0')
+PRAGMA backward_lineage('select rowid, i from t1 order by i;', '0')
 ----
 [6]
 
@@ -51,16 +51,16 @@ statement ok
 select rowid, i from t1 as t2 order by i;
 
 query I
-PRAGMA backward_lineage('select rowid, i from t1 as t2 order by i;', 'VALUE', '0')
+PRAGMA backward_lineage('select rowid, i from t1 as t2 order by i;', '0')
 ----
 [6]
 
 query I
-PRAGMA backward_lineage('select rowid, i from t1 as t2 order by i;', 'VALUE', '1')
+PRAGMA backward_lineage('select rowid, i from t1 as t2 order by i;', '1')
 ----
 [2000]
 
 query I
-PRAGMA backward_lineage('select rowid, i from t1 as t2 order by i;', 'VALUE', '2000')
+PRAGMA backward_lineage('select rowid, i from t1 as t2 order by i;', '2000')
 ----
 [1997]
