@@ -38,6 +38,7 @@ namespace duckdb {
 enum class PhysicalOperatorType : uint8_t;
 struct LineageDataWithOffset;
 struct LineageProcessStruct;
+struct SimpleAggQueryStruct;
 struct SourceAndMaybeData;
 
 class OperatorLineage {
@@ -46,9 +47,9 @@ public:
 		shared_ptr<PipelineLineage> pipeline_lineage,
 		std::vector<shared_ptr<OperatorLineage>> children,
 	    PhysicalOperatorType type,
-      idx_t opid,
+	    idx_t opid,
 	    bool should_index
-	) : pipeline_lineage(move(pipeline_lineage)), type(type), children(move(children)), opid(opid), should_index(should_index) {}
+	) : opid(opid), pipeline_lineage(move(pipeline_lineage)), type(type), children(move(children)), should_index(should_index) {}
 
 	void Capture(const shared_ptr<LineageData>& datum, idx_t lineage_idx, int thread_id=-1);
 
@@ -65,6 +66,7 @@ public:
 	shared_ptr<LineageDataWithOffset> GetMyLatest();
 	shared_ptr<LineageDataWithOffset> GetChildLatest(idx_t lineage_idx);
 	idx_t GetThisOffset(idx_t lineage_idx);
+	SimpleAggQueryStruct RecurseForSimpleAgg(const shared_ptr<OperatorLineage>& child);
 
 public:
 	idx_t opid;
@@ -100,6 +102,11 @@ struct LineageProcessStruct {
 	idx_t count_so_far;
 	idx_t size_so_far;
 	bool still_processing;
+};
+
+struct SimpleAggQueryStruct {
+	shared_ptr<OperatorLineage> materialized_child_op;
+	vector<LineageDataWithOffset> child_lineage_data_vector;
 };
 
 struct SourceAndMaybeData {

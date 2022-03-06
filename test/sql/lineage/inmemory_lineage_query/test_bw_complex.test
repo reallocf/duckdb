@@ -30,11 +30,11 @@ statement ok
 PRAGMA trace_lineage = "OFF";
 
 query I
-PRAGMA backward_lineage('SELECT t1.i, t2.i, t3.i FROM t1, t2, t3 WHERE t1.i = t2.i AND t2.i = t3.i AND t1.j + t2.i > 12 ORDER BY t3.i LIMIT 5', '0')
+PRAGMA backward_lineage('SELECT t1.i, t2.i, t3.i FROM t1, t2, t3 WHERE t1.i = t2.i AND t2.i = t3.i AND t1.j + t2.i > 12 ORDER BY t3.i LIMIT 5', 'VALUE', '0')
 ----
 [6, 6, 6]
 
 query I
-PRAGMA backward_lineage('SELECT t1.i, t2.i, t3.i FROM t1, t2, t3 WHERE t1.i = t2.i AND t2.i = t3.i AND t1.j + t2.i > 12 ORDER BY t3.i LIMIT 5', '4')
+PRAGMA backward_lineage('SELECT t1.i, t2.i, t3.i FROM t1, t2, t3 WHERE t1.i = t2.i AND t2.i = t3.i AND t1.j + t2.i > 12 ORDER BY t3.i LIMIT 5', 'VALUE', '4')
 ----
 [30, 2010, 30]

@@ -36,6 +36,7 @@ public:
 	vector<vector<ColumnDefinition>> GetTableColumnTypes(PhysicalOperator *op);
 	void PostProcess(PhysicalOperator *op, bool should_index);
 	vector<SourceAndMaybeData> Backward(PhysicalOperator *op, idx_t source);
+	idx_t BackwardCount(PhysicalOperator *op, idx_t source);
 	void InitOperatorPlan(PhysicalOperator *op, bool trace_lineage);
 	idx_t CreateLineageTables(PhysicalOperator *op);
 	void CreateQueryTable();
