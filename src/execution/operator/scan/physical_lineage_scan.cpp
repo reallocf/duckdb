@@ -52,6 +52,7 @@ void PhysicalLineageScan::GetChunkInternal(ExecutionContext &context, DataChunk 
 
 	shared_ptr<OperatorLineage> opLineage = table->opLineage;
 	if(state.lineageProcessStruct == nullptr){
+		state.initialized = true;
 		LineageProcessStruct lps = opLineage.get()->Process(table->GetTypes(),0,chunk ,0,-1);
 		state.lineageProcessStruct = std::make_shared<LineageProcessStruct>(lps);
 	}

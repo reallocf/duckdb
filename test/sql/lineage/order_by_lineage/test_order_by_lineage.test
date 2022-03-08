@@ -30,11 +30,12 @@ NULL
 statement ok
 PRAGMA trace_lineage = "OFF";
 
-query II
+query III
 SELECT * FROM queries_list;
 ----
-1	select * from t1 order by i;
-2	PRAGMA trace_lineage = "OFF";
+0	PRAGMA trace_lineage = "ON";	0
+1	select * from t1 order by i;	0
+
 
 query III
 select rowid, in_index, out_index from LINEAGE_1_ORDER_BY_1_0
@@ -2066,13 +2067,13 @@ NULL
 statement ok
 PRAGMA trace_lineage = "OFF";
 
-query II
+query III
 SELECT * FROM queries_list;
 ----
-1	select * from t1 order by i;
-2	PRAGMA trace_lineage = "OFF";
-3	select * from t1 order by i;
-4	PRAGMA trace_lineage = "OFF";
+0	PRAGMA trace_lineage = "ON";	0
+1	select * from t1 order by i;	0
+2	PRAGMA trace_lineage = "ON";	0
+3	select * from t1 order by i;	0
 
 query III
 select rowid, in_index, out_index from LINEAGE_3_ORDER_BY_1_0
