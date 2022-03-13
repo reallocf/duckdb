@@ -39,8 +39,8 @@ select t1.j, t2.k from t1 inner join t2 on (t1.i = t2.i)
 query II
 select query_id, query from queries_list;
 ----
+0	PRAGMA trace_lineage = "ON"
 1	select t1.j, t2.k from t1 inner join t2 on (t1.i = t2.i)
-2	select query_id, query from queries_list;
 
 
 statement ok

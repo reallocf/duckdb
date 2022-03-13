@@ -19,7 +19,7 @@ void PhysicalProjection::GetChunkInternal(ExecutionContext &context, DataChunk &
 	auto state = reinterpret_cast<PhysicalProjectionState *>(state_p);
 
 	// get the next chunk from the child
-	children[0]->GetChunk(context, state->child_chunk, state->child_state.get());
+  	children[0]->GetChunk(context, state->child_chunk, state->child_state.get());
 	if (state->child_chunk.size() == 0) {
 		return;
 	}

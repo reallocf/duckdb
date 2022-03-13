@@ -58,30 +58,30 @@ SELECT * FROM queries_list;
 2	select * from t1 limit 5	0
 3	select * from t1 offset 1020	0
 
-query III
-select rowid, in_index, out_index from LINEAGE_1_LIMIT_1_0
+query II
+select out_index, in_index from LINEAGE_1_LIMIT_1_0
 ----
-0	1	0
-1	2	1
-2	3	2
-3	4	3
-4	5	4
-
-query III
-select rowid, in_index, out_index from LINEAGE_1_SEQ_SCAN_0_0
-----
-0	1021	0
-1	1022	1
-2	1023	2
-3	1024	3
-4	1025	4
-5	1026	5
-6	1027	6
-7	1028	7
-8	1029	8
+0	1
+1	2
+2	3
+3	4
+4	5
 
 query II
-select in_index, out_index from LINEAGE_2_LIMIT_1_0
+select out_index, in_index from LINEAGE_1_SEQ_SCAN_0_0
+----
+0	1021
+1	1022
+2	1023
+3	1024
+4	1025
+5	1026
+6	1027
+7	1028
+8	1029
+
+query II
+select out_index, in_index from LINEAGE_2_LIMIT_1_0
 ----
 0	0
 1	1
@@ -90,15 +90,15 @@ select in_index, out_index from LINEAGE_2_LIMIT_1_0
 4	4
 
 query II
-select in_index, out_index from LINEAGE_3_LIMIT_1_0
+select out_index, in_index from LINEAGE_3_LIMIT_1_0
 ----
-1020	0
-1021	1
-1022	2
-1023	3
-1024	4
-1025	5
-1026	6
-1027	7
-1028	8
-1029	9
+0	1020
+1	1021
+2	1022
+3	1023
+4	1024
+5	1025
+6	1026
+7	1027
+8	1028
+9	1029

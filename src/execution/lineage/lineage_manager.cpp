@@ -284,7 +284,7 @@ vector<vector<ColumnDefinition>> LineageManager::GetTableColumnTypes(PhysicalOpe
 		vector<ColumnDefinition> table_columns;
 		table_columns.emplace_back("in_index", LogicalType::INTEGER);
 		table_columns.emplace_back("out_index", LogicalType::INTEGER);
-		table_columns.emplace_back("thread_id", LogicalType::INTEGER);
+		table_columns.emplace_back("Thread_id", LogicalType::INTEGER);
 		res.emplace_back(move(table_columns));
 		break;
 	}

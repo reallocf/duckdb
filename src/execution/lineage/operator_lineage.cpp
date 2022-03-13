@@ -64,7 +64,7 @@ void OperatorLineage::Capture(const shared_ptr<LineageData>& datum, idx_t lineag
 	}
 }
 
-void OperatorLineage::FinishedProcessing() {
+void OperatorLineage::FinishedProcessing(idx_t data_idx, idx_t finished_idx) {
 	finished_idx++;
 	data_idx = 0;
 }
@@ -78,7 +78,7 @@ void OperatorLineage::MarkChunkReturned() {
 }
 
 LineageProcessStruct OperatorLineage::Process(const vector<LogicalType>& types, idx_t count_so_far,
-                                              DataChunk &insert_chunk, idx_t size_so_far, int thread_id) {
+                                              DataChunk &insert_chunk, idx_t size_so_far, int thread_id, idx_t data_idx, idx_t finished_idx) {
 	if (data[finished_idx].size() > data_idx) {
 		Vector thread_id_vec(Value::INTEGER(thread_id));
 		switch (this->type) {
@@ -167,10 +167,12 @@ LineageProcessStruct OperatorLineage::Process(const vector<LogicalType>& types, 
 
 			Vector payload(types[0], this_data.data->Process(this_data.child_offset));
 
+			insert_chunk.Reset();
 			insert_chunk.SetCardinality(res_count);
-			insert_chunk.data[0].Sequence(count_so_far, 1);
 			insert_chunk.data[1].Reference(payload);
-			insert_chunk.data[2].Sequence(count_so_far, 1);
+			insert_chunk.data[0].Sequence(count_so_far, 1);
+			//insert_chunk.data[2].Sequence(count_so_far, 1);
+			//insert_chunk.data[3].Reference(thread_id_vec);
 			count_so_far += res_count;
 			size_so_far += this_data.data->Size();
 			break;
@@ -316,7 +318,7 @@ LineageProcessStruct OperatorLineage::Process(const vector<LogicalType>& types, 
 		}
 	}
 	data_idx++;
-	return LineageProcessStruct{ count_so_far, size_so_far, data[finished_idx].size() > data_idx };
+	return LineageProcessStruct{ count_so_far, size_so_far, data_idx, finished_idx, data[finished_idx].size() > data_idx };
 }
 
 void OperatorLineage::SetChunkId(idx_t idx) {
@@ -458,5 +460,12 @@ idx_t OperatorLineage::GetThisOffset(idx_t lineage_idx) {
 	return data[lineage_idx].empty() ? 0 : data[lineage_idx][last_data_idx].this_offset + data[lineage_idx][last_data_idx].data->Count();
 }
 
+LineageProcessStruct::LineageProcessStruct(idx_t i, idx_t i1, idx_t i2, idx_t i3, bool b) {
+	count_so_far = i;
+	size_so_far = i1;
+	data_idx = i2;
+	finished_idx = i3;
+	still_processing = b;
+}
 } // namespace duckdb
 #endif

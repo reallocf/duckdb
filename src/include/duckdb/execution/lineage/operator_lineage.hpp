@@ -50,12 +50,12 @@ public:
 
 	void Capture(const shared_ptr<LineageData>& datum, idx_t lineage_idx, int thread_id=-1);
 
-	void FinishedProcessing();
+	void FinishedProcessing(idx_t data_idx, idx_t finished_idx);
 	shared_ptr<PipelineLineage> GetPipelineLineage();
 	// Leaky... should refactor this so we don't need a pure pass-through function like this
 	void MarkChunkReturned();
-	LineageProcessStruct Process(const vector<LogicalType>& types, idx_t count_so_far, DataChunk &insert_chunk, idx_t size=0, int thread_id=-1);
-	LineageProcessStruct PostProcess(idx_t chunk_count, idx_t count_so_far, int thread_id=-1);
+	LineageProcessStruct Process(const vector<LogicalType>& types, idx_t count_so_far, DataChunk &insert_chunk, idx_t size=0, int thread_id=-1, idx_t data_idx = 0, idx_t finished_idx = 0);
+	LineageProcessStruct PostProcess(idx_t chunk_count, idx_t count_so_far, int thread_id=-1, idx_t data_idx = 0, idx_t finished_idx = 0);
 	void Backward(const shared_ptr<vector<SourceAndMaybeData>>& lineage);
 	shared_ptr<vector<SourceAndMaybeData>> BackwardNext(bool next_to_leaf=false);
 	// Leaky... should refactor this so we don't need a pure pass-through function like this
@@ -70,8 +70,6 @@ public:
 	shared_ptr<PipelineLineage> pipeline_lineage;
 	// data[0] used by all ops; data[1] used by pipeline breakers
 	std::vector<LineageDataWithOffset> data[3];
-	idx_t finished_idx = 0;
-	idx_t data_idx = 0;
 	PhysicalOperatorType type;
 	shared_ptr<LineageNested> cached_internal_lineage = nullptr;
 	std::vector<shared_ptr<OperatorLineage>> children;
@@ -96,8 +94,11 @@ public:
 };
 
 struct LineageProcessStruct {
+	LineageProcessStruct(idx_t i, idx_t i1, idx_t i2, idx_t i3, bool b);
 	idx_t count_so_far;
 	idx_t size_so_far;
+	idx_t finished_idx = 0;
+	idx_t data_idx = 0;
 	bool still_processing;
 };
 

@@ -41,7 +41,7 @@ void LineageManager::PostProcess(PhysicalOperator *op, bool should_index) {
 				while (lps.still_processing) {
 					lps = lineage_op.second->PostProcess(++chunk_count,  lps.count_so_far, lineage_op.first);
 				}
-				lineage_op.second->FinishedProcessing();
+				lineage_op.second->FinishedProcessing(lps.data_idx, lps.finished_idx);
 			}
 		}
 	}
@@ -69,7 +69,7 @@ void LineageManager::PostProcess(PhysicalOperator *op, bool should_index) {
 }
 
 
-LineageProcessStruct OperatorLineage::PostProcess(idx_t chunk_count, idx_t count_so_far, int thread_id) {
+LineageProcessStruct OperatorLineage::PostProcess(idx_t chunk_count, idx_t count_so_far, int thread_id, idx_t data_idx, idx_t finished_idx) {
 	if (data[finished_idx].size() > data_idx) {
 		switch (this->type) {
 		case PhysicalOperatorType::FILTER:
@@ -202,7 +202,7 @@ LineageProcessStruct OperatorLineage::PostProcess(idx_t chunk_count, idx_t count
 		}
 	}
 	data_idx++;
-	return LineageProcessStruct{ count_so_far, 0, data[finished_idx].size() > data_idx };
+	return LineageProcessStruct{ count_so_far, 0, data_idx, finished_idx, data[finished_idx].size() > data_idx};
 }
 
 void AccessLineageDataViaIndex(
