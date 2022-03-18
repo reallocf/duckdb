@@ -60,7 +60,7 @@ public:
 	void MarkChunkReturned();
 	LineageProcessStruct Process(const vector<LogicalType>& types, idx_t count_so_far, DataChunk &insert_chunk, idx_t size=0, int thread_id=-1);
 	LineageProcessStruct PostProcess(idx_t chunk_count, idx_t count_so_far, int thread_id=-1);
-	vector<shared_ptr<LineageRes>> Backward(const shared_ptr<vector<SourceAndMaybeData>>& lineage);
+	unique_ptr<LineageRes> Backward(const shared_ptr<vector<SourceAndMaybeData>>& lineage);
 	// Leaky... should refactor this so we don't need a pure pass-through function like this
 	void SetChunkId(idx_t idx);
 	idx_t Size();
@@ -124,37 +124,37 @@ public:
 
 class LineageResAgg : public LineageRes {
 public:
-	explicit LineageResAgg(vector<shared_ptr<LineageRes>> vals) : vals(move(vals)) {}
+	explicit LineageResAgg(vector<unique_ptr<LineageRes>> vals) : vals(move(vals)) {}
 
 	vector<idx_t> GetValues() override;
 	idx_t GetCount() override;
 
 private:
-	vector<shared_ptr<LineageRes>> vals;
+	vector<unique_ptr<LineageRes>> vals;
 };
 
 class LineageResJoin : public LineageRes {
 public:
-	LineageResJoin(shared_ptr<LineageRes> left_val, shared_ptr<LineageRes> right_val)
+	LineageResJoin(unique_ptr<LineageRes> left_val, unique_ptr<LineageRes> right_val)
 	    : left_val(move(left_val)), right_val(move(right_val)) {}
 
 	vector<idx_t> GetValues() override;
 	idx_t GetCount() override;
 
 private:
-	shared_ptr<LineageRes> left_val;
-	shared_ptr<LineageRes> right_val;
+	unique_ptr<LineageRes> left_val;
+	unique_ptr<LineageRes> right_val;
 };
 
 class LineageResVal : public LineageRes {
 public:
-	explicit LineageResVal(idx_t val) : val(val) {}
+	explicit LineageResVal(const shared_ptr<vector<SourceAndMaybeData>>& lineage) : vals(lineage) {}
 
 	vector<idx_t> GetValues() override;
 	idx_t GetCount() override;
 
 private:
-	idx_t val;
+	shared_ptr<vector<SourceAndMaybeData>> vals;
 };
 
 } // namespace duckdb
