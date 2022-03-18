@@ -214,43 +214,42 @@ LineageProcessStruct OperatorLineage::PostProcess(idx_t chunk_count, idx_t count
 	return LineageProcessStruct{ count_so_far, 0, data[finished_idx].size() > data_idx };
 }
 
-void AccessLineageDataViaIndex(
-    const shared_ptr<vector<SourceAndMaybeData>>& lineage, // We believe that there is no data in any of these if it's passed here
+unique_ptr<vector<SourceAndMaybeData>> AccessLineageDataViaIndex(
+    unique_ptr<vector<SourceAndMaybeData>> lineage, // We believe that there is no data in any of these if it's passed here
     const vector<LineageDataWithOffset>& data,
     const vector<idx_t>& index
 ) {
 	if (LINEAGE_INDEX_TYPE == 0) {
 		// Binary Search index
 		for (idx_t i = 0; i < lineage->size(); i++) {
-			SourceAndMaybeData source = (*lineage.get())[i];
 			// we need a way to locate the exact data we should access
 			// from the source index
-			auto lower = lower_bound(index.begin(), index.end(), source.source);
+			auto lower = lower_bound(index.begin(), index.end(), (*lineage.get())[i].source);
 			if (lower == index.end()) {
 				throw std::logic_error("Out of bounds lineage requested");
 			}
 			auto chunk_id = lower - index.begin();
-			if (*lower == source.source) {
+			if (*lower == (*lineage.get())[i].source) {
 				chunk_id += 1;
 			}
 			auto this_data = data[chunk_id];
 			if (chunk_id > 0) {
 				(*lineage.get())[i].source -= index[chunk_id-1];
 			}
-			(*lineage.get())[i].data = make_shared<LineageDataWithOffset>(this_data);
+			(*lineage.get())[i].data = make_unique<LineageDataWithOffset>(this_data);
 		}
 	} else {
 		// Array index
 		for (idx_t i = 0; i < lineage->size(); i++) {
-			SourceAndMaybeData source = (*lineage.get())[i];
-			idx_t chunk_id = index[source.source];
+			idx_t chunk_id = index[(*lineage.get())[i].source];
 			auto this_data = data[chunk_id];
 			(*lineage.get())[i] = {
 				(*lineage.get())[i].source - this_data.this_offset,
-				make_shared<LineageDataWithOffset>(this_data)
+				make_unique<LineageDataWithOffset>(this_data)
 			};
 		}
 	}
+	return lineage;
 }
 
 SimpleAggQueryStruct OperatorLineage::RecurseForSimpleAgg(const shared_ptr<OperatorLineage>& child) {
@@ -285,7 +284,7 @@ SimpleAggQueryStruct OperatorLineage::RecurseForSimpleAgg(const shared_ptr<Opera
 	return {child, child_lineage_data_vector};
 }
 
-unique_ptr<LineageRes> OperatorLineage::Backward(const shared_ptr<vector<SourceAndMaybeData>>& lineage) {
+unique_ptr<LineageRes> OperatorLineage::Backward(unique_ptr<vector<SourceAndMaybeData>> lineage) {
 	if (lineage->empty()) {
 		// Skip if empty
 		return make_unique<LineageResVal>(LineageResVal({}));
@@ -298,34 +297,34 @@ unique_ptr<LineageRes> OperatorLineage::Backward(const shared_ptr<vector<SourceA
 
 		// chunk scan input is delim join input
 		children[1]->children[1] = children[0];
-		return children[1]->Backward(lineage);
+		return children[1]->Backward(move(lineage));
 	}
 	case PhysicalOperatorType::DELIM_SCAN: {
-		return make_unique<LineageResVal>(LineageResVal(lineage));
+		return make_unique<LineageResVal>(LineageResVal(move(lineage)));
 	}
 	case PhysicalOperatorType::TABLE_SCAN: {
-		vector<shared_ptr<LineageRes>> res;
+		vector<unique_ptr<LineageRes>> res;
 		res.reserve(lineage->size());
 
 		// End of the recursion!
 		if (data[LINEAGE_UNARY].empty() && (*lineage.get())[0].data == nullptr) {
 			// Nothing to do! Lineage correct as-is
-			return make_unique<LineageResVal>(LineageResVal(lineage));
+			return make_unique<LineageResVal>(LineageResVal(move(lineage)));
 		} else {
 			if ((*lineage.get())[0].data == nullptr) {
-				AccessLineageDataViaIndex(lineage, data[LINEAGE_UNARY], index);
+				lineage = AccessLineageDataViaIndex(move(lineage), data[LINEAGE_UNARY], index);
 			}
 			for (idx_t i = 0; i < lineage->size(); i++) {
 				shared_ptr<LineageDataWithOffset> this_data = (*lineage.get())[i].data;
 				(*lineage.get())[i].source = this_data->data->Backward((*lineage.get())[i].source) + this_data->child_offset;
 			}
-			return make_unique<LineageResVal>(LineageResVal(lineage));
+			return make_unique<LineageResVal>(LineageResVal(move(lineage)));
 		}
 	}
 	case PhysicalOperatorType::FILTER:
 	case PhysicalOperatorType::LIMIT: {
 		if ((*lineage.get())[0].data == nullptr) {
-			AccessLineageDataViaIndex(lineage, data[LINEAGE_UNARY], index);
+			lineage = AccessLineageDataViaIndex(move(lineage), data[LINEAGE_UNARY], index);
 		}
 		for (idx_t i = 0; i < lineage->size(); i++) {
 			(*lineage.get())[i] = {
@@ -333,16 +332,16 @@ unique_ptr<LineageRes> OperatorLineage::Backward(const shared_ptr<vector<SourceA
 				(*lineage.get())[i].data->data->GetChild()
 			};
 		}
-		return children[0]->Backward(lineage);
+		return children[0]->Backward(move(lineage));
 	}
 	case PhysicalOperatorType::HASH_JOIN: {
 		// we need hash table from the build side
 		// access the probe side, get the address from the right side
 		if ((*lineage.get())[0].data == nullptr) {
-			AccessLineageDataViaIndex(lineage, data[LINEAGE_PROBE], index);
+			lineage = AccessLineageDataViaIndex(move(lineage), data[LINEAGE_PROBE], index);
 		}
-		shared_ptr<vector<SourceAndMaybeData>> right_lineage = make_shared<vector<SourceAndMaybeData>>();
-		shared_ptr<vector<SourceAndMaybeData>> left_lineage = make_shared<vector<SourceAndMaybeData>>();
+		unique_ptr<vector<SourceAndMaybeData>> right_lineage = make_unique<vector<SourceAndMaybeData>>();
+		unique_ptr<vector<SourceAndMaybeData>> left_lineage = make_unique<vector<SourceAndMaybeData>>();
 
 		right_lineage->reserve(lineage->size());
 		left_lineage->reserve(lineage->size());
@@ -384,47 +383,47 @@ unique_ptr<LineageRes> OperatorLineage::Backward(const shared_ptr<vector<SourceA
 				}
 			}
 		}
-		auto left = children[1]->Backward(right_lineage);
-		auto right = children[0]->Backward(left_lineage);
+		auto left = children[1]->Backward(move(right_lineage));
+		auto right = children[0]->Backward(move(left_lineage));
 		return make_unique<LineageResJoin>(LineageResJoin(move(left), move(right)));
 	}
 	case PhysicalOperatorType::HASH_GROUP_BY: {
 		if ((*lineage.get())[0].data == nullptr) {
-			AccessLineageDataViaIndex(lineage, data[LINEAGE_SOURCE], index);
+			lineage = AccessLineageDataViaIndex(move(lineage), data[LINEAGE_SOURCE], index);
 		}
 
 		vector<unique_ptr<LineageRes>> res;
 		for (const SourceAndMaybeData& source : *lineage.get()) {
 			auto payload = (uint64_t*)source.data->data->Process(0);
 			auto res_list = hash_map_agg[payload[source.source]];
-			res.push_back(children[0]->Backward(make_shared<vector<SourceAndMaybeData>>(res_list)));
+			res.push_back(children[0]->Backward(make_unique<vector<SourceAndMaybeData>>(res_list)));
 		}
 		return make_unique<LineageResAgg>(move(res));
 	}
 	case PhysicalOperatorType::PERFECT_HASH_GROUP_BY: {
 		if ((*lineage.get())[0].data == nullptr) {
-			AccessLineageDataViaIndex(lineage, data[LINEAGE_SOURCE], index);
+			lineage = AccessLineageDataViaIndex(move(lineage), data[LINEAGE_SOURCE], index);
 		}
 
 		vector<unique_ptr<LineageRes>> res;
 		for (const SourceAndMaybeData& source : *lineage.get()) {
 			auto payload = (sel_t*)source.data->data->Process(0);
 			auto res_list = hash_map_agg[payload[source.source]];
-			res.push_back(children[0]->Backward(make_shared<vector<SourceAndMaybeData>>(res_list)));
+			res.push_back(children[0]->Backward(make_unique<vector<SourceAndMaybeData>>(res_list)));
 		}
 		return make_unique<LineageResAgg>(move(res));
 	}
 	case PhysicalOperatorType::PROJECTION: {
-		return children[0]->Backward(lineage);
+		return children[0]->Backward(move(lineage));
 	}
 	case PhysicalOperatorType::BLOCKWISE_NL_JOIN:
 	case PhysicalOperatorType::PIECEWISE_MERGE_JOIN:
 	case PhysicalOperatorType::NESTED_LOOP_JOIN: {
 		if ((*lineage.get())[0].data == nullptr) {
-			AccessLineageDataViaIndex(lineage, data[LINEAGE_PROBE], index);
+			lineage = AccessLineageDataViaIndex(move(lineage), data[LINEAGE_PROBE], index);
 		}
 
-		shared_ptr<vector<SourceAndMaybeData>> left_lineage = make_shared<vector<SourceAndMaybeData>>();
+		unique_ptr<vector<SourceAndMaybeData>> left_lineage = make_unique<vector<SourceAndMaybeData>>();
 		left_lineage->reserve(lineage->size());
 		for (idx_t i = 0; i < lineage->size(); i++) {
 			SourceAndMaybeData source = (*lineage.get())[i];
@@ -439,29 +438,27 @@ unique_ptr<LineageRes> OperatorLineage::Backward(const shared_ptr<vector<SourceA
 				(*lineage.get())[i] = {right, nullptr}; // Full scan
 			}
 		}
-		auto left = children[1]->Backward(lineage);
-		auto right = children[0]->Backward(left_lineage);
+		auto left = children[1]->Backward(move(lineage));
+		auto right = children[0]->Backward(move(left_lineage));
 		return make_unique<LineageResJoin>(LineageResJoin(move(left), move(right)));
 	} case PhysicalOperatorType::CROSS_PRODUCT: {
 		if ((*lineage.get())[0].data == nullptr) {
-			AccessLineageDataViaIndex(lineage, data[LINEAGE_PROBE], index);
+			lineage = AccessLineageDataViaIndex(move(lineage), data[LINEAGE_PROBE], index);
 		}
 
-		shared_ptr<vector<SourceAndMaybeData>> left_lineage = make_shared<vector<SourceAndMaybeData>>();
+		unique_ptr<vector<SourceAndMaybeData>> left_lineage = make_unique<vector<SourceAndMaybeData>>();
 		left_lineage->reserve(lineage->size());
 		for (idx_t i = 0; i < lineage->size(); i++) {
-			SourceAndMaybeData source = (*lineage.get())[i];
-
-			left_lineage->push_back({source.source, source.data->data->GetChild()});
-			(*lineage.get())[i] = {source.data->data->Backward(source.source), nullptr}; // Full scan
+			left_lineage->push_back({(*lineage.get())[i].source, (*lineage.get())[i].data->data->GetChild()});
+			(*lineage.get())[i] = {(*lineage.get())[i].data->data->Backward((*lineage.get())[i].source), nullptr}; // Full scan
 		}
-		auto left = children[1]->Backward(lineage);
-		auto right = children[0]->Backward(left_lineage);
+		auto left = children[1]->Backward(move(lineage));
+		auto right = children[0]->Backward(move(left_lineage));
 		return make_unique<LineageResJoin>(LineageResJoin(move(left), move(right)));
 	}
 	case PhysicalOperatorType::INDEX_JOIN: {
 		if ((*lineage.get())[0].data == nullptr) {
-			AccessLineageDataViaIndex(lineage, data[LINEAGE_UNARY], index);
+			lineage = AccessLineageDataViaIndex(move(lineage), data[LINEAGE_UNARY], index);
 		}
 
 		vector<SourceAndMaybeData> left_lineage;
@@ -480,8 +477,8 @@ unique_ptr<LineageRes> OperatorLineage::Backward(const shared_ptr<vector<SourceA
 				(*lineage.get())[i] = {left, source.data->data->GetChild()};
 			}
 		}
-		auto left = make_unique<LineageResVal>(LineageResVal(make_shared<vector<SourceAndMaybeData>>(left_lineage)));
-		auto right = children[0]->Backward(lineage);
+		auto left = make_unique<LineageResVal>(LineageResVal(make_unique<vector<SourceAndMaybeData>>(left_lineage)));
+		auto right = children[0]->Backward(move(lineage));
 		return make_unique<LineageResJoin>(LineageResJoin(move(left), move(right)));
 	}
 	case PhysicalOperatorType::ORDER_BY: {
@@ -499,7 +496,7 @@ unique_ptr<LineageRes> OperatorLineage::Backward(const shared_ptr<vector<SourceA
 				nullptr // requires full scan
 			};
 		}
-		return children[0]->Backward(lineage);
+		return children[0]->Backward(move(lineage));
 	}
 	case PhysicalOperatorType::SIMPLE_AGGREGATE: {
 		// Recurse until we find a filter-like child, then use all of its lineage
@@ -513,13 +510,12 @@ unique_ptr<LineageRes> OperatorLineage::Backward(const shared_ptr<vector<SourceA
 		vector<unique_ptr<LineageRes>> res;
 		res.reserve(agg_struct.child_lineage_data_vector.size());
 		for (const LineageDataWithOffset& child_lineage_data : agg_struct.child_lineage_data_vector) {
-			shared_ptr<vector<SourceAndMaybeData>> child_lineage = make_shared<vector<SourceAndMaybeData>>();
+			unique_ptr<vector<SourceAndMaybeData>> child_lineage = make_unique<vector<SourceAndMaybeData>>();
 			child_lineage->reserve(child_lineage_data.data->Count());
-			auto child_data_ptr = make_shared<LineageDataWithOffset>(child_lineage_data);
 			for (idx_t i = 0; i < child_lineage_data.data->Count(); i++) {
-				child_lineage->push_back({i, child_data_ptr});
+				child_lineage->push_back({i, make_unique<LineageDataWithOffset>(child_lineage_data)});
 			}
-			auto child_res = agg_struct.materialized_child_op->Backward(child_lineage);
+			auto child_res = agg_struct.materialized_child_op->Backward(move(child_lineage));
 			res.push_back(move(child_res));
 		}
 
@@ -535,17 +531,17 @@ unique_ptr<LineageRes> OperatorLineage::Backward(const shared_ptr<vector<SourceA
 
 vector<idx_t> LineageManager::Backward(PhysicalOperator *op, idx_t source) {
 	// an operator can have lineage from multiple threads, how to decide which one to check?
-	shared_ptr<vector<SourceAndMaybeData>> sources = make_shared<vector<SourceAndMaybeData>>();
+	unique_ptr<vector<SourceAndMaybeData>> sources = make_unique<vector<SourceAndMaybeData>>();
 	sources->push_back({source, nullptr});
-	unique_ptr<LineageRes> lineage = op->lineage_op.at(-1)->Backward(sources);
+	unique_ptr<LineageRes> lineage = op->lineage_op.at(-1)->Backward(move(sources));
 	return lineage->GetValues();
 }
 
 idx_t LineageManager::BackwardCount(PhysicalOperator *op, idx_t source) {
 	// an operator can have lineage from multiple threads, how to decide which one to check?
-	shared_ptr<vector<SourceAndMaybeData>> sources = make_shared<vector<SourceAndMaybeData>>();
+	unique_ptr<vector<SourceAndMaybeData>> sources = make_unique<vector<SourceAndMaybeData>>();
 	sources->push_back({source, nullptr});
-	unique_ptr<LineageRes> lineage = op->lineage_op.at(-1)->Backward(sources);
+	unique_ptr<LineageRes> lineage = op->lineage_op.at(-1)->Backward(move(sources));
 	return lineage->GetCount();
 }
 
