@@ -8,6 +8,8 @@
 
 #include <utility>
 
+#define PROBE_SIZE 10
+
 namespace duckdb {
 class PhysicalDelimJoin;
 class PhysicalJoin;
@@ -157,15 +159,36 @@ LineageProcessStruct OperatorLineage::PostProcess(idx_t chunk_count, idx_t count
 				// build hash table
 				LineageDataWithOffset this_data = data[LINEAGE_SINK][data_idx];
 				idx_t res_count = this_data.data->Count();
-				if (type == PhysicalOperatorType::PERFECT_HASH_GROUP_BY) {
-					auto payload = (sel_t*)this_data.data->Process(0);
-					for (idx_t i=0; i < res_count; ++i) {
-						hash_map_agg[(idx_t)payload[i]].push_back({i + count_so_far, nullptr});
+				if (data[LINEAGE_SOURCE].size() > PROBE_SIZE) {
+					// get min-max on this payload
+					auto min_v = std::numeric_limits<idx_t>::max();
+					auto max_v = std::numeric_limits<idx_t>::min();
+					if (type == PhysicalOperatorType::PERFECT_HASH_GROUP_BY) {
+						auto payload = (sel_t*)this_data.data->Process(0);
+						for (idx_t i=0; i < res_count; ++i) {
+							if ( (idx_t)payload[i] < min_v) min_v  = (idx_t)payload[i];
+							if ( (idx_t)payload[i] > max_v) max_v  = (idx_t)payload[i];
+						}
+					} else {
+						auto payload = (uint64_t*)this_data.data->Process(0);
+						for (idx_t i=0; i < res_count; ++i) {
+							if ( payload[i] < min_v) min_v  = payload[i];
+							if ( payload[i] > max_v) max_v  = payload[i];
+						}
 					}
+					hm_range.push_back(std::make_pair(min_v, max_v));
+					hash_chunk_count.push_back(count_so_far);
 				} else {
-					auto payload = (uint64_t*)this_data.data->Process(0);
-					for (idx_t i=0; i < res_count; ++i) {
-						hash_map_agg[(idx_t)payload[i]].push_back({i + count_so_far, nullptr});
+					if (type == PhysicalOperatorType::PERFECT_HASH_GROUP_BY) {
+						auto payload = (sel_t*)this_data.data->Process(0);
+						for (idx_t i=0; i < res_count; ++i) {
+							hash_map_agg[(idx_t)payload[i]].push_back({i + count_so_far, nullptr});
+						}
+					} else {
+						auto payload = (uint64_t*)this_data.data->Process(0);
+						for (idx_t i=0; i < res_count; ++i) {
+							hash_map_agg[(idx_t)payload[i]].push_back({i + count_so_far, nullptr});
+						}
 					}
 				}
 				count_so_far += res_count;
@@ -389,29 +412,101 @@ unique_ptr<LineageRes> OperatorLineage::Backward(unique_ptr<vector<SourceAndMayb
 	}
 	case PhysicalOperatorType::HASH_GROUP_BY: {
 		if ((*lineage.get())[0].data == nullptr) {
-			lineage = AccessLineageDataViaIndex(move(lineage), data[LINEAGE_SOURCE], index);
+			AccessLineageDataViaIndex(move(lineage), data[LINEAGE_SOURCE], index);
 		}
 
 		vector<unique_ptr<LineageRes>> res;
-		for (const SourceAndMaybeData& source : *lineage.get()) {
-			auto payload = (uint64_t*)source.data->data->Process(0);
-			auto res_list = hash_map_agg[payload[source.source]];
-			res.push_back(children[0]->Backward(make_unique<vector<SourceAndMaybeData>>(res_list)));
+		if (data[LINEAGE_SOURCE].size() > PROBE_SIZE) {
+		  for (const SourceAndMaybeData& source : *lineage.get()) {
+				auto payload = (uint64_t *)source.data->data->Process(0);
+				auto val = payload[source.source];
+        unique_ptr<vector<SourceAndMaybeData>> res_list;
+				// iterate the index to find potential chunks
+				for (auto it = 0; it < hm_range.size(); ++it) {
+					if (val >= hm_range[it].first && val <= hm_range[it].second) {
+						// scan this chunk
+						LineageDataWithOffset this_data = data[LINEAGE_SINK][it];
+						idx_t res_count = this_data.data->Count();
+						auto sink_payload = (uint64_t *)this_data.data->Process(0);
+						for (auto it2 = 0; it2 < res_count; ++it2) {
+							if (sink_payload[it2] == val) {
+								res_list->push_back({it2 + hash_chunk_count[it], nullptr});
+							}
+						}
+					}
+				}
+
+        res.push_back(children[0]->Backward(move(res_list)));
+			}
+		} else {
+			// First find size to reserve
+			idx_t lineage_size = 0;
+		  for (const SourceAndMaybeData& source : *lineage.get()) {
+				auto payload = (uint64_t*)source.data->data->Process(0);
+				auto val = payload[source.source];
+				lineage_size += hash_map_agg[val].size();
+			}
+			lineage->reserve(lineage_size);
+			// Now fill TODO is it right to do two passes like this? Yes, this genuinely is faster :)
+		  for (const SourceAndMaybeData& source : *lineage.get()) {
+				auto payload = (uint64_t*)source.data->data->Process(0);
+				auto res_list = hash_map_agg[payload[source.source]];
+			  res.push_back(children[0]->Backward(make_unique<vector<SourceAndMaybeData>>(res_list)));
+			}
 		}
-		return make_unique<LineageResAgg>(move(res));
+		
+    return make_unique<LineageResAgg>(move(res));
+
+		break;
 	}
 	case PhysicalOperatorType::PERFECT_HASH_GROUP_BY: {
 		if ((*lineage.get())[0].data == nullptr) {
-			lineage = AccessLineageDataViaIndex(move(lineage), data[LINEAGE_SOURCE], index);
+			AccessLineageDataViaIndex(move(lineage), data[LINEAGE_SOURCE], index);
 		}
 
 		vector<unique_ptr<LineageRes>> res;
-		for (const SourceAndMaybeData& source : *lineage.get()) {
-			auto payload = (sel_t*)source.data->data->Process(0);
-			auto res_list = hash_map_agg[payload[source.source]];
-			res.push_back(children[0]->Backward(make_unique<vector<SourceAndMaybeData>>(res_list)));
+		if (data[LINEAGE_SOURCE].size() > PROBE_SIZE) {
+			//auto lineage_size = (data[LINEAGE_SINK].size()/data[LINEAGE_SOURCE].size()) *  (orig_lineage.size());
+			//lineage->reserve(lineage_size);
+		  for (const SourceAndMaybeData& source : *lineage.get()) {
+				auto payload = (sel_t *)source.data->data->Process(0);
+				auto val = payload[source.source];
+        unique_ptr<vector<SourceAndMaybeData>> res_list;
+				// iterate the index to find potential chunks
+				for (auto it = 0; it < hm_range.size(); ++it) {
+					if (val >= hm_range[it].first && val <= hm_range[it].second) {
+						// scan this chunk
+						LineageDataWithOffset this_data = data[LINEAGE_SINK][it];
+						idx_t res_count = this_data.data->Count();
+						auto sink_payload = (sel_t *)this_data.data->Process(0);
+						for (auto it2 = 0; it2 < res_count; ++it2) {
+							if (sink_payload[it2] == val) {
+								res_list->push_back({it2 + hash_chunk_count[it], nullptr});
+							}
+						}
+					}
+				}
+        res.push_back(children[0]->Backward(move(res_list)));
+			}
+		} else {
+			// First find size to reserve
+			idx_t lineage_size = 0;
+		  for (const SourceAndMaybeData& source : *lineage.get()) {
+				auto payload = (sel_t*)source.data->data->Process(0);
+				auto val = payload[source.source];
+				lineage_size += hash_map_agg[val].size();
+			}
+			lineage->reserve(lineage_size);
+			// Now fill TODO is it right to do two passes like this? Yes, this genuinely is faster :)
+		  for (const SourceAndMaybeData& source : *lineage.get()) {
+				auto payload = (sel_t*)source.data->data->Process(0);
+				auto res_list = hash_map_agg[payload[source.source]];
+			  res.push_back(children[0]->Backward(make_unique<vector<SourceAndMaybeData>>(res_list)));
+			}
 		}
+
 		return make_unique<LineageResAgg>(move(res));
+		break;
 	}
 	case PhysicalOperatorType::PROJECTION: {
 		return children[0]->Backward(move(lineage));
