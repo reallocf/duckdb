@@ -39,28 +39,13 @@ select t1.j, t2.k from t1 inner join t2 on (t1.i = t2.i)
 query II
 select query_id, query from queries_list;
 ----
+0	PRAGMA trace_lineage = "ON"
 1	select t1.j, t2.k from t1 inner join t2 on (t1.i = t2.i)
-2	select query_id, query from queries_list;
 
 
 statement ok
-PRAGMA trace_lineage = "OFF";
+PRAGMA trace_lineage = "OFF"
 
-query III
-select sink.in_index, probe.rhs_index, probe.out_index
-from LINEAGE_1_HASH_JOIN_2_1 AS probe
-JOIN LINEAGE_1_HASH_JOIN_2_0 AS sink ON sink.out_address = probe.lhs_address;
-----
-4	0	0
-1	2	1
-4	3	2
-4	4	3
-4	5	4
-2	0	5
-2	3	6
-2	4	7
-2	5	8
-0	0	9
-0	3	10
-0	4	11
-0	5	12
+query I
+select *
+from LINEAGE_1_HASH_JOIN_2_1;
