@@ -31,21 +31,21 @@ statement ok
 PRAGMA trace_lineage = "OFF";
 
 query I
-PRAGMA backward_lineage('select t1.rowid, t2.rowid, t1.i, t2.i from t1, t2 where  t1.i > t2.i and t1.i <> t2.i', '0')
+PRAGMA backward_lineage('select t1.rowid, t2.rowid, t1.i, t2.i from t1, t2 where  t1.i > t2.i and t1.i <> t2.i', 'VALUE', '0')
 ----
 [1023, 0]
 
 query I
-PRAGMA backward_lineage('select t1.rowid, t2.rowid, t1.i, t2.i from t1, t2 where  t1.i > t2.i and t1.i <> t2.i', '1')
+PRAGMA backward_lineage('select t1.rowid, t2.rowid, t1.i, t2.i from t1, t2 where  t1.i > t2.i and t1.i <> t2.i', 'VALUE', '1')
 ----
 [2047, 0]
 
 query I
-PRAGMA backward_lineage('select t1.rowid, t2.rowid, t1.i, t2.i from t1, t2 where  t1.i > t2.i and t1.i <> t2.i', '2')
+PRAGMA backward_lineage('select t1.rowid, t2.rowid, t1.i, t2.i from t1, t2 where  t1.i > t2.i and t1.i <> t2.i', 'VALUE', '2')
 ----
 [1023, 2049]
 
 query I
-PRAGMA backward_lineage('select t1.rowid, t2.rowid, t1.i, t2.i from t1, t2 where  t1.i > t2.i and t1.i <> t2.i', '3')
+PRAGMA backward_lineage('select t1.rowid, t2.rowid, t1.i, t2.i from t1, t2 where  t1.i > t2.i and t1.i <> t2.i', 'VALUE', '3')
 ----
 [2047, 2049]
