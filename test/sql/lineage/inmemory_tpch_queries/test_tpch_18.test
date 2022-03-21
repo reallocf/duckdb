@@ -21,17 +21,17 @@ PRAGMA trace_lineage = "OFF";
 query I
 PRAGMA backward_lineage("SELECT c_name, c_custkey, o_orderkey, o_orderdate, o_totalprice, sum(l_quantity) FROM customer, orders, lineitem WHERE o_orderkey IN (SELECT l_orderkey FROM lineitem GROUP BY l_orderkey HAVING sum(l_quantity) > 300) AND c_custkey = o_custkey AND o_orderkey = l_orderkey GROUP BY c_name, c_custkey, o_orderkey, o_orderdate, o_totalprice ORDER BY o_totalprice DESC, o_orderdate LIMIT 100", 'VALUE', '0')
 ----
-[59514, 59515, 59516, 59517, 59518, 59514, 59515, 59516, 59517, 59518, 59514, 59515, 59516, 59517, 59518, 59514, 59515, 59516, 59517, 59518, 59514, 59515, 59516, 59517, 59518, 59514, 59515, 59516, 59517, 59518, 59514, 59515, 59516, 59517, 59518, 666, 666, 666, 666, 666, 666, 666, 7293, 7293, 7293, 7293, 7293, 7293, 7293, 29387, 29388, 29389, 29390, 29391, 29392, 29393]
+[29387, 29388, 29389, 29390, 29391, 29392, 29393, 7293, 7293, 7293, 7293, 7293, 7293, 7293, 666, 666, 666, 666, 666, 666, 666, 29387, 29388, 29389, 29390, 29391, 29392, 29393, 29387, 29388, 29389, 29390, 29391, 29392, 29393, 29387, 29388, 29389, 29390, 29391, 29392, 29393, 29387, 29388, 29389, 29390, 29391, 29392, 29393, 29387, 29388, 29389, 29390, 29391, 29392, 29393, 29387, 29388, 29389, 29390, 29391, 29392, 29393, 29387, 29388, 29389, 29390, 29391, 29392, 29393]
 
 query I
 PRAGMA backward_lineage("SELECT c_name, c_custkey, o_orderkey, o_orderdate, o_totalprice, sum(l_quantity) FROM customer, orders, lineitem WHERE o_orderkey IN (SELECT l_orderkey FROM lineitem GROUP BY l_orderkey HAVING sum(l_quantity) > 300) AND c_custkey = o_custkey AND o_orderkey = l_orderkey GROUP BY c_name, c_custkey, o_orderkey, o_orderdate, o_totalprice ORDER BY o_totalprice DESC, o_orderdate LIMIT 100", 'VALUE', '1')
 ----
-[60085, 60086, 60087, 60088, 60089, 60090, 60091, 60085, 60086, 60087, 60088, 60089, 60090, 60091, 60085, 60086, 60087, 60088, 60089, 60090, 60091, 60085, 60086, 60087, 60088, 60089, 60090, 60091, 60085, 60086, 60087, 60088, 60089, 60090, 60091, 60085, 60086, 60087, 60088, 60089, 60090, 60091, 60085, 60086, 60087, 60088, 60089, 60090, 60091, 177, 177, 177, 177, 177, 177, 177, 1721, 1721, 1721, 1721, 1721, 1721, 1721, 6929, 6930, 6931, 6932, 6933, 6934, 6935]
+[6929, 6930, 6931, 6932, 6933, 6934, 6935, 1721, 1721, 1721, 1721, 1721, 1721, 1721, 177, 177, 177, 177, 177, 177, 177, 6929, 6930, 6931, 6932, 6933, 6934, 6935, 6929, 6930, 6931, 6932, 6933, 6934, 6935, 6929, 6930, 6931, 6932, 6933, 6934, 6935, 6929, 6930, 6931, 6932, 6933, 6934, 6935, 6929, 6930, 6931, 6932, 6933, 6934, 6935, 6929, 6930, 6931, 6932, 6933, 6934, 6935, 6929, 6930, 6931, 6932, 6933, 6934, 6935]
 
 query I
 PRAGMA backward_lineage("SELECT c_name, c_custkey, o_orderkey, o_orderdate, o_totalprice, sum(l_quantity) FROM customer, orders, lineitem WHERE o_orderkey IN (SELECT l_orderkey FROM lineitem GROUP BY l_orderkey HAVING sum(l_quantity) > 300) AND c_custkey = o_custkey AND o_orderkey = l_orderkey GROUP BY c_name, c_custkey, o_orderkey, o_orderdate, o_totalprice ORDER BY o_totalprice DESC, o_orderdate LIMIT 100", 'COUNT', '0')
 ----
-56
+70
 
 query I
 PRAGMA backward_lineage("SELECT c_name, c_custkey, o_orderkey, o_orderdate, o_totalprice, sum(l_quantity) FROM customer, orders, lineitem WHERE o_orderkey IN (SELECT l_orderkey FROM lineitem GROUP BY l_orderkey HAVING sum(l_quantity) > 300) AND c_custkey = o_custkey AND o_orderkey = l_orderkey GROUP BY c_name, c_custkey, o_orderkey, o_orderdate, o_totalprice ORDER BY o_totalprice DESC, o_orderdate LIMIT 100", 'COUNT', '1')

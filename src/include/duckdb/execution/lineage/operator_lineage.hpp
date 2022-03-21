@@ -19,6 +19,7 @@
 #include "duckdb/execution/lineage/lineage_data.hpp"
 #include "duckdb/execution/lineage/pipeline_lineage.hpp"
 
+#include <experimental/coroutine>
 #include <iostream>
 #include <utility>
 
@@ -35,9 +36,12 @@
 #endif
 
 namespace duckdb {
+template<typename T> class Generator;
+class LineageRes;
 enum class PhysicalOperatorType : uint8_t;
 struct LineageDataWithOffset;
 struct LineageProcessStruct;
+struct SimpleAggQueryStruct;
 struct SourceAndMaybeData;
 
 class OperatorLineage {
@@ -46,8 +50,9 @@ public:
 		shared_ptr<PipelineLineage> pipeline_lineage,
 		std::vector<shared_ptr<OperatorLineage>> children,
 	    PhysicalOperatorType type,
+	    idx_t opid,
 	    bool should_index
-	) : pipeline_lineage(move(pipeline_lineage)), type(type), children(move(children)), should_index(should_index) {}
+	) : opid(opid), pipeline_lineage(move(pipeline_lineage)), type(type), children(move(children)), should_index(should_index) {}
 
 	void Capture(const shared_ptr<LineageData>& datum, idx_t lineage_idx, int thread_id=-1);
 
@@ -57,16 +62,17 @@ public:
 	void MarkChunkReturned();
 	LineageProcessStruct Process(const vector<LogicalType>& types, idx_t count_so_far, DataChunk &insert_chunk, idx_t size=0, int thread_id=-1);
 	LineageProcessStruct PostProcess(idx_t chunk_count, idx_t count_so_far, int thread_id=-1);
-	void Backward(const shared_ptr<vector<SourceAndMaybeData>>& lineage);
-	shared_ptr<vector<SourceAndMaybeData>> BackwardNext(bool next_to_leaf=false);
+	Generator<unique_ptr<LineageRes>> Backward(unique_ptr<vector<SourceAndMaybeData>> lineage);
 	// Leaky... should refactor this so we don't need a pure pass-through function like this
 	void SetChunkId(idx_t idx);
 	idx_t Size();
 	shared_ptr<LineageDataWithOffset> GetMyLatest();
 	shared_ptr<LineageDataWithOffset> GetChildLatest(idx_t lineage_idx);
 	idx_t GetThisOffset(idx_t lineage_idx);
+	SimpleAggQueryStruct RecurseForSimpleAgg(const shared_ptr<OperatorLineage>& child);
 
 public:
+	idx_t opid;
 	bool trace_lineage;
 	shared_ptr<PipelineLineage> pipeline_lineage;
 	// data[0] used by all ops; data[1] used by pipeline breakers
@@ -76,24 +82,23 @@ public:
 	PhysicalOperatorType type;
 	shared_ptr<LineageNested> cached_internal_lineage = nullptr;
 	std::vector<shared_ptr<OperatorLineage>> children;
-	vector<shared_ptr<OperatorLineage>> parents;
+	// final lineage indexing data-structures
+	// hash_chunk_count: maintain count of data that belong to previous ranges
+	vector<idx_t> hash_chunk_count;
+	// hm_range: maintains the existing ranges in hash join build side
+	std::vector<std::pair<idx_t, idx_t>> hm_range;
+	// offset: difference between two consecutive values with a range
+	uint64_t offset = 0;
+	idx_t start_base = 0;
+	idx_t last_base = 0;
 
-   // final lineage indexing data-structures
-   // hash_map: used by group by and hash join build side
-   std::unordered_map<uint64_t, SourceAndMaybeData> hash_map;
-   std::unordered_map<idx_t, vector<shared_ptr<vector<SourceAndMaybeData>>>> hash_map_agg;
+   std::unordered_map<idx_t, vector<SourceAndMaybeData>> hash_map_agg;
    // index: used to index selection vectors
    //        it stores the size of SV from each chunk
    //        which helps in locating the one needed
    //        using binary-search.
    vector<idx_t> index;
    bool should_index;
-
-   // Lineage Querying metadata and caches
-   vector<SourceAndMaybeData> sources;
-   bool visited = false;
-   vector<shared_ptr<vector<SourceAndMaybeData>>> cached_lineage_vec;
-   idx_t cached_lineage_idx = 0;
 };
 
 struct LineageProcessStruct {
@@ -102,9 +107,119 @@ struct LineageProcessStruct {
 	bool still_processing;
 };
 
+struct SimpleAggQueryStruct {
+	shared_ptr<OperatorLineage> materialized_child_op;
+	vector<LineageDataWithOffset> child_lineage_data_vector;
+};
+
 struct SourceAndMaybeData {
 	idx_t source;
 	shared_ptr<LineageDataWithOffset> data;
+};
+
+// Adapted from https://github.com/roger-dv/cpp20-coro-generator/blob/master/generator.h
+template<typename T>
+class Generator {
+public:
+	struct promise_type;
+	using handle_type = std::experimental::coroutine_handle<promise_type>;
+private:
+	handle_type coro;
+public:
+	explicit Generator(handle_type h) : coro(h) {}
+	Generator(const Generator &) = delete;
+	Generator(Generator &&oth) noexcept : coro(oth.coro) {
+		oth.coro = nullptr;
+	}
+	Generator &operator=(const Generator &) = delete;
+	Generator &operator=(Generator &&other) noexcept {
+		coro = other.coro;
+		other.coro = nullptr;
+		return *this;
+	}
+	~Generator() {
+		if (coro) {
+			coro.destroy();
+		}
+	}
+
+	bool Next() {
+		coro.resume();
+		return not coro.done();
+	}
+
+	T GetValue() {
+		return move(coro.promise().current_value);
+	}
+
+	struct promise_type {
+	private:
+		T current_value{};
+		friend class Generator;
+	public:
+		promise_type() = default;
+		~promise_type() = default;
+		promise_type(const promise_type&) = delete;
+		promise_type(promise_type&&) = delete;
+		promise_type &operator=(const promise_type&) = delete;
+		promise_type &operator=(promise_type&&) = delete;
+
+		auto initial_suspend() {
+			return std::experimental::suspend_always{};
+		}
+
+		auto final_suspend() noexcept {
+			return std::experimental::suspend_always{};
+		}
+
+		auto get_return_object() {
+			return Generator {handle_type::from_promise(*this)};
+		}
+
+		auto return_void() {
+			return std::experimental::suspend_never{};
+		}
+
+		auto yield_value(T some_value) {
+			current_value = move(some_value);
+			return std::experimental::suspend_always{};
+		}
+
+		void unhandled_exception() {
+			std::exit(1);
+		}
+	};
+};
+
+class LineageRes {
+public:
+	virtual vector<idx_t> GetValues() = 0;
+	virtual idx_t GetCount() = 0;
+	virtual ~LineageRes() {};
+};
+
+class LineageResJoin : public LineageRes {
+public:
+	LineageResJoin(Generator<unique_ptr<LineageRes>> left_gen, Generator<unique_ptr<LineageRes>> right_gen)
+	    : left_gen(move(left_gen)), right_gen(move(right_gen)) {}
+
+	vector<idx_t> GetValues() override;
+	idx_t GetCount() override;
+
+private:
+	Generator<unique_ptr<LineageRes>> left_gen;
+	Generator<unique_ptr<LineageRes>> right_gen;
+};
+
+class LineageResVal : public LineageRes {
+public:
+	explicit LineageResVal(unique_ptr<vector<SourceAndMaybeData>> lineage) : vals(move(lineage)) {}
+
+	vector<idx_t> GetValues() override;
+	idx_t GetCount() override;
+
+private:
+	unique_ptr<vector<SourceAndMaybeData>> vals;
 };
 
 } // namespace duckdb

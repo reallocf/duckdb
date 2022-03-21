@@ -35,14 +35,14 @@ public:
 	explicit LineageManager(ClientContext &context) : context(context) {};
 	vector<vector<ColumnDefinition>> GetTableColumnTypes(PhysicalOperator *op);
 	void PostProcess(PhysicalOperator *op, bool should_index);
-	vector<SourceAndMaybeData> Backward(PhysicalOperator *op, idx_t source);
+	vector<idx_t> Backward(PhysicalOperator *op, idx_t source);
 	idx_t BackwardCount(PhysicalOperator *op, idx_t source);
 	void InitOperatorPlan(PhysicalOperator *op, bool trace_lineage);
 	idx_t CreateLineageTables(PhysicalOperator *op);
 	void CreateQueryTable();
 	void LogQuery(const string& input_query, idx_t lineage_size=0);
 	static shared_ptr<PipelineLineage> GetPipelineLineageNodeForOp(PhysicalOperator *op, int thd_id=-1);
-	static void CreateOperatorLineage(PhysicalOperator *op, int thd_id=-1, bool trace_lineage=true, bool should_index=true, bool is_root=false);
+	static void CreateOperatorLineage(PhysicalOperator *op, int thd_id=-1, bool trace_lineage=true, bool should_index=true);
 
 private:
 	ClientContext &context;

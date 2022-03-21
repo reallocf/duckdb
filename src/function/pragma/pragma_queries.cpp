@@ -24,11 +24,11 @@ string PragmaBackwardLineage(ClientContext &context, const FunctionParameters &p
 			auto lineage = context.lineage_manager->Backward(op, (idx_t)stoi(word));
 			clock_t end = clock();
 			std::cout << "Root Backward time: " << ((float) end - start) / CLOCKS_PER_SEC << std::endl;
-			for (const SourceAndMaybeData& el : lineage) {
+			for (idx_t el : lineage) {
 				if (!out_str.empty()) {
 					out_str += ",";
 				}
-				out_str += to_string(el.source);
+				out_str += to_string(el);
 			}
 		}
 		out_str = "list_value("+ out_str +")";
