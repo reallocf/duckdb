@@ -51,17 +51,16 @@ void PhysicalLineageScan::GetChunkInternal(ExecutionContext &context, DataChunk 
 
 
 	shared_ptr<OperatorLineage> opLineage = table->opLineage;
-	if(state.lineageProcessStruct == nullptr){
-		state.initialized = true;
-		LineageProcessStruct lps = opLineage.get()->Process(table->GetTypes(),0,chunk ,0,-1);
+	string st = info->table.substr(info->table.length()-1);
+	idx_t finished_idx = stoi(st);
+	if(state.lineageProcessStruct == nullptr) {
+		LineageProcessStruct lps = opLineage->Process(table->GetTypes(), 0, chunk, 0, -1, 0, finished_idx);
 		state.lineageProcessStruct = std::make_shared<LineageProcessStruct>(lps);
-	}
-	else{
-		LineageProcessStruct *lps = state.lineageProcessStruct.get();
-		LineageProcessStruct lps1 = opLineage.get()->Process(table->GetTypes(),lps->count_so_far,chunk ,lps->size_so_far,-1, lps->data_idx, lps->finished_idx);
-		state.lineageProcessStruct = std::make_shared<LineageProcessStruct>(lps1);
+		return;
 	}
 
+	LineageProcessStruct lps = opLineage->Process(table->GetTypes(), state.lineageProcessStruct->count_so_far, chunk, state.lineageProcessStruct->size_so_far, -1, state.lineageProcessStruct->data_idx, state.lineageProcessStruct->finished_idx);
+	state.lineageProcessStruct = std::make_shared<LineageProcessStruct>(lps);
 
 
 	// Iterate through all the filters (unordered set idx VS (Constant, ExpresssionType, column_idx)) apply the relevant conditions with values on the column_idx

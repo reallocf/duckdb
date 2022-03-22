@@ -197,51 +197,38 @@ std::vector<shared_ptr<OperatorLineage>> GetChildrenForOp(PhysicalOperator *op, 
 	}
 }
 
-void LineageManager::CreateOperatorLineage(PhysicalOperator *op, int thd_id, bool trace_lineage, bool should_index, bool is_root) {
+void LineageManager::CreateOperatorLineage(PhysicalOperator *op, int thd_id, bool trace_lineage, bool should_index) {
 	should_index = should_index
-	    && op->type != PhysicalOperatorType::ORDER_BY; // Order by is one chunk, so no need to index
+	               && op->type != PhysicalOperatorType::ORDER_BY; // Order by is one chunk, so no need to index
 	if (op->type == PhysicalOperatorType::DELIM_JOIN) {
-		// TODO child_should_index here after figuring out DELIM_JOIN
-		CreateOperatorLineage( dynamic_cast<PhysicalDelimJoin *>(op)->join.get(), thd_id, trace_lineage);
-		CreateOperatorLineage( (PhysicalOperator *)dynamic_cast<PhysicalDelimJoin *>(op)->distinct.get(), thd_id, trace_lineage);
-		for (idx_t i = 0; i < dynamic_cast<PhysicalDelimJoin *>(op)->delim_scans.size(); ++i)
-			CreateOperatorLineage( dynamic_cast<PhysicalDelimJoin *>(op)->delim_scans[i], thd_id, trace_lineage);
+		auto distinct = (PhysicalOperator *)dynamic_cast<PhysicalDelimJoin *>(op)->distinct.get();
+		CreateOperatorLineage( distinct, thd_id, trace_lineage, true);
+		for (idx_t i = 0; i < dynamic_cast<PhysicalDelimJoin *>(op)->delim_scans.size(); ++i) {
+			dynamic_cast<PhysicalDelimJoin *>(op)->delim_scans[i]->lineage_op  = distinct->lineage_op;
+		}
+		CreateOperatorLineage( dynamic_cast<PhysicalDelimJoin *>(op)->join.get(), thd_id, trace_lineage, true);
 	}
 	for (idx_t i = 0; i < op->children.size(); i++) {
 		bool child_should_index =
-			op->type == PhysicalOperatorType::HASH_GROUP_BY
-			|| op->type == PhysicalOperatorType::PERFECT_HASH_GROUP_BY
-			|| (op->type == PhysicalOperatorType::HASH_JOIN && i == 1) // Only build side child needs an index
-			|| (op->type == PhysicalOperatorType::BLOCKWISE_NL_JOIN && i == 1) // Right side needs index
-			|| (op->type == PhysicalOperatorType::CROSS_PRODUCT && i == 1) // Right side needs index
-			|| (op->type == PhysicalOperatorType::NESTED_LOOP_JOIN && i == 1) // Right side needs index
-			|| (op->type == PhysicalOperatorType::PIECEWISE_MERGE_JOIN && i == 1) // Right side needs index
-			|| op->type == PhysicalOperatorType::ORDER_BY
-			|| (op->type == PhysicalOperatorType::PROJECTION && should_index); // Pass through should_index on projection
+		    op->type == PhysicalOperatorType::HASH_GROUP_BY
+		    || op->type == PhysicalOperatorType::PERFECT_HASH_GROUP_BY
+		    || (op->type == PhysicalOperatorType::HASH_JOIN && i == 1) // Only build side child needs an index
+		    || (op->type == PhysicalOperatorType::BLOCKWISE_NL_JOIN && i == 1) // Right side needs index
+		    || (op->type == PhysicalOperatorType::CROSS_PRODUCT && i == 1) // Right side needs index
+		    || (op->type == PhysicalOperatorType::NESTED_LOOP_JOIN && i == 1) // Right side needs index
+		    || (op->type == PhysicalOperatorType::PIECEWISE_MERGE_JOIN && i == 1) // Right side needs index
+		    || op->type == PhysicalOperatorType::ORDER_BY
+		    || (op->type == PhysicalOperatorType::DELIM_JOIN && i == 0) // Child zero needs an index
+		    || (op->type == PhysicalOperatorType::PROJECTION && should_index); // Pass through should_index on projection
 		CreateOperatorLineage(op->children[i].get(), thd_id, trace_lineage, child_should_index);
 	}
 	op->lineage_op[thd_id] = make_shared<OperatorLineage>(
-		GetPipelineLineageNodeForOp(op, thd_id),
-		GetChildrenForOp(op, thd_id),
-		op->type,
+	    GetPipelineLineageNodeForOp(op, thd_id),
+	    GetChildrenForOp(op, thd_id),
+	    op->type,
 	    should_index
 	);
 	op->lineage_op[thd_id]->trace_lineage = trace_lineage;
-	// Set parent pointers
-	if (is_root || op->type != PhysicalOperatorType::PROJECTION) {
-		if (op->type == PhysicalOperatorType::HASH_JOIN) {
-			// Skip MARK join
-			if (dynamic_cast<PhysicalJoin *>(op)->join_type != JoinType::MARK) {
-				for (const auto& child : op->lineage_op[thd_id]->children) {
-					child->parents.push_back(op->lineage_op[thd_id]);
-				}
-			}
-		} else {
-			for (const auto& child : op->lineage_op[thd_id]->children) {
-				child->parents.push_back(op->lineage_op[thd_id]);
-			}
-		}
-	}
 }
 
 // Iterate through in Postorder to ensure that children have PipelineLineageNodes set before parents
@@ -268,7 +255,7 @@ idx_t PlanAnnotator(PhysicalOperator *op, idx_t counter, bool trace_lineage) {
  */
 void LineageManager::InitOperatorPlan(PhysicalOperator *op, bool trace_lineage) {
 	PlanAnnotator(op, 0, trace_lineage);
-	CreateOperatorLineage(op, -1, trace_lineage, true, true); // Always index root
+	CreateOperatorLineage(op, -1, trace_lineage, true); // Always index root
 }
 
 // Get the column types for this operator
