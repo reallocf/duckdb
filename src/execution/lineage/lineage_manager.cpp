@@ -342,8 +342,8 @@ vector<vector<ColumnDefinition>> LineageManager::GetTableColumnTypes(PhysicalOpe
 	case PhysicalOperatorType::HASH_JOIN: {
 		// build schema: [INTEGER in_index, BIGINT out_address] TODO convert from address to number?
 		vector<ColumnDefinition> build_table_columns;
-		build_table_columns.emplace_back("in_index", LogicalType::INTEGER);
 		build_table_columns.emplace_back("out_address", LogicalType::BIGINT);
+		build_table_columns.emplace_back("in_index", LogicalType::BIGINT);
 		build_table_columns.emplace_back("thread_id", LogicalType::INTEGER);
 		res.emplace_back(move(build_table_columns));
 		// probe schema: [BIGINT lhs_address, INTEGER rhs_index, INTEGER out_index]

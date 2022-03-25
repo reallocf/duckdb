@@ -46,6 +46,10 @@ select query_id, query from queries_list;
 statement ok
 PRAGMA trace_lineage = "OFF";
 
+statement ok
+PRAGMA explain_output = PHYSICAL_ONLY;
+PRAGMA force_index_join
+
 query III
 select *
 from LINEAGE_1_HASH_JOIN_2_1 AS probe

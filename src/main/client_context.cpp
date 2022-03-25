@@ -192,6 +192,9 @@ shared_ptr<PreparedStatementData> ClientContext::CreatePreparedStatement(ClientC
 	result->value_map = move(planner.value_map);
 	result->catalog_version = Transaction::GetTransaction(*this).catalog_version;
 
+	if(query.find("LINEAGE") != -1){
+		enable_optimizer = false;
+	}
 	if (enable_optimizer) {
 		profiler->StartPhase("optimizer");
 		Optimizer optimizer(*planner.binder, *this);
