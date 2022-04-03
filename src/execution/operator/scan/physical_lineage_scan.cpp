@@ -54,12 +54,12 @@ void PhysicalLineageScan::GetChunkInternal(ExecutionContext &context, DataChunk 
 	string st = info->table.substr(info->table.length()-1);
 	idx_t finished_idx = stoi(st);
 	if(state.lineageProcessStruct == nullptr) {
-		LineageProcessStruct lps = opLineage->Process(table->GetTypes(), 0, chunk, 0, -1, 0, finished_idx);
+		LineageProcessStruct lps = opLineage->Process(this->column_ids, table->GetTypes(), 0, chunk, 0, -1, 0, finished_idx);
 		state.lineageProcessStruct = std::make_shared<LineageProcessStruct>(lps);
 		return;
 	}
 
-	LineageProcessStruct lps = opLineage->Process(table->GetTypes(), state.lineageProcessStruct->count_so_far, chunk, state.lineageProcessStruct->size_so_far, -1, state.lineageProcessStruct->data_idx, state.lineageProcessStruct->finished_idx);
+	LineageProcessStruct lps = opLineage->Process(this->column_ids, table->GetTypes(), state.lineageProcessStruct->count_so_far, chunk, state.lineageProcessStruct->size_so_far, -1, state.lineageProcessStruct->data_idx, state.lineageProcessStruct->finished_idx);
 	state.lineageProcessStruct = std::make_shared<LineageProcessStruct>(lps);
 
 

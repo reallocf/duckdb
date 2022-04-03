@@ -54,7 +54,7 @@ public:
 	shared_ptr<PipelineLineage> GetPipelineLineage();
 	// Leaky... should refactor this so we don't need a pure pass-through function like this
 	void MarkChunkReturned();
-	LineageProcessStruct Process(const vector<LogicalType>& types, idx_t count_so_far, DataChunk &insert_chunk, idx_t size=0, int thread_id=-1, idx_t data_idx = 0, idx_t finished_idx = 0);
+	LineageProcessStruct Process(const vector<column_t> column_ids , const vector<LogicalType>& types, idx_t count_so_far, DataChunk &insert_chunk, idx_t size=0, int thread_id=-1, idx_t data_idx = 0, idx_t finished_idx = 0);
 	LineageProcessStruct PostProcess(idx_t chunk_count, idx_t count_so_far, int thread_id=-1, idx_t data_idx = 0, idx_t finished_idx = 0);
 	void Backward(const shared_ptr<vector<SourceAndMaybeData>>& lineage);
 	shared_ptr<vector<SourceAndMaybeData>> BackwardNext(bool next_to_leaf=false);

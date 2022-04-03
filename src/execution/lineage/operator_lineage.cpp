@@ -77,7 +77,7 @@ void OperatorLineage::MarkChunkReturned() {
 	dynamic_cast<PipelineJoinLineage *>(pipeline_lineage.get())->MarkChunkReturned();
 }
 
-LineageProcessStruct OperatorLineage::Process(const vector<LogicalType>& types, idx_t count_so_far,
+LineageProcessStruct OperatorLineage::Process(const vector<column_t> column_ids, const vector<LogicalType>& types, idx_t count_so_far,
                                               DataChunk &insert_chunk, idx_t size_so_far, int thread_id, idx_t data_idx, idx_t finished_idx) {
 	if (data[finished_idx].size() > data_idx) {
 		Vector thread_id_vec(Value::INTEGER(thread_id));
@@ -96,10 +96,14 @@ LineageProcessStruct OperatorLineage::Process(const vector<LogicalType>& types, 
 			Vector rhs_payload(types[0], this_data.data->Process(0));
 
 			insert_chunk.SetCardinality(res_count);
-			insert_chunk.data[0].Reference(lhs_payload);
-			insert_chunk.data[1].Reference(rhs_payload);
-			insert_chunk.data[2].Sequence(count_so_far, 1);
-			insert_chunk.data[3].Reference(thread_id_vec);
+			if(std::find(column_ids.begin(), column_ids.end(), 1) != column_ids.end())
+				insert_chunk.data[1].Reference(lhs_payload);
+			if(std::find(column_ids.begin(), column_ids.end(), 0) != column_ids.end())
+				insert_chunk.data[0].Reference(rhs_payload);
+			if(std::find(column_ids.begin(), column_ids.end(), 2) != column_ids.end())
+				insert_chunk.data[2].Sequence(count_so_far, 1);
+			if(std::find(column_ids.begin(), column_ids.end(), 3) != column_ids.end())
+				insert_chunk.data[3].Reference(thread_id_vec);
 
 			count_so_far += res_count;
 			size_so_far += this_data.data->Size();
@@ -131,10 +135,23 @@ LineageProcessStruct OperatorLineage::Process(const vector<LogicalType>& types, 
 			Vector rhs_payload(Value::Value::INTEGER(((int*)this_data.data->Process(0))[0]));
 
 			insert_chunk.SetCardinality(res_count);
-			insert_chunk.data[0].Sequence(this_data.child_offset, 1);
-			insert_chunk.data[1].Reference(rhs_payload);
-			insert_chunk.data[2].Sequence(count_so_far, 1);
-			insert_chunk.data[3].Reference(thread_id_vec);
+			idx_t idx = 0;
+			while(idx < res_count){
+				if (column_ids[idx] == 0){
+					insert_chunk.data[idx].Sequence(this_data.child_offset, 1);
+				}
+				else if(column_ids[idx] == 1){
+					insert_chunk.data[idx].Reference(rhs_payload);
+				}
+				else if(column_ids[idx] == 2){
+					insert_chunk.data[idx].Sequence(count_so_far, 1);
+				}
+				else if(column_ids[idx] == 3){
+					insert_chunk.data[idx].Reference(thread_id_vec);
+				}
+				++idx;
+			}
+
 			count_so_far += res_count;
 			size_so_far += this_data.data->Size();
 			break;
@@ -165,14 +182,26 @@ LineageProcessStruct OperatorLineage::Process(const vector<LogicalType>& types, 
 			LineageDataWithOffset this_data = data[LINEAGE_UNARY][data_idx];
 			idx_t res_count = this_data.data->Count();
 
-			Vector payload(types[0], this_data.data->Process(this_data.child_offset));
+			Vector in_index(types[1], this_data.data->Process(this_data.child_offset));
 
 			insert_chunk.Reset();
 			insert_chunk.SetCardinality(res_count);
-			insert_chunk.data[1].Reference(payload);
-			insert_chunk.data[0].Sequence(count_so_far, 1);
-			//insert_chunk.data[2].Sequence(count_so_far, 1);
-			//insert_chunk.data[3].Reference(thread_id_vec);
+			idx_t idx = 0;
+			while(idx < res_count){
+				if (column_ids[idx] == 0){
+					insert_chunk.data[idx].Sequence(count_so_far, 1);
+				}
+				else if(column_ids[idx] == 1){
+					insert_chunk.data[idx].Reference(in_index);
+				}
+				else if(column_ids[idx] == 2){
+					insert_chunk.data[idx].Sequence(count_so_far, 1);
+				}
+				else if(column_ids[idx] == 3){
+					insert_chunk.data[idx].Reference(thread_id_vec);
+				}
+				++idx;
+			}
 			count_so_far += res_count;
 			size_so_far += this_data.data->Size();
 			break;
@@ -186,11 +215,21 @@ LineageProcessStruct OperatorLineage::Process(const vector<LogicalType>& types, 
 				idx_t res_count = data[0][data_idx].data->Count();
 
 				Vector payload(types[1], this_data.data->Process(0));
-
 				insert_chunk.SetCardinality(res_count);
-				insert_chunk.data[1].Sequence(count_so_far, 1);
-				insert_chunk.data[0].Reference(payload);
-				insert_chunk.data[2].Reference(thread_id_vec);
+				idx_t idx = 0;
+
+				while(idx < column_ids.size()){
+					if (column_ids[idx] == 1){
+						insert_chunk.data[idx].Sequence(count_so_far, 1);
+					}
+					else if(column_ids[idx] == 0){
+						insert_chunk.data[idx].Reference(payload);
+					}
+					else if(column_ids[idx] == 2){
+						insert_chunk.data[idx].Reference(thread_id_vec);
+					}
+					++idx;
+				}
 				count_so_far += res_count;
 				size_so_far += this_data.data->Size();
 			} else {
@@ -234,10 +273,24 @@ LineageProcessStruct OperatorLineage::Process(const vector<LogicalType>& types, 
 				}
 
 				insert_chunk.SetCardinality(res_count);
-				insert_chunk.data[0].Reference(lhs_payload);
-				insert_chunk.data[1].Reference(rhs_payload);
-				insert_chunk.data[2].Sequence(count_so_far, 1);
-				insert_chunk.data[3].Reference(thread_id_vec);
+				idx_t idx = 0;
+
+				while(idx < column_ids.size()){
+					if (column_ids[idx] == 1){
+						insert_chunk.data[idx].Reference(rhs_payload);
+					}
+					else if(column_ids[idx] == 0){
+						insert_chunk.data[idx].Reference(lhs_payload);
+					}
+					else if(column_ids[idx] == 2){
+						insert_chunk.data[idx].Sequence(count_so_far, 1);
+					}
+					else if(column_ids[idx] == 3){
+						insert_chunk.data[idx].Reference(thread_id_vec);
+					}
+					++idx;
+				}
+
 				count_so_far += res_count;
 				size_so_far += this_data->data->Size();
 			}

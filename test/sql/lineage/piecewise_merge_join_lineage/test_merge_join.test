@@ -32,8 +32,8 @@ PRAGMA trace_lineage = "OFF";
 query II
 select query_id, query from queries_list;
 ----
+0	PRAGMA trace_lineage = "ON"
 1	select t1.i, t1.j, t2.i, t2.k from t1 inner join t2 on (t1.i < t2.i)
-2	PRAGMA trace_lineage = "OFF";
 
 query I
 pragma show_tables;

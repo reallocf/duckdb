@@ -1,6 +1,6 @@
 # name: test/sql/lineage/hash_join_variants_lineage/test_semi_hash_join.test
 # description: Test Semi Hash Joins
-# group: [hash_join_variants_lineage]
+# group: [semi_hash]
 
 statement ok
 CREATE TABLE t1(i INTEGER, j INTEGER);
@@ -39,8 +39,8 @@ select query_id, query from queries_list;
 query III
 select sink.in_index as build_index, rhs_index as probe_index, probe.out_index from LINEAGE_1_HASH_JOIN_2_1 AS probe, LINEAGE_1_HASH_JOIN_2_0 AS sink WHERE out_address=lhs_address ;
 ----
-1	2	1
 4	0	0
+1	2	1
 4	3	2
 4	4	3
 4	5	4
