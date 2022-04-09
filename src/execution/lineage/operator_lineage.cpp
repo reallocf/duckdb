@@ -368,8 +368,8 @@ shared_ptr<LineageDataWithOffset> OperatorLineage::GetMyLatest() {
 	}
 	case PhysicalOperatorType::CROSS_PRODUCT: {
 		// Only the right lineage is ever captured TODO is this what we should do?
-		if (!data[0].empty()) {
-			return make_shared<LineageDataWithOffset>(data[1][data[1].size() - 1]);
+		if (!data[LINEAGE_PROBE].empty()) {
+			return make_shared<LineageDataWithOffset>(data[LINEAGE_PROBE][data[LINEAGE_PROBE].size() - 1]);
 		}
 		return nullptr;
 	}

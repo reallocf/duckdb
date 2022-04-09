@@ -8,6 +8,8 @@
 
 #include <utility>
 
+#define PROBE_SIZE 10
+
 namespace duckdb {
 class PhysicalDelimJoin;
 class PhysicalJoin;
@@ -157,15 +159,42 @@ LineageProcessStruct OperatorLineage::PostProcess(idx_t chunk_count, idx_t count
 				// build hash table
 				LineageDataWithOffset this_data = data[LINEAGE_SINK][data_idx];
 				idx_t res_count = this_data.data->Count();
-				if (type == PhysicalOperatorType::PERFECT_HASH_GROUP_BY) {
-					auto payload = (sel_t*)this_data.data->Process(0);
-					for (idx_t i=0; i < res_count; ++i) {
-						hash_map_agg[(idx_t)payload[i]].push_back({i + count_so_far, nullptr});
+				if (data[LINEAGE_SOURCE].size() > PROBE_SIZE) {
+					// get min-max on this payload
+					auto min_v = std::numeric_limits<idx_t>::max();
+					auto max_v = std::numeric_limits<idx_t>::min();
+					if (type == PhysicalOperatorType::PERFECT_HASH_GROUP_BY) {
+						auto payload = (sel_t*)this_data.data->Process(0);
+						for (idx_t i=0; i < res_count; ++i) {
+							if ( (idx_t)payload[i] < min_v) min_v  = (idx_t)payload[i];
+							if ( (idx_t)payload[i] > max_v) max_v  = (idx_t)payload[i];
+						}
+					} else {
+						auto payload = (uint64_t*)this_data.data->Process(0);
+						for (idx_t i=0; i < res_count; ++i) {
+							if ( payload[i] < min_v) min_v  = payload[i];
+							if ( payload[i] > max_v) max_v  = payload[i];
+						}
 					}
+					hm_range.push_back(std::make_pair(min_v, max_v));
+					hash_chunk_count.push_back(count_so_far);
 				} else {
-					auto payload = (uint64_t*)this_data.data->Process(0);
-					for (idx_t i=0; i < res_count; ++i) {
-						hash_map_agg[(idx_t)payload[i]].push_back({i + count_so_far, nullptr});
+					if (type == PhysicalOperatorType::PERFECT_HASH_GROUP_BY) {
+						auto payload = (sel_t*)this_data.data->Process(0);
+						for (idx_t i=0; i < res_count; ++i) {
+//							if (hash_map_agg[(idx_t)payload[i]] == nullptr) {
+//								hash_map_agg[(idx_t)payload[i]] = make_shared<vector<SourceAndMaybeData>>();
+//							}
+							hash_map_agg[(idx_t)payload[i]].push_back({i + count_so_far, nullptr});
+						}
+					} else {
+						auto payload = (uint64_t*)this_data.data->Process(0);
+						for (idx_t i=0; i < res_count; ++i) {
+//							if (hash_map_agg[(idx_t)payload[i]] == nullptr) {
+//								hash_map_agg[(idx_t)payload[i]] = make_shared<vector<SourceAndMaybeData>>();
+//							}
+							hash_map_agg[(idx_t)payload[i]].push_back({i + count_so_far, nullptr});
+						}
 					}
 				}
 				count_so_far += res_count;
@@ -214,8 +243,8 @@ LineageProcessStruct OperatorLineage::PostProcess(idx_t chunk_count, idx_t count
 	return LineageProcessStruct{ count_so_far, 0, data[finished_idx].size() > data_idx };
 }
 
-unique_ptr<vector<SourceAndMaybeData>> AccessLineageDataViaIndex(
-    unique_ptr<vector<SourceAndMaybeData>> lineage, // We believe that there is no data in any of these if it's passed here
+void AccessLineageDataViaIndex(
+    const shared_ptr<vector<SourceAndMaybeData>>& lineage, // We believe that there is no data in any of these if it's passed here
     const vector<LineageDataWithOffset>& data,
     const vector<idx_t>& index
 ) {
@@ -249,7 +278,6 @@ unique_ptr<vector<SourceAndMaybeData>> AccessLineageDataViaIndex(
 			};
 		}
 	}
-	return lineage;
 }
 
 SimpleAggQueryStruct OperatorLineage::RecurseForSimpleAgg(const shared_ptr<OperatorLineage>& child) {
@@ -288,7 +316,7 @@ Generator<unique_ptr<LineageRes>> GenWrapper(unique_ptr<LineageRes> res) {
 	co_yield move(res);
 }
 
-Generator<unique_ptr<LineageRes>> OperatorLineage::Backward(unique_ptr<vector<SourceAndMaybeData>> lineage) {
+Generator<unique_ptr<LineageRes>> OperatorLineage::Backward(shared_ptr<vector<SourceAndMaybeData>> lineage) {
 	if (lineage->empty()) {
 		// Skip if empty
 		co_yield make_unique<LineageResVal>(LineageResVal({}));
@@ -319,7 +347,7 @@ Generator<unique_ptr<LineageRes>> OperatorLineage::Backward(unique_ptr<vector<So
 			co_yield make_unique<LineageResVal>(LineageResVal(move(lineage)));
 		} else {
 			if ((*lineage.get())[0].data == nullptr) {
-				lineage = AccessLineageDataViaIndex(move(lineage), data[LINEAGE_UNARY], index);
+				AccessLineageDataViaIndex(lineage, data[LINEAGE_UNARY], index);
 			}
 			for (idx_t i = 0; i < lineage->size(); i++) {
 				shared_ptr<LineageDataWithOffset> this_data = (*lineage.get())[i].data;
@@ -332,7 +360,7 @@ Generator<unique_ptr<LineageRes>> OperatorLineage::Backward(unique_ptr<vector<So
 	case PhysicalOperatorType::FILTER:
 	case PhysicalOperatorType::LIMIT: {
 		if ((*lineage.get())[0].data == nullptr) {
-			lineage = AccessLineageDataViaIndex(move(lineage), data[LINEAGE_UNARY], index);
+			AccessLineageDataViaIndex(lineage, data[LINEAGE_UNARY], index);
 		}
 		for (idx_t i = 0; i < lineage->size(); i++) {
 			(*lineage.get())[i] = {
@@ -340,7 +368,7 @@ Generator<unique_ptr<LineageRes>> OperatorLineage::Backward(unique_ptr<vector<So
 				(*lineage.get())[i].data->data->GetChild()
 			};
 		}
-		Generator<unique_ptr<LineageRes>> child_gen = children[0]->Backward(move(lineage));
+		Generator<unique_ptr<LineageRes>> child_gen = children[0]->Backward(lineage);
 		while (child_gen.Next()) {
 			co_yield child_gen.GetValue();
 		}
@@ -350,7 +378,7 @@ Generator<unique_ptr<LineageRes>> OperatorLineage::Backward(unique_ptr<vector<So
 		// we need hash table from the build side
 		// access the probe side, get the address from the right side
 		if ((*lineage.get())[0].data == nullptr) {
-			lineage = AccessLineageDataViaIndex(move(lineage), data[LINEAGE_PROBE], index);
+			AccessLineageDataViaIndex(lineage, data[LINEAGE_PROBE], index);
 		}
 		unique_ptr<vector<SourceAndMaybeData>> right_lineage = make_unique<vector<SourceAndMaybeData>>();
 		unique_ptr<vector<SourceAndMaybeData>> left_lineage = make_unique<vector<SourceAndMaybeData>>();
@@ -402,32 +430,100 @@ Generator<unique_ptr<LineageRes>> OperatorLineage::Backward(unique_ptr<vector<So
 	}
 	case PhysicalOperatorType::HASH_GROUP_BY: {
 		if ((*lineage.get())[0].data == nullptr) {
-			lineage = AccessLineageDataViaIndex(move(lineage), data[LINEAGE_SOURCE], index);
+			AccessLineageDataViaIndex(lineage, data[LINEAGE_SOURCE], index);
 		}
 
-		vector<unique_ptr<LineageRes>> res;
-		for (const SourceAndMaybeData& source : *lineage.get()) {
-			auto payload = (uint64_t*)source.data->data->Process(0);
-			auto res_list = hash_map_agg[payload[source.source]];
-			Generator<unique_ptr<LineageRes>> child_gen = children[0]->Backward(make_unique<vector<SourceAndMaybeData>>(res_list));
+		if (data[LINEAGE_SOURCE].size() > PROBE_SIZE) {
+			vector<SourceAndMaybeData> orig_lineage = vector<SourceAndMaybeData>(*lineage.get());
+			lineage->clear();
+
+			for (const SourceAndMaybeData &source : orig_lineage) {
+				auto payload = (uint64_t *)source.data->data->Process(0);
+				auto val = payload[source.source];
+				// iterate the index to find potential chunks
+				auto flag = false;
+				for (idx_t it = 0; it < hm_range.size(); ++it) {
+					if (val >= hm_range[it].first && val <= hm_range[it].second) {
+						// scan this chunk
+						LineageDataWithOffset this_data = data[LINEAGE_SINK][it];
+						idx_t res_count = this_data.data->Count();
+						auto sink_payload = (uint64_t *)this_data.data->Process(0);
+						for (idx_t it2 = 0; it2 < res_count; ++it2) {
+							if (sink_payload[it2] == val) {
+								lineage->push_back({it2 + hash_chunk_count[it], nullptr});
+								flag = true;
+								break;
+							}
+						}
+					}
+					if (flag) {
+						break;
+					}
+				}
+			}
+			// TODO yield earlier?
+			Generator<unique_ptr<LineageRes>> child_gen = children[0]->Backward(lineage);
 			while (child_gen.Next()) {
 				co_yield child_gen.GetValue();
+			}
+		} else {
+			for (const SourceAndMaybeData& source : *lineage.get()) {
+				auto payload = (uint64_t*)source.data->data->Process(0);
+				auto res_list = hash_map_agg[payload[source.source]];
+				Generator<unique_ptr<LineageRes>> child_gen = children[0]->Backward(make_shared<vector<SourceAndMaybeData>>(res_list));
+				while (child_gen.Next()) {
+					co_yield child_gen.GetValue();
+				}
 			}
 		}
 		co_return;
 	}
 	case PhysicalOperatorType::PERFECT_HASH_GROUP_BY: {
 		if ((*lineage.get())[0].data == nullptr) {
-			lineage = AccessLineageDataViaIndex(move(lineage), data[LINEAGE_SOURCE], index);
+			AccessLineageDataViaIndex(lineage, data[LINEAGE_SOURCE], index);
 		}
 
-		vector<unique_ptr<LineageRes>> res;
-		for (const SourceAndMaybeData& source : *lineage.get()) {
-			auto payload = (sel_t*)source.data->data->Process(0);
-			auto res_list = hash_map_agg[payload[source.source]];
-			Generator<unique_ptr<LineageRes>> child_gen = children[0]->Backward(make_unique<vector<SourceAndMaybeData>>(res_list));
-			while (child_gen.Next()) {
-				co_yield child_gen.GetValue();
+		if (data[LINEAGE_SOURCE].size() > PROBE_SIZE) {
+			vector<SourceAndMaybeData> orig_lineage = vector<SourceAndMaybeData>(*lineage.get());
+			lineage->clear();
+
+			for (const SourceAndMaybeData &source : orig_lineage) {
+				auto payload = (sel_t *)source.data->data->Process(0);
+				auto val = payload[source.source];
+				// iterate the index to find potential chunks
+				auto flag = false;
+				for (idx_t it = 0; it < hm_range.size(); ++it) {
+					if (val >= hm_range[it].first && val <= hm_range[it].second) {
+						// scan this chunk
+						LineageDataWithOffset this_data = data[LINEAGE_SINK][it];
+						idx_t res_count = this_data.data->Count();
+						auto sink_payload = (sel_t *)this_data.data->Process(0);
+						for (idx_t it2 = 0; it2 < res_count; ++it2) {
+							if (sink_payload[it2] == val) {
+								lineage->push_back({it2 + hash_chunk_count[it], nullptr});
+								flag = true;
+								break;
+							}
+						}
+					}
+					if (flag) {
+						break;
+					}
+				}
+				// TODO yield earlier?
+				Generator<unique_ptr<LineageRes>> child_gen = children[0]->Backward(lineage);
+				while (child_gen.Next()) {
+					co_yield child_gen.GetValue();
+				}
+			}
+		} else {
+			for (const SourceAndMaybeData& source : *lineage.get()) {
+				auto payload = (sel_t*)source.data->data->Process(0);
+				auto res_list = hash_map_agg[payload[source.source]];
+				Generator<unique_ptr<LineageRes>> child_gen = children[0]->Backward(make_shared<vector<SourceAndMaybeData>>(res_list));
+				while (child_gen.Next()) {
+					co_yield child_gen.GetValue();
+				}
 			}
 		}
 		co_return;
@@ -444,10 +540,10 @@ Generator<unique_ptr<LineageRes>> OperatorLineage::Backward(unique_ptr<vector<So
 	case PhysicalOperatorType::PIECEWISE_MERGE_JOIN:
 	case PhysicalOperatorType::NESTED_LOOP_JOIN: {
 		if ((*lineage.get())[0].data == nullptr) {
-			lineage = AccessLineageDataViaIndex(move(lineage), data[LINEAGE_PROBE], index);
+			AccessLineageDataViaIndex(lineage, data[LINEAGE_PROBE], index);
 		}
 
-		unique_ptr<vector<SourceAndMaybeData>> left_lineage = make_unique<vector<SourceAndMaybeData>>();
+		shared_ptr<vector<SourceAndMaybeData>> left_lineage = make_shared<vector<SourceAndMaybeData>>();
 		left_lineage->reserve(lineage->size());
 		for (idx_t i = 0; i < lineage->size(); i++) {
 			SourceAndMaybeData source = (*lineage.get())[i];
@@ -468,10 +564,10 @@ Generator<unique_ptr<LineageRes>> OperatorLineage::Backward(unique_ptr<vector<So
 		co_return;
 	} case PhysicalOperatorType::CROSS_PRODUCT: {
 		if ((*lineage.get())[0].data == nullptr) {
-			lineage = AccessLineageDataViaIndex(move(lineage), data[LINEAGE_PROBE], index);
+			AccessLineageDataViaIndex(lineage, data[LINEAGE_PROBE], index);
 		}
 
-		unique_ptr<vector<SourceAndMaybeData>> left_lineage = make_unique<vector<SourceAndMaybeData>>();
+		shared_ptr<vector<SourceAndMaybeData>> left_lineage = make_shared<vector<SourceAndMaybeData>>();
 		left_lineage->reserve(lineage->size());
 		for (idx_t i = 0; i < lineage->size(); i++) {
 			left_lineage->push_back({(*lineage.get())[i].source, (*lineage.get())[i].data->data->GetChild()});
@@ -484,7 +580,7 @@ Generator<unique_ptr<LineageRes>> OperatorLineage::Backward(unique_ptr<vector<So
 	}
 	case PhysicalOperatorType::INDEX_JOIN: {
 		if ((*lineage.get())[0].data == nullptr) {
-			lineage = AccessLineageDataViaIndex(move(lineage), data[LINEAGE_UNARY], index);
+			AccessLineageDataViaIndex(lineage, data[LINEAGE_UNARY], index);
 		}
 
 		vector<SourceAndMaybeData> left_lineage;
@@ -539,10 +635,8 @@ Generator<unique_ptr<LineageRes>> OperatorLineage::Backward(unique_ptr<vector<So
 			co_return;
 		}
 
-		vector<unique_ptr<LineageRes>> res;
-		res.reserve(agg_struct.child_lineage_data_vector.size());
 		for (const LineageDataWithOffset& child_lineage_data : agg_struct.child_lineage_data_vector) {
-			unique_ptr<vector<SourceAndMaybeData>> child_lineage = make_unique<vector<SourceAndMaybeData>>();
+			shared_ptr<vector<SourceAndMaybeData>> child_lineage = make_shared<vector<SourceAndMaybeData>>();
 			child_lineage->reserve(child_lineage_data.data->Count());
 			for (idx_t i = 0; i < child_lineage_data.data->Count(); i++) {
 				child_lineage->push_back({i, make_unique<LineageDataWithOffset>(child_lineage_data)});
@@ -563,7 +657,7 @@ Generator<unique_ptr<LineageRes>> OperatorLineage::Backward(unique_ptr<vector<So
 
 vector<idx_t> LineageManager::Backward(PhysicalOperator *op, idx_t source) {
 	// an operator can have lineage from multiple threads, how to decide which one to check?
-	unique_ptr<vector<SourceAndMaybeData>> sources = make_unique<vector<SourceAndMaybeData>>();
+	shared_ptr<vector<SourceAndMaybeData>> sources = make_shared<vector<SourceAndMaybeData>>();
 	sources->push_back({source, nullptr});
 	Generator<unique_ptr<LineageRes>> lineage_gen = op->lineage_op.at(-1)->Backward(move(sources));
 	vector<idx_t> res;
@@ -576,7 +670,7 @@ vector<idx_t> LineageManager::Backward(PhysicalOperator *op, idx_t source) {
 
 idx_t LineageManager::BackwardCount(PhysicalOperator *op, idx_t source) {
 	// an operator can have lineage from multiple threads, how to decide which one to check?
-	unique_ptr<vector<SourceAndMaybeData>> sources = make_unique<vector<SourceAndMaybeData>>();
+	shared_ptr<vector<SourceAndMaybeData>> sources = make_shared<vector<SourceAndMaybeData>>();
 	sources->push_back({source, nullptr});
 	Generator<unique_ptr<LineageRes>> lineage_gen = op->lineage_op.at(-1)->Backward(move(sources));
 	idx_t count = 0;

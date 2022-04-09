@@ -62,7 +62,7 @@ public:
 	void MarkChunkReturned();
 	LineageProcessStruct Process(const vector<LogicalType>& types, idx_t count_so_far, DataChunk &insert_chunk, idx_t size=0, int thread_id=-1);
 	LineageProcessStruct PostProcess(idx_t chunk_count, idx_t count_so_far, int thread_id=-1);
-	Generator<unique_ptr<LineageRes>> Backward(unique_ptr<vector<SourceAndMaybeData>> lineage);
+	Generator<unique_ptr<LineageRes>> Backward(shared_ptr<vector<SourceAndMaybeData>> lineage);
 	// Leaky... should refactor this so we don't need a pure pass-through function like this
 	void SetChunkId(idx_t idx);
 	idx_t Size();
@@ -213,13 +213,13 @@ private:
 
 class LineageResVal : public LineageRes {
 public:
-	explicit LineageResVal(unique_ptr<vector<SourceAndMaybeData>> lineage) : vals(move(lineage)) {}
+	explicit LineageResVal(shared_ptr<vector<SourceAndMaybeData>> lineage) : vals(move(lineage)) {}
 
 	vector<idx_t> GetValues() override;
 	idx_t GetCount() override;
 
 private:
-	unique_ptr<vector<SourceAndMaybeData>> vals;
+	shared_ptr<vector<SourceAndMaybeData>> vals;
 };
 
 } // namespace duckdb
