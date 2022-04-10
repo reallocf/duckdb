@@ -17,9 +17,7 @@ class PhysicalJoin;
 void LineageManager::PostProcess(PhysicalOperator *op, bool should_index) {
 	// massage the data to make it easier to query
 	bool always_post_process =
-	    op->type == PhysicalOperatorType::HASH_GROUP_BY
-	    || op->type == PhysicalOperatorType::PERFECT_HASH_GROUP_BY
-	    || op->type == PhysicalOperatorType::HASH_JOIN;
+	    op->type == PhysicalOperatorType::HASH_GROUP_BY || op->type == PhysicalOperatorType::PERFECT_HASH_GROUP_BY;
 	bool never_post_process =
 	    op->type == PhysicalOperatorType::ORDER_BY; // 1 large chunk, so index is useless
 	if ((always_post_process || (should_index && LINEAGE_INDEX_TYPE == 1)) && !never_post_process) {
@@ -27,11 +25,11 @@ void LineageManager::PostProcess(PhysicalOperator *op, bool should_index) {
 		for (idx_t i = 0; i < table_column_types.size(); i++) {
 			bool skip_this_sel_vec =
 				(op->type == PhysicalOperatorType::HASH_GROUP_BY && i == LINEAGE_COMBINE)
+			    || (op->type == PhysicalOperatorType::HASH_JOIN && i == LINEAGE_BUILD)
+			    || (op->type == PhysicalOperatorType::HASH_JOIN && dynamic_cast<PhysicalJoin *>(op)->join_type != JoinType::MARK)
 			    || (op->type == PhysicalOperatorType::PERFECT_HASH_GROUP_BY && i == LINEAGE_COMBINE)
 			    || (op->type == PhysicalOperatorType::HASH_GROUP_BY && i == LINEAGE_SOURCE && !(should_index && LINEAGE_INDEX_TYPE == 1))
-			    || (op->type == PhysicalOperatorType::PERFECT_HASH_GROUP_BY && i == LINEAGE_SOURCE && !(should_index && LINEAGE_INDEX_TYPE == 1))
-			    || (op->type == PhysicalOperatorType::HASH_JOIN && i == LINEAGE_PROBE && !(should_index && LINEAGE_INDEX_TYPE == 1)
-			        && dynamic_cast<PhysicalJoin *>(op)->join_type != JoinType::MARK);
+			    || (op->type == PhysicalOperatorType::PERFECT_HASH_GROUP_BY && i == LINEAGE_SOURCE && !(should_index && LINEAGE_INDEX_TYPE == 1));
 			if (skip_this_sel_vec) {
 				continue;
 			}
@@ -94,48 +92,8 @@ LineageProcessStruct OperatorLineage::PostProcess(idx_t chunk_count, idx_t count
 		case PhysicalOperatorType::HASH_JOIN: {
 			// Hash Join - other joins too?
 			if (finished_idx == LINEAGE_BUILD) {
-				// build hash table with range -> acc
-				// if x in range -> then use range.start and adjust the value using acc
-				LineageDataWithOffset this_data = data[LINEAGE_BUILD][data_idx];
-				auto payload = (uint64_t*)this_data.data->Process(0);
-				idx_t res_count = this_data.data->Count();
-				if (offset == 0 && res_count > 1) {
-					offset = payload[1] - payload[0];
-				}
-
-				// init base
-				if (start_base == 0) {
-					start_base = payload[0];
-					last_base = payload[res_count-1];
-					hm_range.push_back(std::make_pair(start_base, last_base));
-					hash_chunk_count.push_back(0);
-				} else {
-					if (offset == 0) {
-						offset = payload[res_count-1] -start_base;
-					}
-					auto diff = (payload[res_count-1] - start_base)/offset;
-					if (diff+1 !=  count_so_far+res_count-hash_chunk_count.back()) {
-						// update the range and log the old one
-						// range -> count
-						// if value fall in this range, then remove the start / offset
-						for (idx_t j=0; j < res_count; ++j) {
-							auto f = ((payload[j] - start_base)/offset);
-							auto s =  count_so_far+j-hash_chunk_count.back();
-							if ( f !=  s) {
-								if (j > 1)
-									hm_range.back().second = payload[j-1]; // the previous one
-								hash_chunk_count.push_back(count_so_far+j);
-								start_base = payload[j];
-								last_base = payload[res_count-1];
-								hm_range.push_back(std::make_pair(start_base, last_base));
-								break;
-							}
-						}
-					} else {
-						hm_range.back().second = payload[res_count-1];
-					}
-				}
-				count_so_far += res_count;
+				// Shouldn't hit this code path
+				D_ASSERT(false);
 			} else {
 				// Array index
 				if (chunk_count == 0) {
