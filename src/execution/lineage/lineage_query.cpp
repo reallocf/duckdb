@@ -207,24 +207,37 @@ void AccessLineageDataViaIndex(
     const vector<idx_t>& index
 ) {
 	if (LINEAGE_INDEX_TYPE == 0) {
-		// Binary Search index
+		// In this version we don't use the index, so we need to find the right offset from scratch
 		for (idx_t i = 0; i < lineage->size(); i++) {
-			// we need a way to locate the exact data we should access
-			// from the source index
-			auto lower = lower_bound(index.begin(), index.end(), (*lineage.get())[i].source);
-			if (lower == index.end()) {
-				throw std::logic_error("Out of bounds lineage requested");
+			LineageDataWithOffset this_data;
+			for (idx_t j = 0; j < data.size(); j++) {
+				if (data[j].this_offset + data[j].data->Count() > (*lineage.get())[i].source) {
+					this_data = data[j];
+					break;
+				}
 			}
-			auto chunk_id = lower - index.begin();
-			if (*lower == (*lineage.get())[i].source) {
-				chunk_id += 1;
-			}
-			auto this_data = data[chunk_id];
-			if (chunk_id > 0) {
-				(*lineage.get())[i].source -= index[chunk_id-1];
-			}
-			(*lineage.get())[i].data = make_unique<LineageDataWithOffset>(this_data);
+			(*lineage.get())[i].source -= this_data.this_offset;
+			(*lineage.get())[i].data = make_shared<LineageDataWithOffset>(this_data);
 		}
+
+		// Binary Search index
+//		for (idx_t i = 0; i < lineage->size(); i++) {
+//			// we need a way to locate the exact data we should access
+//			// from the source index
+//			auto lower = lower_bound(index.begin(), index.end(), (*lineage.get())[i].source);
+//			if (lower == index.end()) {
+//				throw std::logic_error("Out of bounds lineage requested");
+//			}
+//			auto chunk_id = lower - index.begin();
+//			if (*lower == (*lineage.get())[i].source) {
+//				chunk_id += 1;
+//			}
+//			auto this_data = data[chunk_id];
+//			if (chunk_id > 0) {
+//				(*lineage.get())[i].source -= index[chunk_id-1];
+//			}
+//			(*lineage.get())[i].data = make_shared<LineageDataWithOffset>(this_data);
+//		}
 	} else {
 		// Array index
 		for (idx_t i = 0; i < lineage->size(); i++) {
