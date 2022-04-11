@@ -13,7 +13,7 @@ void OperatorLineage::Capture(const shared_ptr<LineageData>& datum, idx_t lineag
 	pipeline_lineage->AdjustChunkOffsets(datum->Count(), lineage_idx);
 
 	// Set child ptr
-	datum->SetChild(GetChildLatest(lineage_idx));
+//	datum->SetChild(GetChildLatest(lineage_idx));
 
 	// Capture this vector
 	idx_t child_offset = pipeline_lineage->GetChildChunkOffset(lineage_idx);

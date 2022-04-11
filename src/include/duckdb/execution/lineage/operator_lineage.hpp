@@ -126,13 +126,13 @@ struct LineageIndexStruct {
 	// Input chunk that we transform via the index to replace the appropriate values
 	DataChunk &chunk;
 	// Pointers to quickly jump into the right child lineage data
-	vector<shared_ptr<LineageDataWithOffset>> &child_ptrs;
+//	vector<shared_ptr<LineageDataWithOffset>> &child_ptrs;
 	// Returned join chunk to be pushed into chunk scan
 	DataChunk &join_chunk;
 	// For when we overflow the chunk ex: aggregations with more than 1024 values
 	vector<Vector> &cached_values_arr;
 	// For when we overflow the chunk with ptrs ex: simple aggs
-	vector<vector<shared_ptr<LineageDataWithOffset>>> &cached_child_ptrs_arr;
+//	vector<vector<shared_ptr<LineageDataWithOffset>>> &cached_child_ptrs_arr;
 	// For when we overflow the chunk - the count
 	idx_t &overflow_count;
 };
