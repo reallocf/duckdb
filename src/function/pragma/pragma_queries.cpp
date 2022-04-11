@@ -38,14 +38,44 @@ string PragmaBackwardLineage(ClientContext &context, const FunctionParameters &p
 		idx_t out_idx;
 		while (ss >> word) {
 			clock_t start = clock();
-			out_idx = context.lineage_manager->BackwardCount(op, (idx_t)stoi(word));
+			out_idx = context.lineage_manager->BackwardCount(op, (idx_t)stoi(word), LIN);
+			clock_t end = clock();
+			std::cout << "Root Backward time: " << ((float) end - start) / CLOCKS_PER_SEC << std::endl;
+		}
+
+		return StringUtil::Format("SELECT %i", out_idx);
+	} else if (mode == "LIN") {
+		idx_t out_idx;
+		while (ss >> word) {
+			clock_t start = clock();
+			out_idx = context.lineage_manager->BackwardCount(op, (idx_t)stoi(word), LIN);
+			clock_t end = clock();
+			std::cout << "Root Backward time: " << ((float) end - start) / CLOCKS_PER_SEC << std::endl;
+		}
+
+		return StringUtil::Format("SELECT %i", out_idx);
+	} else if (mode == "PERM") {
+		idx_t out_idx;
+		while (ss >> word) {
+			clock_t start = clock();
+			out_idx = context.lineage_manager->BackwardCount(op, (idx_t)stoi(word), PERM);
+			clock_t end = clock();
+			std::cout << "Root Backward time: " << ((float) end - start) / CLOCKS_PER_SEC << std::endl;
+		}
+
+		return StringUtil::Format("SELECT %i", out_idx);
+	} else if (mode == "PROV") {
+		idx_t out_idx;
+		while (ss >> word) {
+			clock_t start = clock();
+			out_idx = context.lineage_manager->BackwardCount(op, (idx_t)stoi(word), PROV);
 			clock_t end = clock();
 			std::cout << "Root Backward time: " << ((float) end - start) / CLOCKS_PER_SEC << std::endl;
 		}
 
 		return StringUtil::Format("SELECT %i", out_idx);
 	} else {
-		throw std::logic_error("Invalid backward query mode - should be VALUE or COUNT");
+		throw std::logic_error("Invalid backward query mode - should one of [VALUE, COUNT, LIN, PERM, PROV]");
 	}
 }
 #endif
