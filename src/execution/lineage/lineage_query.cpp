@@ -482,23 +482,39 @@ vector<shared_ptr<LineageDataWithOffset>> LookupChunksFromGlobalIndex(
 	vector<shared_ptr<LineageDataWithOffset>> res;
 	res.reserve(chunk.size());
 	// Binary Search index
+//	for (idx_t i = 0; i < chunk.size(); i++) {
+//		idx_t val = chunk.GetValue(0, i).GetValue<uint64_t>();
+//		// we need a way to locate the exact data we should access
+//		// from the source index
+//		auto lower = lower_bound(index.begin(), index.end(), val);
+//		if (lower == index.end() || (lower == index.end() - 1 && *lower == val)) {
+//			throw std::logic_error("Out of bounds lineage requested");
+//		}
+//		auto chunk_id = lower - index.begin();
+//		if (*lower == val) {
+//			chunk_id += 1;
+//		}
+//		auto this_data = data[chunk_id];
+//		if (chunk_id > 0) {
+//			val -= index[chunk_id-1];
+//		}
+//		chunk.SetValue(0, i, Value::UBIGINT(val));
+//		res.push_back(make_unique<LineageDataWithOffset>(this_data));
+//	}
+
+	// In this version we don't use the index, so we need to find the right offset by scanning each chunk
+	// until we find the right one
 	for (idx_t i = 0; i < chunk.size(); i++) {
+		LineageDataWithOffset this_data;
 		idx_t val = chunk.GetValue(0, i).GetValue<uint64_t>();
-		// we need a way to locate the exact data we should access
-		// from the source index
-		auto lower = lower_bound(index.begin(), index.end(), val);
-		if (lower == index.end() || (lower == index.end() - 1 && *lower == val)) {
-			throw std::logic_error("Out of bounds lineage requested");
+		// Scanning every chunk == slow if there are many...
+		for (idx_t j = 0; j < data.size(); j++) {
+			if (data[j].this_offset + data[j].data->Count() > val) {
+				this_data = data[j];
+				break;
+			}
 		}
-		auto chunk_id = lower - index.begin();
-		if (*lower == val) {
-			chunk_id += 1;
-		}
-		auto this_data = data[chunk_id];
-		if (chunk_id > 0) {
-			val -= index[chunk_id-1];
-		}
-		chunk.SetValue(0, i, Value::UBIGINT(val));
+		chunk.SetValue(0, i, Value::UBIGINT(val - this_data.this_offset));
 		res.push_back(make_unique<LineageDataWithOffset>(this_data));
 	}
 	return res;

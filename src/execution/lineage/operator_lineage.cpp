@@ -25,43 +25,43 @@ void OperatorLineage::Capture(const shared_ptr<LineageData>& datum, idx_t lineag
 	}
 
 	// Add to index
-	if (should_index) {
-		switch (type) {
-		case PhysicalOperatorType::FILTER:
-		case PhysicalOperatorType::INDEX_JOIN:
-		case PhysicalOperatorType::LIMIT:
-		case PhysicalOperatorType::TABLE_SCAN: {
-			// Binary Search index
-			idx_t index_last = index.empty() ? 0 : index[index.size() - 1];
-			index.push_back(index_last + datum->Count());
-			break;
-		}
-		case PhysicalOperatorType::BLOCKWISE_NL_JOIN:
-		case PhysicalOperatorType::CROSS_PRODUCT:
-		case PhysicalOperatorType::HASH_JOIN:
-		case PhysicalOperatorType::PIECEWISE_MERGE_JOIN:
-		case PhysicalOperatorType::NESTED_LOOP_JOIN: {
-			if (lineage_idx == LINEAGE_PROBE) {
-				// Binary Search index
-				idx_t index_last = index.empty() ? 0 : index[index.size() - 1];
-				index.push_back(index_last + datum->Count());
-			}
-			break;
-		}
-		case PhysicalOperatorType::HASH_GROUP_BY:
-		case PhysicalOperatorType::PERFECT_HASH_GROUP_BY: {
-			if (lineage_idx == LINEAGE_SOURCE) {
-				// Binary Search index
-				idx_t index_last = index.empty() ? 0 : index[index.size() - 1];
-				index.push_back(index_last + datum->Count());
-			}
-			break;
-		}
-		default:
-			// We must capture lineage for everything getting indexed
-			D_ASSERT(false);
-		}
-	}
+//	if (should_index) {
+//		switch (type) {
+//		case PhysicalOperatorType::FILTER:
+//		case PhysicalOperatorType::INDEX_JOIN:
+//		case PhysicalOperatorType::LIMIT:
+//		case PhysicalOperatorType::TABLE_SCAN: {
+//			// Binary Search index
+//			idx_t index_last = index.empty() ? 0 : index[index.size() - 1];
+//			index.push_back(index_last + datum->Count());
+//			break;
+//		}
+//		case PhysicalOperatorType::BLOCKWISE_NL_JOIN:
+//		case PhysicalOperatorType::CROSS_PRODUCT:
+//		case PhysicalOperatorType::HASH_JOIN:
+//		case PhysicalOperatorType::PIECEWISE_MERGE_JOIN:
+//		case PhysicalOperatorType::NESTED_LOOP_JOIN: {
+//			if (lineage_idx == LINEAGE_PROBE) {
+//				// Binary Search index
+//				idx_t index_last = index.empty() ? 0 : index[index.size() - 1];
+//				index.push_back(index_last + datum->Count());
+//			}
+//			break;
+//		}
+//		case PhysicalOperatorType::HASH_GROUP_BY:
+//		case PhysicalOperatorType::PERFECT_HASH_GROUP_BY: {
+//			if (lineage_idx == LINEAGE_SOURCE) {
+//				// Binary Search index
+//				idx_t index_last = index.empty() ? 0 : index[index.size() - 1];
+//				index.push_back(index_last + datum->Count());
+//			}
+//			break;
+//		}
+//		default:
+//			// We must capture lineage for everything getting indexed
+//			D_ASSERT(false);
+//		}
+//	}
 
 	// Build Hash Join BUILD index
 	if (type == PhysicalOperatorType::HASH_JOIN && lineage_idx == LINEAGE_BUILD) {
