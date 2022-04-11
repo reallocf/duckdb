@@ -1,0 +1,36 @@
+# name: test/sql/lineage/inmemory_lineage_query/test_bw_groupby_hash_aggregate_lineage.test
+# description: Test Group By linage -- hash aggregate
+# group: [inmemory_lineage_query]
+
+statement ok
+PRAGMA trace_lineage = "OFF";
+
+statement ok
+CREATE TABLE t1(i VARCHAR(10), j INTEGER);
+
+statement ok
+INSERT INTO t1 VALUES ('Haneen', 2),  ('Omar', 2), ('Haneen', 4), ('Mohammed', 1), ('Omar', 1), ('Haneen', 3), ('Mohammed', 2), ('Omar', 1)
+
+statement ok
+PRAGMA trace_lineage = "ON";
+
+# standalone limit
+query II
+select t1.i, avg(t1.j) from t1 GROUP BY t1.i
+----
+Haneen	3.000000
+Omar	1.333333
+Mohammed	1.500000
+
+statement ok
+PRAGMA trace_lineage = "OFF";
+
+query I
+PRAGMA backward_lineage('select t1.i, avg(t1.j) from t1 GROUP BY t1.i', 'VALUE', '0')
+----
+[0, 2, 5]
+
+query I
+PRAGMA backward_lineage('select t1.i, avg(t1.j) from t1 GROUP BY t1.i', 'VALUE', '1')
+----
+[1, 4, 7]

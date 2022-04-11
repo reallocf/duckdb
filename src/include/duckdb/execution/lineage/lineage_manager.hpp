@@ -16,6 +16,7 @@
 #include "duckdb/catalog/catalog.hpp"
 #include "duckdb/common/types/chunk_collection.hpp"
 #include "duckdb/catalog/catalog_entry/table_catalog_entry.hpp"
+#include "operator_lineage.hpp"
 
 #include <iostream>
 #include <utility>
@@ -32,13 +33,16 @@ class PhysicalOperator;
 class LineageManager {
 public:
 	explicit LineageManager(ClientContext &context) : context(context) {};
-
+	vector<vector<ColumnDefinition>> GetTableColumnTypes(PhysicalOperator *op);
+	void PostProcess(PhysicalOperator *op, bool should_index);
+	vector<idx_t> Backward(PhysicalOperator *op, idx_t source);
+	idx_t BackwardCount(PhysicalOperator *op, idx_t source, LineageJoinType join_type);
 	void InitOperatorPlan(PhysicalOperator *op, bool trace_lineage);
 	idx_t CreateLineageTables(PhysicalOperator *op);
 	void CreateQueryTable();
 	void LogQuery(const string& input_query, idx_t lineage_size=0);
 	static shared_ptr<PipelineLineage> GetPipelineLineageNodeForOp(PhysicalOperator *op, int thd_id=-1);
-	static void CreateOperatorLineage(PhysicalOperator *op, int thd_id=-1, bool trace_lineage=true);
+	static void CreateOperatorLineage(PhysicalOperator *op, int thd_id=-1, bool trace_lineage=true, bool should_index=true);
 
 private:
 	ClientContext &context;

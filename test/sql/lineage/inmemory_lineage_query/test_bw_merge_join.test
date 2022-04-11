@@ -1,0 +1,41 @@
+# name: test/sql/lineage/inmemory_lineage_query/test_bw_merge_join.test
+# description: Test Piecewise Merge Joins
+# group: [inmemory_lineage_query]
+
+
+statement ok
+CREATE TABLE t1(i INTEGER, j INTEGER);
+
+statement ok
+INSERT INTO t1 VALUES (3, 1),  (NULL, 2), (2, 3), (3, 4), (3, 8), (3, 7)
+
+statement ok
+CREATE TABLE t2(i INTEGER, k VARCHAR(10));
+
+statement ok
+INSERT INTO t2 VALUES (3, 'A'),   (2, 'B'), (3, 'C'), (1, 'D'), (3, 'A')
+
+statement ok
+PRAGMA trace_lineage = "ON"
+
+# standalone limit
+query IIII
+select t1.i, t1.j, t2.i, t2.k from t1 inner join t2 on (t1.i < t2.i)
+----
+2	3	3	C
+2	3	3	A
+2	3	3	A
+
+statement ok
+PRAGMA trace_lineage = "OFF";
+
+
+query I
+PRAGMA backward_lineage('select t1.i, t1.j, t2.i, t2.k from t1 inner join t2 on (t1.i < t2.i)', 'VALUE', '0')
+----
+[2, 2]
+
+query I
+PRAGMA backward_lineage('select t1.i, t1.j, t2.i, t2.k from t1 inner join t2 on (t1.i < t2.i)', 'VALUE', '2')
+----
+[4, 2]

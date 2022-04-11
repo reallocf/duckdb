@@ -189,7 +189,7 @@ public:
 
 	DataChunk cached_chunk;
 #ifdef LINEAGE
-	vector<LineageDataWithOffset> cached_lineage;
+	shared_ptr<LineageNested> cached_lineage = make_shared<LineageNested>(LineageNested());
 #endif
 	DataChunk join_keys;
 	ExpressionExecutor probe_executor;
@@ -248,10 +248,11 @@ void PhysicalHashJoin::GetChunkInternal(ExecutionContext &context, DataChunk &ch
 				chunk.Move(state->cached_chunk);
 				state->cached_chunk.Initialize(types);
 #ifdef LINEAGE
-				for (idx_t i=0; i < state->cached_lineage.size(); ++i) {
-					lineage_op.at(context.task.thread_id)->AddLineage(move(state->cached_lineage[i]), LINEAGE_PROBE);
+				if (state->cached_lineage->Count() > 0) {
+					lineage_op.at(context.task.thread_id)->Capture(state->cached_lineage, LINEAGE_PROBE);
+					state->cached_lineage.reset();
+					state->cached_lineage = make_shared<LineageNested>(LineageNested());
 				}
-				state->cached_lineage.clear();
 				lineage_op.at(context.task.thread_id)->MarkChunkReturned();
 #endif
 			} else
@@ -272,21 +273,26 @@ void PhysicalHashJoin::GetChunkInternal(ExecutionContext &context, DataChunk &ch
 				// small chunk: add it to chunk cache and continue
 				state->cached_chunk.Append(chunk);
 #ifdef LINEAGE
-				// If we haven't pushed to the parent operator, offset remains the same (chunk merge)
-				int offset = lineage_op.at(context.task.thread_id)->GetPipelineLineage()->GetChildChunkOffset(LINEAGE_PROBE);
-				state->cached_lineage.push_back( LineageDataWithOffset{move(state->scan_structure->lineage_probe_data), offset});
+				// If we haven't pushed to the parent operator, child_offset remains the same (chunk merge)
+				int child_offset = lineage_op.at(context.task.thread_id)->GetPipelineLineage()->GetChildChunkOffset(LINEAGE_PROBE);
+				idx_t this_offset = lineage_op.at(context.task.thread_id)->GetThisOffset(LINEAGE_PROBE);
+				state->scan_structure->lineage_probe_data->SetChild(
+					lineage_op.at(context.task.thread_id)->GetChildLatest(LINEAGE_PROBE)
+				);
+				auto lineage = make_shared<LineageDataWithOffset>(LineageDataWithOffset{
+				    move(state->scan_structure->lineage_probe_data), child_offset, this_offset});
+				state->cached_lineage->AddLineage(lineage);
 #endif
 				if (state->cached_chunk.size() >= (STANDARD_VECTOR_SIZE - 64)) {
 					// chunk cache full: return it
 					chunk.Move(state->cached_chunk);
 					state->cached_chunk.Initialize(types);
 #ifdef LINEAGE
-					// iterate over cached lineage
-					for (idx_t i=0; i < state->cached_lineage.size(); ++i) {
-						lineage_op.at(context.task.thread_id)->AddLineage(move(state->cached_lineage[i]), LINEAGE_PROBE);
-
+					if (state->cached_lineage->Count() > 0) {
+						lineage_op.at(context.task.thread_id)->Capture(state->cached_lineage, LINEAGE_PROBE);
+						state->cached_lineage.reset();
+						state->cached_lineage = make_shared<LineageNested>(LineageNested());
 					}
-					state->cached_lineage.clear();
 					lineage_op.at(context.task.thread_id)->MarkChunkReturned();
 #endif
 					return;
@@ -298,7 +304,14 @@ void PhysicalHashJoin::GetChunkInternal(ExecutionContext &context, DataChunk &ch
 			} else {
 #ifdef LINEAGE
 				if (state->scan_structure && state->scan_structure->lineage_probe_data) {
-					lineage_op.at(context.task.thread_id)->Capture(state->scan_structure->lineage_probe_data, LINEAGE_PROBE);
+					int child_offset = lineage_op.at(context.task.thread_id)->GetPipelineLineage()->GetChildChunkOffset(LINEAGE_PROBE);
+					idx_t this_offset = lineage_op.at(context.task.thread_id)->GetThisOffset(LINEAGE_PROBE);
+					state->scan_structure->lineage_probe_data->SetChild(
+						lineage_op.at(context.task.thread_id)->GetChildLatest(LINEAGE_PROBE)
+					);
+					auto lineage = make_shared<LineageDataWithOffset>(LineageDataWithOffset{
+						move(state->scan_structure->lineage_probe_data), child_offset, this_offset});
+					lineage_op.at(context.task.thread_id)->Capture(make_shared<LineageNested>(LineageNested(lineage)), LINEAGE_PROBE);
 				}
 				lineage_op.at(context.task.thread_id)->MarkChunkReturned();
 #endif
@@ -307,7 +320,15 @@ void PhysicalHashJoin::GetChunkInternal(ExecutionContext &context, DataChunk &ch
 #else
 #ifdef LINEAGE
 			if (state->scan_structure && state->scan_structure->lineage_probe_data) {
-				lineage_op.at(context.task.thread_id)->Capture(state->scan_structure->lineage_probe_data, LINEAGE_PROBE);
+				int offset = lineage_op.at(context.task.thread_id)->GetPipelineLineage()->GetChildChunkOffset(LINEAGE_PROBE);
+				state->scan_structure->lineage_probe_data->SetChild(
+				    lineage_op.at(context.task.thread_id)->GetChildLatest(LINEAGE_PROBE)
+				);
+				auto lineage = make_shared<LineageDataWithOffset>(LineageDataWithOffset{
+					move(state->scan_structure->lineage_probe_data),
+					offset
+				});
+				lineage_op.at(context.task.thread_id)->Capture(make_shared<LineageNested>(LineageNested(lineage)), LINEAGE_PROBE);
 			}
 			lineage_op.at(context.task.thread_id)->MarkChunkReturned();
 #endif

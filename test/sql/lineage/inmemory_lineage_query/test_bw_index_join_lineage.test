@@ -1,0 +1,70 @@
+# name: test/sql/index/inmemory_lineage_query/test_bw_index_join_lineage.test
+# description: Test Joins using art indexes
+# group: [inmemory_lineage_query]
+
+
+statement ok
+PRAGMA explain_output = PHYSICAL_ONLY;
+PRAGMA force_index_join
+
+statement ok
+CREATE TABLE t1(i INTEGER, j INTEGER);
+CREATE TABLE t2(i INTEGER);
+CREATE INDEX i_index ON t1 using art(i);
+
+statement ok
+INSERT INTO t1 SELECT i+1, i FROM range(0,60) tbl(i);
+INSERT INTO t2 SELECT i+1 FROM range(50,60) tbl(i);
+
+statement ok
+PRAGMA trace_lineage = "ON";
+
+# standalone limit
+query IIIII
+select t1.rowid, t2.rowid, t1.i, t1.j, t2.i from t1 inner join t2 on (t1.i = t2.i)
+----
+50	0	51	50	51
+51	1	52	51	52
+52	2	53	52	53
+53	3	54	53	54
+54	4	55	54	55
+55	5	56	55	56
+56	6	57	56	57
+57	7	58	57	58
+58	8	59	58	59
+59	9	60	59	60
+
+statement ok
+PRAGMA trace_lineage = "OFF";
+
+query I
+PRAGMA backward_lineage('select t1.rowid, t2.rowid, t1.i, t1.j, t2.i from t1 inner join t2 on (t1.i = t2.i)', 'VALUE', '0')
+----
+[50, 0]
+
+
+statement ok
+PRAGMA trace_lineage = "ON";
+
+# standalone limit
+query IIII
+select t1.rowid, t2.rowid, t1.i, t2.i from t1 inner join t2 on (t1.i = t2.i)
+----
+50	0	51	51
+51	1	52	52
+52	2	53	53
+53	3	54	54
+54	4	55	55
+55	5	56	56
+56	6	57	57
+57	7	58	58
+58	8	59	59
+59	9	60	60
+
+statement ok
+PRAGMA trace_lineage = "OFF";
+
+query I
+PRAGMA backward_lineage('select t1.rowid, t2.rowid, t1.i, t2.i from t1 inner join t2 on (t1.i = t2.i)', 'VALUE', '0')
+----
+[50, 0]

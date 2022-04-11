@@ -4,6 +4,82 @@
 
 namespace duckdb {
 
+#ifdef LINEAGE
+string PragmaBackwardLineage(ClientContext &context, const FunctionParameters &parameters) {
+	// query the lineage data, create a view on top of it, and then query that
+	string query = parameters.values[0].ToString();
+	string mode = parameters.values[1].ToString();
+	auto op = context.query_to_plan[query].get();
+	if (op == nullptr) {
+		throw std::logic_error("Querying non-existent lineage");
+	}
+
+	string origin = parameters.values[2].ToString();
+	std::stringstream ss(origin);
+	string word;
+	if (mode == "VALUE") {
+		string out_str;
+		while (ss >> word) {
+			clock_t start = clock();
+			auto lineage = context.lineage_manager->Backward(op, (idx_t)stoi(word));
+			clock_t end = clock();
+			std::cout << "Root Backward time: " << ((float) end - start) / CLOCKS_PER_SEC << std::endl;
+			for (idx_t el : lineage) {
+				if (!out_str.empty()) {
+					out_str += ",";
+				}
+				out_str += to_string(el);
+			}
+		}
+		out_str = "list_value("+ out_str +")";
+
+		return StringUtil::Format("SELECT %s", out_str);
+	} else if (mode == "COUNT") {
+		idx_t out_idx;
+		while (ss >> word) {
+			clock_t start = clock();
+			out_idx = context.lineage_manager->BackwardCount(op, (idx_t)stoi(word), LIN);
+			clock_t end = clock();
+			std::cout << "Root Backward time: " << ((float) end - start) / CLOCKS_PER_SEC << std::endl;
+		}
+
+		return StringUtil::Format("SELECT %i", out_idx);
+	} else if (mode == "LIN") {
+		idx_t out_idx;
+		while (ss >> word) {
+			clock_t start = clock();
+			out_idx = context.lineage_manager->BackwardCount(op, (idx_t)stoi(word), LIN);
+			clock_t end = clock();
+			std::cout << "Root Backward time: " << ((float) end - start) / CLOCKS_PER_SEC << std::endl;
+		}
+
+		return StringUtil::Format("SELECT %i", out_idx);
+	} else if (mode == "PERM") {
+		idx_t out_idx;
+		while (ss >> word) {
+			clock_t start = clock();
+			out_idx = context.lineage_manager->BackwardCount(op, (idx_t)stoi(word), PERM);
+			clock_t end = clock();
+			std::cout << "Root Backward time: " << ((float) end - start) / CLOCKS_PER_SEC << std::endl;
+		}
+
+		return StringUtil::Format("SELECT %i", out_idx);
+	} else if (mode == "PROV") {
+		idx_t out_idx;
+		while (ss >> word) {
+			clock_t start = clock();
+			out_idx = context.lineage_manager->BackwardCount(op, (idx_t)stoi(word), PROV);
+			clock_t end = clock();
+			std::cout << "Root Backward time: " << ((float) end - start) / CLOCKS_PER_SEC << std::endl;
+		}
+
+		return StringUtil::Format("SELECT %i", out_idx);
+	} else {
+		throw std::logic_error("Invalid backward query mode - should one of [VALUE, COUNT, LIN, PERM, PROV]");
+	}
+}
+#endif
+
 string PragmaTableInfo(ClientContext &context, const FunctionParameters &parameters) {
 	return StringUtil::Format("SELECT * FROM pragma_table_info('%s')", parameters.values[0].ToString());
 }
@@ -67,6 +143,9 @@ string PragmaStorageInfo(ClientContext &context, const FunctionParameters &param
 }
 
 void PragmaQueries::RegisterFunction(BuiltinFunctions &set) {
+#ifdef LINEAGE
+	set.AddFunction(PragmaFunction::PragmaCall("backward_lineage", PragmaBackwardLineage,  {LogicalType::VARCHAR, LogicalType::VARCHAR, LogicalType::VARCHAR}));
+#endif
 	set.AddFunction(PragmaFunction::PragmaCall("table_info", PragmaTableInfo, {LogicalType::VARCHAR}));
 	set.AddFunction(PragmaFunction::PragmaCall("storage_info", PragmaStorageInfo, {LogicalType::VARCHAR}));
 	set.AddFunction(PragmaFunction::PragmaStatement("show_tables", PragmaShowTables));

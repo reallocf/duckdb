@@ -744,6 +744,7 @@ void ScanStructure::NextSingleJoin(DataChunk &keys, DataChunk &input, DataChunk 
 #ifdef LINEAGE
 	auto ptrs = FlatVector::GetData<uintptr_t>(pointers);
 	unique_ptr<uintptr_t[]> key_locations_lineage(new uintptr_t[input.size()]);
+	memset(key_locations_lineage.get(), 0, input.size() * sizeof(uintptr_t));
 #endif
 	while (this->count > 0) {
 		// resolve the predicates for the current set of pointers
@@ -842,7 +843,11 @@ void JoinHashTable::ScanFullOuter(DataChunk &result, JoinHTScanState &state) {
 #ifdef LINEAGE
 		auto lhs_lineage = make_unique<LineageDataVectorBufferArray>(move(addresses.GetBuffer()->data), found_entries);
 		auto lineage_data = make_shared<LineageBinary>(move(lhs_lineage), nullptr);
-		context.GetCurrentLineageOp()->Capture(lineage_data, LINEAGE_PROBE);
+		int child_offset = context.GetCurrentLineageOp()->GetPipelineLineage()->GetChildChunkOffset(LINEAGE_PROBE);
+		idx_t this_offset = context.GetCurrentLineageOp()->GetThisOffset(LINEAGE_PROBE);
+		auto lineage_data_with_offset = make_shared<LineageDataWithOffset>(LineageDataWithOffset{lineage_data, child_offset, this_offset});
+		auto nested_lineage = make_shared<LineageNested>(LineageNested(lineage_data_with_offset));
+		context.GetCurrentLineageOp()->Capture(nested_lineage, LINEAGE_PROBE);
 		context.GetCurrentLineageOp()->MarkChunkReturned();
 #endif
 	}

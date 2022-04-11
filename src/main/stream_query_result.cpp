@@ -65,8 +65,15 @@ void StreamQueryResult::Close() {
 	is_open = false;
 #ifdef LINEAGE
 	if (context->trace_lineage) {
-		idx_t lineage_size = context->lineage_manager->CreateLineageTables(prepared->plan.get());
-		context->lineage_manager->LogQuery(context->query, lineage_size);
+//		idx_t lineage_size = context->lineage_manager->CreateLineageTables(prepared->plan.get());
+		if (LINEAGE_INDEXES_ON) {
+			clock_t start = clock();
+			context->lineage_manager->PostProcess(prepared->plan.get(), true);
+			clock_t end = clock();
+			std::cout << "PostProcess time: " << ((float) end - start) / CLOCKS_PER_SEC << " sec" << std::endl;
+		}
+		context->lineage_manager->LogQuery(context->query, 0);
+		context->query_to_plan[context->query] = move(prepared->plan);
 	}
 #endif
 	context->Cleanup();
