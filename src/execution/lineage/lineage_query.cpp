@@ -44,8 +44,8 @@ unique_ptr<PhysicalOperator> CombineByMode(
 
 void LineageManager::PostProcess(PhysicalOperator *op, bool should_index) {
 	// massage the data to make it easier to query
-	bool always_post_process =
-		op->type == PhysicalOperatorType::HASH_GROUP_BY || op->type == PhysicalOperatorType::PERFECT_HASH_GROUP_BY;
+	bool always_post_process = false; // Changing since group by indexes are off
+//	    op->type == PhysicalOperatorType::HASH_GROUP_BY || op->type == PhysicalOperatorType::PERFECT_HASH_GROUP_BY;
 	bool never_post_process =
 		op->type == PhysicalOperatorType::ORDER_BY; // 1 large chunk, so index is useless
 	if ((always_post_process) && !never_post_process) {
@@ -170,7 +170,7 @@ LineageProcessStruct OperatorLineage::PostProcess(idx_t chunk_count, idx_t count
 //							if (hash_map_agg[(idx_t)payload[i]] == nullptr) {
 //								hash_map_agg[(idx_t)payload[i]] = make_shared<vector<SourceAndMaybeData>>();
 //							}
-						hash_map_agg[(idx_t)payload[i]].push_back({i + count_so_far, nullptr});
+//						hash_map_agg[(idx_t)payload[i]].push_back({i + count_so_far, nullptr});
 					}
 				} else {
 					auto payload = (uint64_t*)this_data.data->Process(0);
@@ -178,7 +178,7 @@ LineageProcessStruct OperatorLineage::PostProcess(idx_t chunk_count, idx_t count
 //							if (hash_map_agg[(idx_t)payload[i]] == nullptr) {
 //								hash_map_agg[(idx_t)payload[i]] = make_shared<vector<SourceAndMaybeData>>();
 //							}
-						hash_map_agg[(idx_t)payload[i]].push_back({i + count_so_far, nullptr});
+//						hash_map_agg[(idx_t)payload[i]].push_back({i + count_so_far, nullptr});
 					}
 				}
 //				}
@@ -722,22 +722,32 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 //				}
 //			}
 //		} else {
+			// Loop through all chunks to find matching values
+			unordered_set<uint64_t> vals_to_find;
 			for (idx_t i = 0; i < orig_chunk.size(); i++) {
-				auto payload = (uint64_t*)child_ptrs[i]->data->Process(0);
-				auto res_list = hash_map_agg[payload[orig_chunk.GetValue(0, i).GetValue<uint64_t>()]];
-				for (const auto& res : res_list) {
-					if (out_idx < STANDARD_VECTOR_SIZE) {
-						key.chunk.SetValue(0, out_idx++, Value::UBIGINT(res.source));
-					} else {
-						if (key.overflow_count % STANDARD_VECTOR_SIZE == 0) {
-							key.cached_values_arr.emplace_back(LogicalType::UBIGINT);
-						}
-						key.cached_values_arr[key.overflow_count / STANDARD_VECTOR_SIZE].SetValue(
-							key.overflow_count % STANDARD_VECTOR_SIZE,
-							Value::UBIGINT(res.source)
-						);
-						key.overflow_count++;
-					}
+			    auto payload = (uint64_t *)child_ptrs[i]->data->Process(0);
+			    auto val = payload[orig_chunk.GetValue(0, i).GetValue<uint64_t>()];
+			    vals_to_find.insert(val);
+		    }
+		    for (idx_t i = 0; i < data[LINEAGE_SINK].size(); i++) {
+			    auto chunk = data[LINEAGE_SINK][i];
+			    auto processed_chunk = (uint64_t *)chunk.data->Process(0);
+				for (idx_t j = 0; j < chunk.data->Count(); j++) {
+				    auto val = processed_chunk[j];
+				    if (vals_to_find.count(val) == 1) { // match!
+					    if (out_idx < STANDARD_VECTOR_SIZE) {
+						    key.chunk.SetValue(0, out_idx++, Value::UBIGINT(j + chunk.this_offset));
+					    } else {
+						    if (key.overflow_count % STANDARD_VECTOR_SIZE == 0) {
+							    key.cached_values_arr.emplace_back(LogicalType::UBIGINT);
+						    }
+						    key.cached_values_arr[key.overflow_count / STANDARD_VECTOR_SIZE].SetValue(
+						        key.overflow_count % STANDARD_VECTOR_SIZE,
+						        Value::UBIGINT(j + chunk.this_offset)
+						    );
+						    key.overflow_count++;
+					    }
+				    }
 				}
 //			}
 		}
@@ -791,25 +801,33 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 //				}
 //			}
 //		} else {
-			for (idx_t i = 0; i < orig_chunk.size(); i++) {
-				auto payload = (sel_t*)child_ptrs[i]->data->Process(0);
-				auto res_list = hash_map_agg[payload[orig_chunk.GetValue(0, i).GetValue<uint64_t>()]];
-				for (const auto& res : res_list) {
+		// Loop through all chunks to find matching values
+		unordered_set<uint64_t> vals_to_find;
+		for (idx_t i = 0; i < orig_chunk.size(); i++) {
+			auto payload = (sel_t *)child_ptrs[i]->data->Process(0);
+			auto val = payload[orig_chunk.GetValue(0, i).GetValue<uint64_t>()];
+			vals_to_find.insert(val);
+		}
+		for (idx_t i = 0; i < data[LINEAGE_SINK].size(); i++) {
+			auto chunk = data[LINEAGE_SINK][i];
+			auto processed_chunk = (sel_t *)chunk.data->Process(0);
+			for (idx_t j = 0; j < chunk.data->Count(); j++) {
+				auto val = processed_chunk[j];
+				if (vals_to_find.count(val) == 1) { // match!
 					if (out_idx < STANDARD_VECTOR_SIZE) {
-						key.chunk.SetValue(0, out_idx++, Value::UBIGINT(res.source));
+						key.chunk.SetValue(0, out_idx++, Value::UBIGINT(j + chunk.this_offset));
 					} else {
 						if (key.overflow_count % STANDARD_VECTOR_SIZE == 0) {
 							key.cached_values_arr.emplace_back(LogicalType::UBIGINT);
 						}
 						key.cached_values_arr[key.overflow_count / STANDARD_VECTOR_SIZE].SetValue(
-							key.overflow_count % STANDARD_VECTOR_SIZE,
-							Value::UBIGINT(res.source)
-						);
+						    key.overflow_count % STANDARD_VECTOR_SIZE, Value::UBIGINT(j + chunk.this_offset));
 						key.overflow_count++;
 					}
 				}
 			}
 //		}
+		}
 		key.chunk.SetCardinality(out_idx);
 		break;
 	}
