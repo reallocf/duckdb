@@ -253,14 +253,15 @@ void AccessLineageDataViaIndex(
 }
 
 SimpleAggQueryStruct OperatorLineage::RecurseForSimpleAgg(const shared_ptr<OperatorLineage>& child) {
+	// Now not actually recursing because we're removing this optimization
 	vector<LineageDataWithOffset> child_lineage_data_vector;
 	switch (child->type) {
 	case PhysicalOperatorType::HASH_GROUP_BY:
-	case PhysicalOperatorType::ORDER_BY:
-	case PhysicalOperatorType::PERFECT_HASH_GROUP_BY:
-	case PhysicalOperatorType::SIMPLE_AGGREGATE: {
-		return RecurseForSimpleAgg(child->children[0]);
+	case PhysicalOperatorType::PERFECT_HASH_GROUP_BY: {
+		child_lineage_data_vector = child->data[LINEAGE_SOURCE];
+		break;
 	}
+	case PhysicalOperatorType::ORDER_BY:
 	case PhysicalOperatorType::TABLE_SCAN:
 	case PhysicalOperatorType::FILTER:
 	case PhysicalOperatorType::LIMIT:
