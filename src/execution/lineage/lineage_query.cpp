@@ -16,8 +16,8 @@ class PhysicalJoin;
 
 void LineageManager::PostProcess(PhysicalOperator *op, bool should_index) {
 	// massage the data to make it easier to query
-	bool always_post_process = false; // Changing since group by indexes are off
-//	    op->type == PhysicalOperatorType::HASH_GROUP_BY || op->type == PhysicalOperatorType::PERFECT_HASH_GROUP_BY;
+	bool always_post_process =
+	    op->type == PhysicalOperatorType::HASH_GROUP_BY || op->type == PhysicalOperatorType::PERFECT_HASH_GROUP_BY;
 	bool never_post_process =
 	    op->type == PhysicalOperatorType::ORDER_BY; // 1 large chunk, so index is useless
 	if ((always_post_process || (should_index && LINEAGE_INDEX_TYPE == 1)) && !never_post_process) {
@@ -481,20 +481,8 @@ Generator<shared_ptr<vector<SourceAndMaybeData>>> OperatorLineage::Backward(
 //			}
 //		} else {
 			for (const SourceAndMaybeData& source : *lineage.get()) {
-				auto source_payload = (uint64_t*)source.data->data->Process(0);
-			    auto group_addr = source_payload[source.source];
-			    vector<SourceAndMaybeData> res_list;
-			    idx_t count_so_far = 0;
-			    for (const LineageDataWithOffset& l : data[LINEAGE_SINK]) {
-				    auto sink_payload = (uint64_t*)l.data->Process(0);
-				    for (idx_t i = 0; i < l.data->Count(); i++) {
-					    if (sink_payload[i] == group_addr) {
-						    res_list.push_back({count_so_far + i, nullptr});
-					    }
-				    }
-				    count_so_far += l.data->Count();
-			    }
-//				auto res_list = hash_map_agg[payload[source.source]];
+				auto payload = (uint64_t*)source.data->data->Process(0);
+				auto res_list = hash_map_agg[payload[source.source]];
 				auto child_gen = children[0]->Backward(make_shared<vector<SourceAndMaybeData>>(res_list), join_type);
 				while (child_gen.Next()) {
 					co_yield child_gen.GetValue();
@@ -543,19 +531,8 @@ Generator<shared_ptr<vector<SourceAndMaybeData>>> OperatorLineage::Backward(
 //			}
 //		} else {
 			for (const SourceAndMaybeData& source : *lineage.get()) {
-				auto source_payload = (sel_t*)source.data->data->Process(0);
-				auto group_addr = source_payload[source.source];
-				vector<SourceAndMaybeData> res_list;
-				idx_t count_so_far = 0;
-				for (const LineageDataWithOffset& l : data[LINEAGE_SINK]) {
-					auto sink_payload = (sel_t*)l.data->Process(0);
-					for (idx_t i = 0; i < l.data->Count(); i++) {
-						if (sink_payload[i] == group_addr) {
-							res_list.push_back({count_so_far + i, nullptr});
-						}
-					}
-					count_so_far += l.data->Count();
-				}
+				auto payload = (sel_t*)source.data->data->Process(0);
+				auto res_list = hash_map_agg[payload[source.source]];
 				auto child_gen = children[0]->Backward(make_shared<vector<SourceAndMaybeData>>(res_list), join_type);
 				while (child_gen.Next()) {
 					co_yield child_gen.GetValue();
