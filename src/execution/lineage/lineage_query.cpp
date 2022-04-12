@@ -117,27 +117,26 @@ LineageProcessStruct OperatorLineage::PostProcess(idx_t chunk_count, idx_t count
 				// build hash table
 				LineageDataWithOffset this_data = data[LINEAGE_SINK][data_idx];
 				idx_t res_count = this_data.data->Count();
-//				Commenting out to remove zone maps
-//				if (data[LINEAGE_SOURCE].size() > PROBE_SIZE) {
-//					// get min-max on this payload
-//					auto min_v = std::numeric_limits<idx_t>::max();
-//					auto max_v = std::numeric_limits<idx_t>::min();
-//					if (type == PhysicalOperatorType::PERFECT_HASH_GROUP_BY) {
-//						auto payload = (sel_t*)this_data.data->Process(0);
-//						for (idx_t i=0; i < res_count; ++i) {
-//							if ( (idx_t)payload[i] < min_v) min_v  = (idx_t)payload[i];
-//							if ( (idx_t)payload[i] > max_v) max_v  = (idx_t)payload[i];
-//						}
-//					} else {
-//						auto payload = (uint64_t*)this_data.data->Process(0);
-//						for (idx_t i=0; i < res_count; ++i) {
-//							if ( payload[i] < min_v) min_v  = payload[i];
-//							if ( payload[i] > max_v) max_v  = payload[i];
-//						}
-//					}
-//					hm_range.push_back(std::make_pair(min_v, max_v));
-//					hash_chunk_count.push_back(count_so_far);
-//				} else {
+				if (data[LINEAGE_SOURCE].size() > PROBE_SIZE) {
+					// get min-max on this payload
+					auto min_v = std::numeric_limits<idx_t>::max();
+					auto max_v = std::numeric_limits<idx_t>::min();
+					if (type == PhysicalOperatorType::PERFECT_HASH_GROUP_BY) {
+						auto payload = (sel_t*)this_data.data->Process(0);
+						for (idx_t i=0; i < res_count; ++i) {
+							if ( (idx_t)payload[i] < min_v) min_v  = (idx_t)payload[i];
+							if ( (idx_t)payload[i] > max_v) max_v  = (idx_t)payload[i];
+						}
+					} else {
+						auto payload = (uint64_t*)this_data.data->Process(0);
+						for (idx_t i=0; i < res_count; ++i) {
+							if ( payload[i] < min_v) min_v  = payload[i];
+							if ( payload[i] > max_v) max_v  = payload[i];
+						}
+					}
+					hm_range.push_back(std::make_pair(min_v, max_v));
+					hash_chunk_count.push_back(count_so_far);
+				} else {
 					if (type == PhysicalOperatorType::PERFECT_HASH_GROUP_BY) {
 						auto payload = (sel_t*)this_data.data->Process(0);
 						for (idx_t i=0; i < res_count; ++i) {
@@ -155,7 +154,7 @@ LineageProcessStruct OperatorLineage::PostProcess(idx_t chunk_count, idx_t count
 							hash_map_agg[(idx_t)payload[i]].push_back({i + count_so_far, nullptr});
 						}
 					}
-//				}
+				}
 				count_so_far += res_count;
 			} else if (finished_idx == LINEAGE_COMBINE) {
 			} else {
@@ -445,41 +444,40 @@ Generator<shared_ptr<vector<SourceAndMaybeData>>> OperatorLineage::Backward(
 			AccessLineageDataViaIndex(lineage, data[LINEAGE_SOURCE], index);
 		}
 
-//      Commenting out to remove zone maps
-//		if (data[LINEAGE_SOURCE].size() > PROBE_SIZE) {
-//			vector<SourceAndMaybeData> orig_lineage = vector<SourceAndMaybeData>(*lineage.get());
-//			lineage->clear();
-//
-//			for (const SourceAndMaybeData &source : orig_lineage) {
-//				auto payload = (uint64_t *)source.data->data->Process(0);
-//				auto val = payload[source.source];
-//				// iterate the index to find potential chunks
-//				auto flag = false;
-//				for (idx_t it = 0; it < hm_range.size(); ++it) {
-//					if (val >= hm_range[it].first && val <= hm_range[it].second) {
-//						// scan this chunk
-//						LineageDataWithOffset this_data = data[LINEAGE_SINK][it];
-//						idx_t res_count = this_data.data->Count();
-//						auto sink_payload = (uint64_t *)this_data.data->Process(0);
-//						for (idx_t it2 = 0; it2 < res_count; ++it2) {
-//							if (sink_payload[it2] == val) {
-//								lineage->push_back({it2 + hash_chunk_count[it], nullptr});
-//								flag = true;
-//								break;
-//							}
-//						}
-//					}
-//					if (flag) {
-//						break;
-//					}
-//				}
-//			}
-//			// TODO yield earlier?
-//			auto child_gen = children[0]->Backward(lineage, join_type);
-//			while (child_gen.Next()) {
-//				co_yield child_gen.GetValue();
-//			}
-//		} else {
+		if (data[LINEAGE_SOURCE].size() > PROBE_SIZE) {
+			vector<SourceAndMaybeData> orig_lineage = vector<SourceAndMaybeData>(*lineage.get());
+			lineage->clear();
+
+			for (const SourceAndMaybeData &source : orig_lineage) {
+				auto payload = (uint64_t *)source.data->data->Process(0);
+				auto val = payload[source.source];
+				// iterate the index to find potential chunks
+				auto flag = false;
+				for (idx_t it = 0; it < hm_range.size(); ++it) {
+					if (val >= hm_range[it].first && val <= hm_range[it].second) {
+						// scan this chunk
+						LineageDataWithOffset this_data = data[LINEAGE_SINK][it];
+						idx_t res_count = this_data.data->Count();
+						auto sink_payload = (uint64_t *)this_data.data->Process(0);
+						for (idx_t it2 = 0; it2 < res_count; ++it2) {
+							if (sink_payload[it2] == val) {
+								lineage->push_back({it2 + hash_chunk_count[it], nullptr});
+								flag = true;
+								break;
+							}
+						}
+					}
+					if (flag) {
+						break;
+					}
+				}
+			}
+			// TODO yield earlier?
+			auto child_gen = children[0]->Backward(lineage, join_type);
+			while (child_gen.Next()) {
+				co_yield child_gen.GetValue();
+			}
+		} else {
 			for (const SourceAndMaybeData& source : *lineage.get()) {
 				auto payload = (uint64_t*)source.data->data->Process(0);
 				auto res_list = hash_map_agg[payload[source.source]];
@@ -488,7 +486,7 @@ Generator<shared_ptr<vector<SourceAndMaybeData>>> OperatorLineage::Backward(
 					co_yield child_gen.GetValue();
 				}
 			}
-//		}
+		}
 		co_return;
 	}
 	case PhysicalOperatorType::PERFECT_HASH_GROUP_BY: {
@@ -496,40 +494,40 @@ Generator<shared_ptr<vector<SourceAndMaybeData>>> OperatorLineage::Backward(
 			AccessLineageDataViaIndex(lineage, data[LINEAGE_SOURCE], index);
 		}
 
-//		if (data[LINEAGE_SOURCE].size() > PROBE_SIZE) {
-//			vector<SourceAndMaybeData> orig_lineage = vector<SourceAndMaybeData>(*lineage.get());
-//			lineage->clear();
-//
-//			for (const SourceAndMaybeData &source : orig_lineage) {
-//				auto payload = (sel_t *)source.data->data->Process(0);
-//				auto val = payload[source.source];
-//				// iterate the index to find potential chunks
-//				auto flag = false;
-//				for (idx_t it = 0; it < hm_range.size(); ++it) {
-//					if (val >= hm_range[it].first && val <= hm_range[it].second) {
-//						// scan this chunk
-//						LineageDataWithOffset this_data = data[LINEAGE_SINK][it];
-//						idx_t res_count = this_data.data->Count();
-//						auto sink_payload = (sel_t *)this_data.data->Process(0);
-//						for (idx_t it2 = 0; it2 < res_count; ++it2) {
-//							if (sink_payload[it2] == val) {
-//								lineage->push_back({it2 + hash_chunk_count[it], nullptr});
-//								flag = true;
-//								break;
-//							}
-//						}
-//					}
-//					if (flag) {
-//						break;
-//					}
-//				}
-//				// TODO yield earlier?
-//				auto child_gen = children[0]->Backward(lineage, join_type);
-//				while (child_gen.Next()) {
-//					co_yield child_gen.GetValue();
-//				}
-//			}
-//		} else {
+		if (data[LINEAGE_SOURCE].size() > PROBE_SIZE) {
+			vector<SourceAndMaybeData> orig_lineage = vector<SourceAndMaybeData>(*lineage.get());
+			lineage->clear();
+
+			for (const SourceAndMaybeData &source : orig_lineage) {
+				auto payload = (sel_t *)source.data->data->Process(0);
+				auto val = payload[source.source];
+				// iterate the index to find potential chunks
+				auto flag = false;
+				for (idx_t it = 0; it < hm_range.size(); ++it) {
+					if (val >= hm_range[it].first && val <= hm_range[it].second) {
+						// scan this chunk
+						LineageDataWithOffset this_data = data[LINEAGE_SINK][it];
+						idx_t res_count = this_data.data->Count();
+						auto sink_payload = (sel_t *)this_data.data->Process(0);
+						for (idx_t it2 = 0; it2 < res_count; ++it2) {
+							if (sink_payload[it2] == val) {
+								lineage->push_back({it2 + hash_chunk_count[it], nullptr});
+								flag = true;
+								break;
+							}
+						}
+					}
+					if (flag) {
+						break;
+					}
+				}
+				// TODO yield earlier?
+				auto child_gen = children[0]->Backward(lineage, join_type);
+				while (child_gen.Next()) {
+					co_yield child_gen.GetValue();
+				}
+			}
+		} else {
 			for (const SourceAndMaybeData& source : *lineage.get()) {
 				auto payload = (sel_t*)source.data->data->Process(0);
 				auto res_list = hash_map_agg[payload[source.source]];
@@ -538,7 +536,7 @@ Generator<shared_ptr<vector<SourceAndMaybeData>>> OperatorLineage::Backward(
 					co_yield child_gen.GetValue();
 				}
 			}
-//		}
+		}
 		co_return;
 	}
 	case PhysicalOperatorType::PROJECTION: {
