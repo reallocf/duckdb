@@ -28,7 +28,6 @@ unique_ptr<PhysicalOperator> GenerateCustomPlan(
 	ClientContext &cxt,
 	int lineage_id,
 	unique_ptr<PhysicalOperator> left,
-	bool simple_agg_flag,
 	vector<unique_ptr<PhysicalOperator>> *pipelines
 );
 
@@ -245,7 +244,7 @@ unique_ptr<QueryResult> LineageQuery::Run(
     bool should_count
 ) {
 	vector<unique_ptr<PhysicalOperator>> other_plans;
-	unique_ptr<PhysicalOperator> first_plan = GenerateCustomPlan(op, context, lineage_id, nullptr, false, &other_plans);
+	unique_ptr<PhysicalOperator> first_plan = GenerateCustomPlan(op, context, lineage_id, nullptr, &other_plans);
 	// We construct other_plans in reverse execution order, swap here
 	Reverse(&other_plans);
 
@@ -303,7 +302,6 @@ unique_ptr<PhysicalOperator> GenerateCustomPlan(
 	ClientContext &cxt,
 	int lineage_id,
 	unique_ptr<PhysicalOperator> left,
-	bool simple_agg_flag,
 	vector<unique_ptr<PhysicalOperator>> *pipelines
 ) {
 	if (!op) {
@@ -311,11 +309,11 @@ unique_ptr<PhysicalOperator> GenerateCustomPlan(
 	}
 	if (op->type == PhysicalOperatorType::HASH_JOIN && dynamic_cast<PhysicalJoin *>(op)->join_type == JoinType::MARK) {
 		// Skip Mark Joins
-		return GenerateCustomPlan(op->children[0].get(), cxt, lineage_id, move(left), simple_agg_flag, pipelines);
+		return GenerateCustomPlan(op->children[0].get(), cxt, lineage_id, move(left), pipelines);
 	}
 	if (op->type == PhysicalOperatorType::PROJECTION) {
 		// Skip Projections
-		return GenerateCustomPlan(op->children[0].get(), cxt, lineage_id, move(left), simple_agg_flag, pipelines);
+		return GenerateCustomPlan(op->children[0].get(), cxt, lineage_id, move(left), pipelines);
 	}
 	if (op->type == PhysicalOperatorType::DELIM_SCAN) {
 		// Skip DELIM_SCANs since they never affect the lineage
@@ -323,15 +321,6 @@ unique_ptr<PhysicalOperator> GenerateCustomPlan(
 	}
 	if (op->children.empty()) {
 		return PreparePhysicalIndexJoin(op, move(left), cxt, nullptr);
-	}
-	if (simple_agg_flag && (
-		op->type == PhysicalOperatorType::HASH_GROUP_BY ||
-		op->type == PhysicalOperatorType::PERFECT_HASH_GROUP_BY ||
-		op->type == PhysicalOperatorType::SIMPLE_AGGREGATE ||
-		op->type == PhysicalOperatorType::ORDER_BY ||
-		op->type == PhysicalOperatorType::PROJECTION
-	)) {
-		return GenerateCustomPlan(op->children[0].get(), cxt, lineage_id, move(left), true, pipelines);
 	}
 	vector<LogicalType> types = {LogicalType::UBIGINT};
 	PhysicalOperatorType op_type = PhysicalOperatorType::CHUNK_SCAN;
@@ -355,7 +344,7 @@ unique_ptr<PhysicalOperator> GenerateCustomPlan(
 			// we only want to do the child reordering once
 			op->delim_handled = true;
 		}
-		return GenerateCustomPlan(dynamic_cast<PhysicalDelimJoin *>(op)->join.get(), cxt, lineage_id, move(left), simple_agg_flag, pipelines);
+		return GenerateCustomPlan(dynamic_cast<PhysicalDelimJoin *>(op)->join.get(), cxt, lineage_id, move(left), pipelines);
 	}
 	if (left == nullptr) {
 		unique_ptr<PhysicalChunkScan> chunk_scan = make_unique<PhysicalChunkScan>(types, op_type, estimated_cardinality, true);
@@ -375,13 +364,13 @@ unique_ptr<PhysicalOperator> GenerateCustomPlan(
 			build_chunk_scan->collection = new ChunkCollection();
 
 			// Probe side of join
-			unique_ptr<PhysicalOperator> custom_plan = GenerateCustomPlan(op->children[0].get(), cxt, lineage_id, PreparePhysicalIndexJoin(op, move(chunk_scan), cxt, build_chunk_scan->collection), false, pipelines);
+			unique_ptr<PhysicalOperator> custom_plan = GenerateCustomPlan(op->children[0].get(), cxt, lineage_id, PreparePhysicalIndexJoin(op, move(chunk_scan), cxt, build_chunk_scan->collection), pipelines);
 
 			// Push build side chunk scan to pipelines
 			if (op->type == PhysicalOperatorType::INDEX_JOIN) {
 				pipelines->push_back(move(build_chunk_scan));
 			} else {
-				pipelines->push_back(GenerateCustomPlan(op->children[1].get(), cxt, lineage_id, move(build_chunk_scan), false, pipelines));
+				pipelines->push_back(GenerateCustomPlan(op->children[1].get(), cxt, lineage_id, move(build_chunk_scan), pipelines));
 			}
 
 			return custom_plan;
@@ -391,7 +380,6 @@ unique_ptr<PhysicalOperator> GenerateCustomPlan(
 			cxt,
 			lineage_id,
 			PreparePhysicalIndexJoin(op, move(chunk_scan), cxt, nullptr),
-			op->type == PhysicalOperatorType::SIMPLE_AGGREGATE,
 			pipelines
 		);
 	} else {
@@ -401,13 +389,13 @@ unique_ptr<PhysicalOperator> GenerateCustomPlan(
 			build_chunk_scan->collection = new ChunkCollection();
 
 			// Probe side of join
-			unique_ptr<PhysicalOperator> custom_plan = GenerateCustomPlan(op->children[0].get(), cxt, lineage_id, PreparePhysicalIndexJoin(op, move(left), cxt,  build_chunk_scan->collection), false, pipelines);
+			unique_ptr<PhysicalOperator> custom_plan = GenerateCustomPlan(op->children[0].get(), cxt, lineage_id, PreparePhysicalIndexJoin(op, move(left), cxt,  build_chunk_scan->collection), pipelines);
 
 			// Push build side chunk scan to pipelines
 			if (op->type == PhysicalOperatorType::INDEX_JOIN) {
 				pipelines->push_back(move(build_chunk_scan));
 			} else {
-				pipelines->push_back(GenerateCustomPlan(op->children[1].get(), cxt, lineage_id, move(build_chunk_scan), false, pipelines));
+				pipelines->push_back(GenerateCustomPlan(op->children[1].get(), cxt, lineage_id, move(build_chunk_scan), pipelines));
 			}
 
 			// probe side of hash join
@@ -418,7 +406,6 @@ unique_ptr<PhysicalOperator> GenerateCustomPlan(
 			cxt,
 			lineage_id,
 			PreparePhysicalIndexJoin(op, move(left), cxt, nullptr),
-			op->type == PhysicalOperatorType::SIMPLE_AGGREGATE,
 			pipelines
 		);
 	}
@@ -521,6 +508,7 @@ vector<shared_ptr<LineageDataWithOffset>> LookupChunksFromGlobalIndex(
 }
 
 SimpleAggQueryStruct OperatorLineage::RecurseForSimpleAgg(const shared_ptr<OperatorLineage>& child) {
+	// Now not actually recursing because we're removing this optimization
 	vector<LineageDataWithOffset> child_lineage_data_vector;
 	switch (child->type) {
 	case PhysicalOperatorType::HASH_GROUP_BY:
@@ -528,7 +516,8 @@ SimpleAggQueryStruct OperatorLineage::RecurseForSimpleAgg(const shared_ptr<Opera
 	case PhysicalOperatorType::PERFECT_HASH_GROUP_BY:
 	case PhysicalOperatorType::SIMPLE_AGGREGATE:
 	case PhysicalOperatorType::PROJECTION: {
-		return RecurseForSimpleAgg(child->children[0]);
+		child_lineage_data_vector = child->data[0];
+		break;
 	}
 	case PhysicalOperatorType::TABLE_SCAN:
 	case PhysicalOperatorType::FILTER:
