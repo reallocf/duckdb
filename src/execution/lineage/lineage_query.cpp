@@ -298,13 +298,6 @@ Generator<shared_ptr<vector<SourceAndMaybeData>>> OperatorLineage::Backward(
 		co_yield {};
 		co_return;
 	}
-	// We need to transition passed values to global since no child pointers
-	if ((*lineage.get())[0].data != nullptr) {
-		for (idx_t i = 0; i < lineage->size(); i++) {
-			(*lineage.get())[i].source += (*lineage.get())[i].data->this_offset;
-		}
-	}
-
 	switch (this->type) {
 	case (PhysicalOperatorType::DELIM_JOIN): {
 		// distinct input is delim join input
@@ -329,9 +322,9 @@ Generator<shared_ptr<vector<SourceAndMaybeData>>> OperatorLineage::Backward(
 			// Nothing to do! Lineage correct as-is
 			co_yield move(lineage);
 		} else {
-//			if ((*lineage.get())[0].data == nullptr) {
+			if ((*lineage.get())[0].data == nullptr) {
 				AccessLineageDataViaIndex(lineage, data[LINEAGE_UNARY], index);
-//			}
+			}
 			for (idx_t i = 0; i < lineage->size(); i++) {
 				shared_ptr<LineageDataWithOffset> this_data = (*lineage.get())[i].data;
 				(*lineage.get())[i].source = this_data->data->Backward((*lineage.get())[i].source) + this_data->child_offset;
@@ -342,9 +335,9 @@ Generator<shared_ptr<vector<SourceAndMaybeData>>> OperatorLineage::Backward(
 	}
 	case PhysicalOperatorType::FILTER:
 	case PhysicalOperatorType::LIMIT: {
-//		if ((*lineage.get())[0].data == nullptr) {
+		if ((*lineage.get())[0].data == nullptr) {
 			AccessLineageDataViaIndex(lineage, data[LINEAGE_UNARY], index);
-//		}
+		}
 		for (idx_t i = 0; i < lineage->size(); i++) {
 			(*lineage.get())[i] = {
 				(*lineage.get())[i].data->data->Backward((*lineage.get())[i].source),
@@ -360,9 +353,9 @@ Generator<shared_ptr<vector<SourceAndMaybeData>>> OperatorLineage::Backward(
 	case PhysicalOperatorType::HASH_JOIN: {
 		// we need hash table from the build side
 		// access the probe side, get the address from the right side
-//		if ((*lineage.get())[0].data == nullptr) {
+		if ((*lineage.get())[0].data == nullptr) {
 			AccessLineageDataViaIndex(lineage, data[LINEAGE_PROBE], index);
-//		}
+		}
 		unique_ptr<vector<SourceAndMaybeData>> right_lineage = make_unique<vector<SourceAndMaybeData>>();
 		unique_ptr<vector<SourceAndMaybeData>> left_lineage = make_unique<vector<SourceAndMaybeData>>();
 
@@ -461,9 +454,9 @@ Generator<shared_ptr<vector<SourceAndMaybeData>>> OperatorLineage::Backward(
 		}
 	}
 	case PhysicalOperatorType::HASH_GROUP_BY: {
-//		if ((*lineage.get())[0].data == nullptr) {
+		if ((*lineage.get())[0].data == nullptr) {
 			AccessLineageDataViaIndex(lineage, data[LINEAGE_SOURCE], index);
-//		}
+		}
 
 //      Commenting out to remove zone maps
 //		if (data[LINEAGE_SOURCE].size() > PROBE_SIZE) {
@@ -524,9 +517,9 @@ Generator<shared_ptr<vector<SourceAndMaybeData>>> OperatorLineage::Backward(
 		co_return;
 	}
 	case PhysicalOperatorType::PERFECT_HASH_GROUP_BY: {
-//		if ((*lineage.get())[0].data == nullptr) {
+		if ((*lineage.get())[0].data == nullptr) {
 			AccessLineageDataViaIndex(lineage, data[LINEAGE_SOURCE], index);
-//		}
+		}
 
 //		if (data[LINEAGE_SOURCE].size() > PROBE_SIZE) {
 //			vector<SourceAndMaybeData> orig_lineage = vector<SourceAndMaybeData>(*lineage.get());
@@ -595,9 +588,9 @@ Generator<shared_ptr<vector<SourceAndMaybeData>>> OperatorLineage::Backward(
 	case PhysicalOperatorType::BLOCKWISE_NL_JOIN:
 	case PhysicalOperatorType::PIECEWISE_MERGE_JOIN:
 	case PhysicalOperatorType::NESTED_LOOP_JOIN: {
-//		if ((*lineage.get())[0].data == nullptr) {
+		if ((*lineage.get())[0].data == nullptr) {
 			AccessLineageDataViaIndex(lineage, data[LINEAGE_PROBE], index);
-//		}
+		}
 
 		shared_ptr<vector<SourceAndMaybeData>> left_lineage = make_shared<vector<SourceAndMaybeData>>();
 		left_lineage->reserve(lineage->size());
@@ -668,9 +661,9 @@ Generator<shared_ptr<vector<SourceAndMaybeData>>> OperatorLineage::Backward(
 			co_return;
 		}
 	} case PhysicalOperatorType::CROSS_PRODUCT: {
-//		if ((*lineage.get())[0].data == nullptr) {
+		if ((*lineage.get())[0].data == nullptr) {
 			AccessLineageDataViaIndex(lineage, data[LINEAGE_PROBE], index);
-//		}
+		}
 
 		shared_ptr<vector<SourceAndMaybeData>> left_lineage = make_shared<vector<SourceAndMaybeData>>();
 		left_lineage->reserve(lineage->size());
@@ -733,9 +726,9 @@ Generator<shared_ptr<vector<SourceAndMaybeData>>> OperatorLineage::Backward(
 		}
 	}
 	case PhysicalOperatorType::INDEX_JOIN: {
-//		if ((*lineage.get())[0].data == nullptr) {
+		if ((*lineage.get())[0].data == nullptr) {
 			AccessLineageDataViaIndex(lineage, data[LINEAGE_UNARY], index);
-//		}
+		}
 
 		vector<SourceAndMaybeData> left_lineage;
 		left_lineage.reserve(lineage->size());
@@ -792,13 +785,13 @@ Generator<shared_ptr<vector<SourceAndMaybeData>>> OperatorLineage::Backward(
 		co_return;
 	}
 	case PhysicalOperatorType::ORDER_BY: {
-//		if ((*lineage.get())[0].data == nullptr) {
+		if ((*lineage.get())[0].data == nullptr) {
 			// No OrderBy index since it's all one chunk - just get that chunk
 			auto data_ptr = make_shared<LineageDataWithOffset>(data[LINEAGE_UNARY][0]);
 			for (idx_t i = 0; i < lineage->size(); i++) {
 				(*lineage.get())[i].data = data_ptr;
 			}
-//		}
+		}
 
 		for (idx_t i = 0; i < lineage->size(); i++) {
 			(*lineage.get())[i] = {
