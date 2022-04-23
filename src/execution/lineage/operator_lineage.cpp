@@ -62,6 +62,53 @@ void OperatorLineage::Capture(const shared_ptr<LineageData>& datum, idx_t lineag
 			D_ASSERT(false);
 		}
 	}
+
+	// Build Hash Join BUILD index
+	if (type == PhysicalOperatorType::HASH_JOIN && lineage_idx == LINEAGE_BUILD) {
+		// build hash table with range -> acc
+		// if x in range -> then use range.start and adjust the value using acc
+		LineageDataWithOffset this_data = data[LINEAGE_BUILD][data[LINEAGE_BUILD].size() - 1];
+		auto payload = (uint64_t*)this_data.data->Process(0);
+		idx_t count_so_far = this_data.this_offset;
+		idx_t res_count = this_data.data->Count();
+		if (offset == 0 && res_count > 1) {
+			offset = payload[1] - payload[0];
+		}
+
+		// init base
+		if (start_base == 0) {
+			start_base = payload[0];
+			last_base = payload[res_count - 1];
+			hm_range.emplace_back(start_base, last_base);
+			hash_chunk_count.push_back(0);
+		} else {
+			if (offset == 0) {
+				offset = payload[res_count - 1] - start_base;
+			}
+			auto diff = (payload[res_count - 1] - start_base) / offset;
+			if (diff + 1 !=  count_so_far + res_count - hash_chunk_count.back()) {
+				// update the range and log the old one
+				// range -> count
+				// if value fall in this range, then remove the start / offset
+				for (idx_t j = 0; j < res_count; ++j) {
+					auto f = ((payload[j] - start_base) / offset);
+					auto s = count_so_far + j - hash_chunk_count.back();
+					if ( f !=  s) {
+						if (j > 1) {
+							hm_range.back().second = payload[j - 1]; // the previous one
+						}
+						hash_chunk_count.push_back(count_so_far + j);
+						start_base = payload[j];
+						last_base = payload[res_count - 1];
+						hm_range.emplace_back(start_base, last_base);
+						break;
+					}
+				}
+			} else {
+				hm_range.back().second = payload[res_count - 1];
+			}
+		}
+	}
 }
 
 void OperatorLineage::FinishedProcessing(idx_t data_idx, idx_t finished_idx) {
@@ -406,22 +453,37 @@ shared_ptr<LineageDataWithOffset> OperatorLineage::GetMyLatest() {
 		return nullptr;
 	}
 	case PhysicalOperatorType::FILTER:
-	case PhysicalOperatorType::HASH_GROUP_BY:
 	case PhysicalOperatorType::LIMIT:
-	case PhysicalOperatorType::ORDER_BY:
+	case PhysicalOperatorType::ORDER_BY: {
+		if (!data[LINEAGE_UNARY].empty()) {
+			return make_shared<LineageDataWithOffset>(data[LINEAGE_UNARY][data[LINEAGE_UNARY].size() - 1]);
+		}
+		return nullptr;
+	}
+	case PhysicalOperatorType::HASH_GROUP_BY:
 	case PhysicalOperatorType::PERFECT_HASH_GROUP_BY:
 	case PhysicalOperatorType::WINDOW: {
-		return make_shared<LineageDataWithOffset>(data[0][data[0].size() - 1]);
+		if (!data[LINEAGE_SOURCE].empty()) {
+			return make_shared<LineageDataWithOffset>(data[LINEAGE_SOURCE][data[LINEAGE_SOURCE].size() - 1]);
+		}
+		return nullptr;
 	}
 	case PhysicalOperatorType::CROSS_PRODUCT: {
 		// Only the right lineage is ever captured TODO is this what we should do?
-		return make_shared<LineageDataWithOffset>(data[1][data[1].size() - 1]);
+		if (!data[LINEAGE_PROBE].empty()) {
+			return make_shared<LineageDataWithOffset>(data[LINEAGE_PROBE][data[LINEAGE_PROBE].size() - 1]);
+		}
+		return nullptr;
 	}
 	case PhysicalOperatorType::NESTED_LOOP_JOIN:
 	case PhysicalOperatorType::BLOCKWISE_NL_JOIN:
 	case PhysicalOperatorType::INDEX_JOIN: {
 		// 0 is the probe side for these joins
-		return make_shared<LineageDataWithOffset>(data[0][data[0].size() - 1]);
+		if (!data[0].empty()) {
+			return make_shared<LineageDataWithOffset>(data[0][data[0].size() - 1]);
+		} else {
+			return nullptr;
+		}
 	}
 	case PhysicalOperatorType::PIECEWISE_MERGE_JOIN: {
 		// 1 is the probe side for this join

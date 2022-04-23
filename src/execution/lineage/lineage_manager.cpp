@@ -101,47 +101,6 @@ shared_ptr<OperatorLineage> GetThisLineageOp(PhysicalOperator *op, int thd_id) {
 	}
 }
 
-// This is used to recursively skip projections
-shared_ptr<OperatorLineage> GetThisParentOp(PhysicalOperator *op, int thd_id) {
-	switch (op->type) {
-	case PhysicalOperatorType::CHUNK_SCAN:
-	case PhysicalOperatorType::DELIM_SCAN:
-	case PhysicalOperatorType::DUMMY_SCAN:
-	case PhysicalOperatorType::TABLE_SCAN:
-	case PhysicalOperatorType::FILTER:
-	case PhysicalOperatorType::HASH_GROUP_BY:
-	case PhysicalOperatorType::LIMIT:
-	case PhysicalOperatorType::ORDER_BY:
-	case PhysicalOperatorType::PERFECT_HASH_GROUP_BY:
-	case PhysicalOperatorType::SIMPLE_AGGREGATE:
-	case PhysicalOperatorType::WINDOW:
-	case PhysicalOperatorType::CROSS_PRODUCT:
-	case PhysicalOperatorType::NESTED_LOOP_JOIN:
-	case PhysicalOperatorType::BLOCKWISE_NL_JOIN:
-	case PhysicalOperatorType::PIECEWISE_MERGE_JOIN:
-	case PhysicalOperatorType::INDEX_JOIN:
-	case PhysicalOperatorType::DELIM_JOIN: {
-		return op->lineage_op[thd_id];
-	}
-	case PhysicalOperatorType::HASH_JOIN: {
-		JoinType join_type = dynamic_cast<PhysicalJoin *>(op)->join_type;
-		if (join_type == JoinType::MARK) {
-			// Pass through Mark Joins
-			return GetThisLineageOp(op->children[0].get(), thd_id);
-		} else {
-			return op->lineage_op[thd_id];
-		}
-	}
-	case PhysicalOperatorType::PROJECTION: {
-		// Skip projection!
-		return GetThisLineageOp(op->children[0].get(), thd_id);
-	}
-	default:
-		// Lineage unimplemented! TODO these :)
-		return {};
-	}
-}
-
 std::vector<shared_ptr<OperatorLineage>> GetChildrenForOp(PhysicalOperator *op, int thd_id) {
 	switch (op->type) {
 	case PhysicalOperatorType::CHUNK_SCAN:
