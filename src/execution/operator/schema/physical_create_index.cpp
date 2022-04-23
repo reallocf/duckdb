@@ -4,6 +4,7 @@
 #include "duckdb/catalog/catalog_entry/schema_catalog_entry.hpp"
 #include "duckdb/catalog/catalog_entry/table_catalog_entry.hpp"
 #include "duckdb/execution/expression_executor.hpp"
+#include "duckdb/execution/index/lineage_index/lineage_index.hpp"
 
 namespace duckdb {
 
@@ -24,6 +25,10 @@ void PhysicalCreateIndex::GetChunkInternal(ExecutionContext &context, DataChunk 
 	switch (info->index_type) {
 	case IndexType::ART: {
 		index = make_unique<ART>(column_ids, unbound_expressions, info->unique);
+		break;
+	}
+	case IndexType::LINEAGE_INDEX:{
+		index = make_unique<Lineage_Index>(column_ids, unbound_expressions, info->table.get()->table_name, info->unique);
 		break;
 	}
 	default:

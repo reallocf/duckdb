@@ -36,7 +36,7 @@ void TransformIndexJoin(ClientContext &context, LogicalComparisonJoin &op, Index
 	if (op.join_type == JoinType::INNER && op.conditions.size() == 1) {
 		// check if one of the children are table scans and if they have an index in the join attribute
 		// (op.condition)
-		if (left->type == PhysicalOperatorType::TABLE_SCAN) {
+		if (left->type == PhysicalOperatorType::TABLE_SCAN || left->type == PhysicalOperatorType::LINEAGE_SCAN) {
 			auto &tbl_scan = (PhysicalTableScan &)*left;
 			auto tbl = dynamic_cast<TableScanBindData *>(tbl_scan.bind_data.get());
 			if (CanPlanIndexJoin(transaction, tbl, tbl_scan)) {
@@ -49,7 +49,7 @@ void TransformIndexJoin(ClientContext &context, LogicalComparisonJoin &op, Index
 				});
 			}
 		}
-		if (right->type == PhysicalOperatorType::TABLE_SCAN) {
+		if (right->type == PhysicalOperatorType::TABLE_SCAN || right->type == PhysicalOperatorType::LINEAGE_SCAN) {
 			auto &tbl_scan = (PhysicalTableScan &)*right;
 			auto tbl = dynamic_cast<TableScanBindData *>(tbl_scan.bind_data.get());
 			if (CanPlanIndexJoin(transaction, tbl, tbl_scan)) {

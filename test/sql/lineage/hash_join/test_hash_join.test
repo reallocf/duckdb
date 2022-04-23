@@ -45,11 +45,15 @@ select query_id, query from queries_list;
 
 statement ok
 PRAGMA trace_lineage = "OFF";
+CREATE INDEX probe_index ON LINEAGE_1_HASH_JOIN_2_1 using lineage_index(lhs_address);
+CREATE INDEX sink_index ON LINEAGE_1_HASH_JOIN_2_0 using lineage_index(out_address);
+PRAGMA force_index_join
+
 
 query III
 select sink.in_index, probe.rhs_index, probe.out_index
 from LINEAGE_1_HASH_JOIN_2_1 AS probe
-JOIN LINEAGE_1_HASH_JOIN_2_0 AS sink ON sink.out_address = probe.lhs_address;
+INNER JOIN LINEAGE_1_HASH_JOIN_2_0 AS sink ON sink.out_address = probe.lhs_address;
 ----
 4	0	0
 1	2	1

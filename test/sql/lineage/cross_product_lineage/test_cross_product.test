@@ -62,7 +62,7 @@ t1
 t2
 
 query II
-SELECT * FROM LINEAGE_1_FILTER_1_0
+SELECT in_index, out_index FROM LINEAGE_1_FILTER_1_0
 ----
 0	0
 1	1
@@ -71,7 +71,7 @@ SELECT * FROM LINEAGE_1_FILTER_1_0
 3071	4
 
 query II
-SELECT * FROM LINEAGE_1_FILTER_3_0
+SELECT in_index, out_index FROM LINEAGE_1_FILTER_3_0
 ----
 0	0
 1	1

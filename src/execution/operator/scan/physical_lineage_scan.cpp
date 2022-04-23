@@ -36,7 +36,7 @@ PhysicalLineageScan::PhysicalLineageScan(vector<LogicalType> types, TableFunctio
                                          unique_ptr<FunctionData> bind_data_p, vector<column_t> column_ids_p,
                                          vector<string> names_p, unique_ptr<TableFilterSet> table_filters_p,
                                          idx_t estimated_cardinality)
-    : PhysicalOperator(PhysicalOperatorType::TABLE_SCAN, move(types), estimated_cardinality),
+    : PhysicalOperator(PhysicalOperatorType::LINEAGE_SCAN, move(types), estimated_cardinality),
       function(move(function_p)), bind_data(move(bind_data_p)), column_ids(move(column_ids_p)), names(move(names_p)),
       table_filters(move(table_filters_p)) {
 }

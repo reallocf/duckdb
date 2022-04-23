@@ -3,12 +3,15 @@
 #include "duckdb/common/vector_operations/vector_operations.hpp"
 #include "duckdb/execution/expression_executor.hpp"
 #include "duckdb/execution/index/art/art.hpp"
+#include "duckdb/execution/index/lineage_index/lineage_index.hpp"
 #include "duckdb/execution/operator/scan/physical_table_scan.hpp"
+#include "duckdb/execution/operator/scan/physical_lineage_scan.hpp"
 #include "duckdb/function/table/table_scan.hpp"
 #include "duckdb/storage/buffer_manager.hpp"
 #include "duckdb/storage/storage_manager.hpp"
 #include "duckdb/transaction/transaction.hpp"
 #include "duckdb/storage/table/append_state.hpp"
+#include "duckdb/common/enums/index_type.hpp"
 
 #include <iostream>
 #include <utility>
@@ -35,7 +38,9 @@ public:
 	vector<vector<row_t>> rhs_rows;
 	ExpressionExecutor probe_executor;
 };
+PhysicalIndexJoin::PhysicalIndexJoin(LogicalOperator &op, Index *index) : PhysicalOperator(PhysicalOperatorType::INDEX_JOIN, op.types,0){
 
+}
 PhysicalIndexJoin::PhysicalIndexJoin(LogicalOperator &op, unique_ptr<PhysicalOperator> left,
                                      unique_ptr<PhysicalOperator> right, vector<JoinCondition> cond, JoinType join_type,
                                      const vector<idx_t> &left_projection_map, vector<idx_t> right_projection_map,
@@ -65,115 +70,168 @@ PhysicalIndexJoin::PhysicalIndexJoin(LogicalOperator &op, unique_ptr<PhysicalOpe
 
 void PhysicalIndexJoin::Output(ExecutionContext &context, DataChunk &chunk, PhysicalOperatorState *state_p) const {
 	auto &transaction = Transaction::GetTransaction(context.client);
-	auto &phy_tbl_scan = (PhysicalTableScan &)*children[1];
-	auto &bind_tbl = (TableScanBindData &)*phy_tbl_scan.bind_data;
-	auto tbl = bind_tbl.table->storage.get();
-	DataChunk rhs_chunk;
-	idx_t rhs_column_idx = 0;
-	SelectionVector sel;
-	sel.Initialize(STANDARD_VECTOR_SIZE);
-	idx_t output_sel_idx = 0;
-	vector<row_t> fetch_rows;
+	if(index->type == IndexType::ART) {
+		auto &phy_tbl_scan = (PhysicalTableScan &)*children[1];
+		auto &bind_tbl = (TableScanBindData &)*phy_tbl_scan.bind_data;
+		auto tbl = bind_tbl.table->storage.get();
+		DataChunk rhs_chunk;
+		idx_t rhs_column_idx = 0;
+		SelectionVector sel;
+		sel.Initialize(STANDARD_VECTOR_SIZE);
+		idx_t output_sel_idx = 0;
+		vector<row_t> fetch_rows;
 #ifdef LINEAGE
-	bool do_not_fetch = false;
+		bool do_not_fetch = false;
 #endif
-	auto state = reinterpret_cast<PhysicalIndexJoinOperatorState *>(state_p);
-	while (output_sel_idx < STANDARD_VECTOR_SIZE && state->lhs_idx < state->child_chunk.size()) {
-		if (state->rhs_idx < state->result_sizes[state->lhs_idx]) {
-			sel.set_index(output_sel_idx++, state->lhs_idx);
+		auto state = reinterpret_cast<PhysicalIndexJoinOperatorState *>(state_p);
+		while (output_sel_idx < STANDARD_VECTOR_SIZE && state->lhs_idx < state->child_chunk.size()) {
+			if (state->rhs_idx < state->result_sizes[state->lhs_idx]) {
+				sel.set_index(output_sel_idx++, state->lhs_idx);
 #ifdef LINEAGE
-			if (!fetch_types.empty() || context.client.trace_lineage) {
-				if (fetch_types.empty()) {
-					do_not_fetch = true;
+				if (!fetch_types.empty() || context.client.trace_lineage) {
+					if (fetch_types.empty()) {
+						do_not_fetch = true;
+					}
+#else
+				if (!fetch_types.empty()) {
+#endif
+					//! We need to collect the rows we want to fetch
+					fetch_rows.push_back(state->rhs_rows[state->lhs_idx][state->rhs_idx]);
 				}
-#else
-			if (!fetch_types.empty()) {
-#endif
-				//! We need to collect the rows we want to fetch
-				fetch_rows.push_back(state->rhs_rows[state->lhs_idx][state->rhs_idx]);
+				state->rhs_idx++;
+			} else {
+				//! We are done with the matches from this LHS Key
+				state->rhs_idx = 0;
+				state->lhs_idx++;
 			}
-			state->rhs_idx++;
-		} else {
-			//! We are done with the matches from this LHS Key
-			state->rhs_idx = 0;
-			state->lhs_idx++;
 		}
-	}
 
-	//! Now we fetch the RHS data
+		//! Now we fetch the RHS data
 #ifdef LINEAGE
-	if (!fetch_types.empty() && !do_not_fetch) {
+		if (!fetch_types.empty() && !do_not_fetch) {
 #else
-	if (!fetch_types.empty()) {
+		if (!fetch_types.empty()) {
 #endif
-		if (fetch_rows.empty()) {
-			return;
+			if (fetch_rows.empty()) {
+				return;
+			}
+			rhs_chunk.Initialize(fetch_types);
+			ColumnFetchState fetch_state;
+			Vector row_ids(LOGICAL_ROW_TYPE, (data_ptr_t)&fetch_rows[0]);
+			tbl->Fetch(transaction, rhs_chunk, fetch_ids, row_ids, output_sel_idx, fetch_state);
 		}
-		rhs_chunk.Initialize(fetch_types);
-		ColumnFetchState fetch_state;
-		Vector row_ids(LOGICAL_ROW_TYPE, (data_ptr_t)&fetch_rows[0]);
-		tbl->Fetch(transaction, rhs_chunk, fetch_ids, row_ids, output_sel_idx, fetch_state);
-	}
 
-	//! Now we actually produce our result chunk
-	idx_t left_offset = lhs_first ? 0 : right_projection_map.size();
-	idx_t right_offset = lhs_first ? left_projection_map.size() : 0;
-	for (idx_t i = 0; i < right_projection_map.size(); i++) {
-		auto it = index_ids.find(column_ids[right_projection_map[i]]);
-		if (it == index_ids.end()) {
-			chunk.data[right_offset + i].Reference(rhs_chunk.data[rhs_column_idx++]);
-		} else {
-			chunk.data[right_offset + i].Reference(state->join_keys.data[0]);
-			chunk.data[right_offset + i].Slice(sel, output_sel_idx);
+		//! Now we actually produce our result chunk
+		idx_t left_offset = lhs_first ? 0 : right_projection_map.size();
+		idx_t right_offset = lhs_first ? left_projection_map.size() : 0;
+		for (idx_t i = 0; i < right_projection_map.size(); i++) {
+			auto it = index_ids.find(column_ids[right_projection_map[i]]);
+			if (it == index_ids.end()) {
+				chunk.data[right_offset + i].Reference(rhs_chunk.data[rhs_column_idx++]);
+			} else {
+				chunk.data[right_offset + i].Reference(state->join_keys.data[0]);
+				chunk.data[right_offset + i].Slice(sel, output_sel_idx);
+			}
 		}
-	}
-	for (idx_t i = 0; i < left_projection_map.size(); i++) {
-		chunk.data[left_offset + i].Reference(state->child_chunk.data[left_projection_map[i]]);
-		chunk.data[left_offset + i].Slice(sel, output_sel_idx);
-	}
+		for (idx_t i = 0; i < left_projection_map.size(); i++) {
+			chunk.data[left_offset + i].Reference(state->child_chunk.data[left_projection_map[i]]);
+			chunk.data[left_offset + i].Slice(sel, output_sel_idx);
+		}
 
 #ifdef LINEAGE
-	auto lhs_lineage = make_unique<LineageSelVec>(move(sel), output_sel_idx);
-	auto rhs_lineage = make_unique<LineageDataRowVector>(fetch_rows, output_sel_idx);
-	lineage_op.at(context.task.thread_id)->Capture(make_shared<LineageBinary>(move(lhs_lineage), move(rhs_lineage)), LINEAGE_UNARY);
+		auto lhs_lineage = make_unique<LineageSelVec>(move(sel), output_sel_idx);
+		auto rhs_lineage = make_unique<LineageDataRowVector>(fetch_rows, output_sel_idx);
+		lineage_op.at(context.task.thread_id)
+		    ->Capture(make_shared<LineageBinary>(move(lhs_lineage), move(rhs_lineage)), LINEAGE_UNARY);
 #endif
 
-	state->result_size = output_sel_idx;
-	chunk.SetCardinality(state->result_size);
+		state->result_size = output_sel_idx;
+		chunk.SetCardinality(state->result_size);
+	}
+	else if (index->type == IndexType::LINEAGE_INDEX){
+		auto &phy_tbl_scan = (PhysicalLineageScan &)*children[1];
+		auto &bind_tbl = (TableScanBindData &)*phy_tbl_scan.bind_data;
+		auto tbl = bind_tbl.table->storage.get();
+		DataChunk rhs_chunk;
+		idx_t rhs_column_idx = 0;
+		SelectionVector sel;
+		sel.Initialize(STANDARD_VECTOR_SIZE);
+		idx_t output_sel_idx = 0;
+		vector<row_t> fetch_rows;
+		idx_t left_offset = lhs_first ? 0 : right_projection_map.size();
+		idx_t right_offset = lhs_first ? left_projection_map.size() : 0;
+
+		auto state = reinterpret_cast<PhysicalIndexJoinOperatorState *>(state_p);
+		for (idx_t i = 0; i < right_projection_map.size(); i++) {
+			auto it = index_ids.find(column_ids[right_projection_map[i]]);
+			if (it == index_ids.end()) {
+				chunk.data[right_offset + i].Sequence(1, 1);
+			} else {
+				chunk.data[right_offset + i].Sequence(1, 1);
+			}
+		}
+		for (idx_t i = 0; i < left_projection_map.size(); i++) {
+			chunk.data[right_offset + i].Sequence(1, 1);
+		}
+
+		state->result_size = 1;
+		chunk.Reset();
+	}
 }
 
 void PhysicalIndexJoin::GetRHSMatches(ExecutionContext &context, PhysicalOperatorState *state_p) const {
 	auto state = reinterpret_cast<PhysicalIndexJoinOperatorState *>(state_p);
-	auto &art = (ART &)*index;
-	auto &transaction = Transaction::GetTransaction(context.client);
-	for (idx_t i = 0; i < state->child_chunk.size(); i++) {
-		auto equal_value = state->join_keys.GetValue(0, i);
-		auto index_state = art.InitializeScanSinglePredicate(transaction, equal_value, ExpressionType::COMPARE_EQUAL);
-		state->rhs_rows[i].clear();
-		if (!equal_value.is_null) {
+	if (index->type == IndexType::ART){
+		auto &art = (ART &)*index;
+		auto &transaction = Transaction::GetTransaction(context.client);
+		for (idx_t i = 0; i < state->child_chunk.size(); i++) {
+			auto equal_value = state->join_keys.GetValue(0, i);
+			auto index_state = art.InitializeScanSinglePredicate(transaction, equal_value, ExpressionType::COMPARE_EQUAL);
+			state->rhs_rows[i].clear();
+			if (!equal_value.is_null) {
 #ifdef LINEAGE
-			if (fetch_types.empty() && !context.client.trace_lineage) {
+				if (fetch_types.empty() && !context.client.trace_lineage) {
 #else
-			if (fetch_types.empty()) {
+				if (fetch_types.empty()) {
 #endif
-				IndexLock lock;
-				index->InitializeLock(lock);
-				art.SearchEqualJoinNoFetch(equal_value, state->result_sizes[i]);
+					IndexLock lock;
+					index->InitializeLock(lock);
+					art.SearchEqualJoinNoFetch(equal_value, state->result_sizes[i]);
+				} else {
+					IndexLock lock;
+					index->InitializeLock(lock);
+					art.SearchEqual((ARTIndexScanState *)index_state.get(), (idx_t)-1, state->rhs_rows[i]);
+					state->result_sizes[i] = state->rhs_rows[i].size();
+				}
 			} else {
-				IndexLock lock;
-				index->InitializeLock(lock);
-				art.SearchEqual((ARTIndexScanState *)index_state.get(), (idx_t)-1, state->rhs_rows[i]);
-				state->result_sizes[i] = state->rhs_rows[i].size();
+				//! This is null so no matches
+				state->result_sizes[i] = 0;
 			}
-		} else {
-			//! This is null so no matches
+		}
+		for (idx_t i = state->child_chunk.size(); i < STANDARD_VECTOR_SIZE; i++) {
+			//! No LHS chunk value so result size is empty
 			state->result_sizes[i] = 0;
 		}
 	}
-	for (idx_t i = state->child_chunk.size(); i < STANDARD_VECTOR_SIZE; i++) {
-		//! No LHS chunk value so result size is empty
-		state->result_sizes[i] = 0;
+	else if (index->type == IndexType::LINEAGE_INDEX){
+		auto &lineage_index = (Lineage_Index &)*index;
+		auto &transaction = Transaction::GetTransaction(context.client);
+		for (idx_t i = 0; i < state->child_chunk.size(); i++) {
+			auto equal_value = state->join_keys.GetValue(0, i);
+			auto index_state = lineage_index.InitializeScanSinglePredicate(transaction, equal_value, ExpressionType::COMPARE_EQUAL);
+			state->rhs_rows[i].clear();
+			if(!equal_value.is_null){
+				IndexLock lock;
+				index->InitializeLock(lock);
+				lineage_index.SearchEqual((LineageIndexScanState *)index_state.get(), (idx_t)-1, state->rhs_rows[i]);
+				state->result_sizes[i] = state->rhs_rows[i].size();
+			}
+			else{
+				state->result_sizes[i] = 0;
+			}
+		}
 	}
+
 }
 
 void PhysicalIndexJoin::GetChunkInternal(ExecutionContext &context, DataChunk &chunk,

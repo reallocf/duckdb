@@ -11,6 +11,8 @@ static IndexType StringToIndexType(const string &str) {
 	string upper_str = StringUtil::Upper(str);
 	if (upper_str == "INVALID") {
 		return IndexType::INVALID;
+	} else if (upper_str == "LINEAGE_INDEX") {
+		return IndexType::LINEAGE_INDEX;
 	} else if (upper_str == "ART") {
 		return IndexType::ART;
 	} else {

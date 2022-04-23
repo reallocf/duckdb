@@ -6,8 +6,13 @@
 #include "duckdb/parser/statement/create_statement.hpp"
 #include "duckdb/planner/binder.hpp"
 #include "duckdb/planner/parsed_data/bound_create_table_info.hpp"
+#include "duckdb/parser/parsed_data/create_index_info.hpp"
 #include "duckdb/execution/operator/join/physical_delim_join.hpp"
 #include "duckdb/execution/operator/join/physical_join.hpp"
+#include "duckdb/catalog/catalog_entry/index_catalog_entry.hpp"
+#include "duckdb/storage/data_table.hpp"
+#include "duckdb/planner/expression_binder/index_binder.hpp"
+#include "duckdb/execution/index/lineage_index/lineage_index.hpp"
 
 #include <utility>
 
@@ -372,6 +377,7 @@ idx_t LineageManager::CreateLineageTables(PhysicalOperator *op) {
 		// Example: LINEAGE_1_HASH_JOIN_3_0
 		string table_name = "LINEAGE_" + to_string(query_id) + "_"
 							+ op->GetName() + "_" + to_string(i);
+		string index_col_name = table_column_types[i][0].name;
 
 		// Create Table
 		auto info = make_unique<CreateTableInfo>();
@@ -388,6 +394,46 @@ idx_t LineageManager::CreateLineageTables(PhysicalOperator *op) {
 		auto &catalog = Catalog::GetCatalog(context);
 		TableCatalogEntry *table =
 			dynamic_cast<TableCatalogEntry *>(catalog.CreateTable(context, bound_create_info.get()));
+
+
+//		//Create Index
+//		auto index_info = make_unique<CreateIndexInfo>();
+//		auto tableref = make_unique<BaseTableRef>();
+//		tableref->table_name = table_name;
+//		tableref->schema_name = table->schema->name;
+//		index_info->index_name = table_name  + "_INDEX";
+//		index_info->index_type = IndexType::LINEAGE_INDEX;
+//		index_info->table = move(tableref);
+//
+//		//auto schema_entry = table->schema->CreateIndex(context, index_info.get(), table);
+//		auto index_entry = (IndexCatalogEntry *)table->schema->CreateIndex(context, index_info.get(), table);
+//		if (!index_entry) {
+//			// index already exists, but error ignored because of IF NOT EXISTS
+//			continue;
+//		}
+//		DataTable* dataTable = table->storage.get();
+//		vector<unique_ptr<Expression>> exps;
+//		unique_ptr<ParsedExpression> exp = make_unique<ColumnRefExpression>(index_col_name,  table_name);
+//		exp->type = ExpressionType::COLUMN_REF;
+//		exp->expression_class = ExpressionClass::COLUMN_REF;
+//		exp->alias = index_col_name;
+//		//exp->table_name = table_name;
+//		//exp->column_name = table_column_types[0][0].name;
+//		IndexBinder indexBinder(*Binder::CreateBinder(this->context), this->context);
+//		exps.emplace_back(indexBinder.Bind(exp));
+//
+//		vector<column_t> col_ids;
+//		col_ids.push_back(0);
+//		unique_ptr<Index> index = make_unique<Lineage_Index>(col_ids, exps);
+//
+//		dataTable->AddIndex(move(index), exps);
+//
+//
+
+
+
+
+
 
 		table->opLineage = op->lineage_op.at(-1);
 

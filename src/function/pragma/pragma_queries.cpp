@@ -1,6 +1,8 @@
 #include "duckdb/function/pragma/pragma_functions.hpp"
 #include "duckdb/common/string_util.hpp"
 #include "duckdb/common/file_system.hpp"
+#include "duckdb/execution/operator/join/physical_index_join.hpp"
+#include "duckdb/execution/index/lineage_index/lineage_index.hpp"
 
 namespace duckdb {
 
@@ -49,6 +51,84 @@ string PragmaBackwardLineage(ClientContext &context, const FunctionParameters &p
 	}
 }
 #endif
+
+//static std::queue<std::unique_ptr<PhysicalOperator>> idx_join_ops;
+//static std::queue<std::unique_ptr<PhysicalOperator>> lineage_scan_ops;
+
+std::unique_ptr<PhysicalIndexJoin> preparePhysicalIndexJoin(PhysicalOperator *op, ClientContext &cxt){
+	vector<LogicalType> types;
+	types.emplace_back(LogicalType::INTEGER);
+	types.emplace_back(LogicalType::INTEGER);
+	auto logical_join = make_unique<LogicalComparisonJoin>(JoinType::INNER);
+	logical_join->types = types;
+	shared_ptr<OperatorLineage> opLineage = op->lineage_op.at(-1);
+	vector<column_t> cids;
+	cids.push_back(1L);
+	vector<unique_ptr<Expression>> unbound_expressions;
+	unique_ptr<Index> index = make_unique<Lineage_Index>(cids, unbound_expressions, "", true, false);
+	auto join =  make_unique<PhysicalIndexJoin>(*logical_join.get(), index.get());
+	return join;
+}
+
+
+void GenerateCustomPlan(PhysicalOperator* op, unique_ptr<PhysicalOperator> physicalOperator,ClientContext &cxt){
+	if(op->children[0]){
+		GenerateCustomPlan(op->children[0].get(), NULL, cxt);
+	}
+	unique_ptr<PhysicalOperator> idx_join = preparePhysicalIndexJoin(op, cxt);
+	idx_join->children.push_back(move(physicalOperator));
+	if(physicalOperator == NULL){
+		//prepare a scan operator
+
+	}
+	physicalOperator = move(idx_join);
+	return;
+}
+
+string PragmaBackwardLineageDuckDBExecEngine(ClientContext &context, const FunctionParameters &parameters) {
+	// query the lineage data, create a view on top of it, and then query that
+	string query = parameters.values[0].ToString();
+	string mode = parameters.values[1].ToString();
+	auto op = context.query_to_plan[query].get();
+	GenerateCustomPlan(op, NULL, context);
+	if (op == nullptr) {
+		throw std::logic_error("Querying non-existent lineage");
+	}
+
+	string origin = parameters.values[2].ToString();
+	std::stringstream ss(origin);
+	string word;
+	if (mode == "VALUE") {
+		string out_str;
+		while (ss >> word) {
+			clock_t start = clock();
+			auto lineage = context.lineage_manager->Backward(op, (idx_t)stoi(word));
+			clock_t end = clock();
+			std::cout << "Root Backward time: " << ((float) end - start) / CLOCKS_PER_SEC << std::endl;
+			for (const SourceAndMaybeData& el : lineage) {
+				if (!out_str.empty()) {
+					out_str += ",";
+				}
+				out_str += to_string(el.source);
+			}
+		}
+		out_str = "list_value("+ out_str +")";
+
+		return StringUtil::Format("SELECT %s", out_str);
+	} else if (mode == "COUNT") {
+		idx_t out_idx;
+		while (ss >> word) {
+			clock_t start = clock();
+			out_idx = context.lineage_manager->BackwardCount(op, (idx_t)stoi(word));
+			clock_t end = clock();
+			std::cout << "Root Backward time: " << ((float) end - start) / CLOCKS_PER_SEC << std::endl;
+		}
+
+		return StringUtil::Format("SELECT %i", out_idx);
+	} else {
+		throw std::logic_error("Invalid backward query mode - should be VALUE or COUNT");
+	}
+}
 
 string PragmaTableInfo(ClientContext &context, const FunctionParameters &parameters) {
 	return StringUtil::Format("SELECT * FROM pragma_table_info('%s')", parameters.values[0].ToString());
