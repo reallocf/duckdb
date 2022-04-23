@@ -54,9 +54,9 @@ if os.name == 'nt':
     toolchain_args = ['/wd4244', '/wd4267', '/wd4200', '/wd26451', '/wd26495', '/D_CRT_SECURE_NO_WARNINGS']
 else:
     # macos/linux
-    toolchain_args = ['-std=c++11', '-g0']
+    toolchain_args = ['-std=c++20', '-g0']
     if 'DUCKDEBUG' in os.environ:
-        toolchain_args = ['-std=c++11', '-Wall', '-O0', '-g']
+        toolchain_args = ['-std=c++20', '-Wall', '-O0', '-g']
 if 'DUCKDB_INSTALL_USER' in os.environ and 'install' in sys.argv:
     sys.argv.append('--user')
 
@@ -67,7 +67,7 @@ for i in range(len(sys.argv)):
     if sys.argv[i].startswith("--binary-dir="):
         existing_duckdb_dir = sys.argv[i].split('=', 1)[1]
     elif sys.argv[i].startswith("--compile-flags="):
-        toolchain_args = ['-std=c++11'] + [x.strip() for x in sys.argv[i].split('=', 1)[1].split(' ') if len(x.strip()) > 0]
+        toolchain_args = ['-std=c++20'] + [x.strip() for x in sys.argv[i].split('=', 1)[1].split(' ') if len(x.strip()) > 0]
     elif sys.argv[i].startswith("--libs="):
         libraries = [x.strip() for x in sys.argv[i].split('=', 1)[1].split(' ') if len(x.strip()) > 0]
     else:
