@@ -37,23 +37,30 @@ public:
 	//! Vector of rows that mush be fetched for every LHS key
 	vector<vector<row_t>> rhs_rows;
 	ExpressionExecutor probe_executor;
+	vector<shared_ptr<LineageDataWithOffset>> child_ptrs;
+	vector<Value> cached_values;
+	vector<shared_ptr<LineageDataWithOffset>> cached_child_ptrs;
+	idx_t cached_values_idx = 0;
 };
-PhysicalIndexJoin::PhysicalIndexJoin(LogicalOperator &op, Index *index) : PhysicalOperator(PhysicalOperatorType::INDEX_JOIN, op.types,0){
 
-}
 PhysicalIndexJoin::PhysicalIndexJoin(LogicalOperator &op, unique_ptr<PhysicalOperator> left,
                                      unique_ptr<PhysicalOperator> right, vector<JoinCondition> cond, JoinType join_type,
                                      const vector<idx_t> &left_projection_map, vector<idx_t> right_projection_map,
                                      vector<column_t> column_ids_p, Index *index, bool lhs_first,
-                                     idx_t estimated_cardinality)
+                                     idx_t estimated_cardinality, bool isLineageJoin, shared_ptr<OperatorLineage> operatorLineage,
+                                     ChunkCollection *chunk_collection)
     : PhysicalOperator(PhysicalOperatorType::INDEX_JOIN, move(op.types), estimated_cardinality),
       left_projection_map(left_projection_map), right_projection_map(move(right_projection_map)), index(index),
-      conditions(move(cond)), join_type(join_type), lhs_first(lhs_first) {
+      conditions(move(cond)), join_type(join_type), chunk_collection(chunk_collection), lhs_first(lhs_first) {
 	column_ids = move(column_ids_p);
 	children.push_back(move(left));
 	children.push_back(move(right));
+	this->isLineageJoin = isLineageJoin;
+	this->opLineage = move(operatorLineage);
 	for (auto &condition : conditions) {
-		condition_types.push_back(condition.left->return_type);
+		if (condition.left != nullptr) {
+			condition_types.push_back(condition.left->return_type);
+		}
 	}
 	//! Only add to fetch_ids columns that are not indexed
 	for (auto &index_id : index->column_ids) {
@@ -70,7 +77,8 @@ PhysicalIndexJoin::PhysicalIndexJoin(LogicalOperator &op, unique_ptr<PhysicalOpe
 
 void PhysicalIndexJoin::Output(ExecutionContext &context, DataChunk &chunk, PhysicalOperatorState *state_p) const {
 	auto &transaction = Transaction::GetTransaction(context.client);
-	if(index->type == IndexType::ART) {
+	auto state = reinterpret_cast<PhysicalIndexJoinOperatorState *>(state_p);
+	if(!isLineageJoin) {
 		auto &phy_tbl_scan = (PhysicalTableScan &)*children[1];
 		auto &bind_tbl = (TableScanBindData &)*phy_tbl_scan.bind_data;
 		auto tbl = bind_tbl.table->storage.get();
@@ -148,40 +156,47 @@ void PhysicalIndexJoin::Output(ExecutionContext &context, DataChunk &chunk, Phys
 		state->result_size = output_sel_idx;
 		chunk.SetCardinality(state->result_size);
 	}
-	else if (index->type == IndexType::LINEAGE_INDEX){
-		auto &phy_tbl_scan = (PhysicalLineageScan &)*children[1];
-		auto &bind_tbl = (TableScanBindData &)*phy_tbl_scan.bind_data;
-		auto tbl = bind_tbl.table->storage.get();
-		DataChunk rhs_chunk;
-		idx_t rhs_column_idx = 0;
-		SelectionVector sel;
-		sel.Initialize(STANDARD_VECTOR_SIZE);
-		idx_t output_sel_idx = 0;
-		vector<row_t> fetch_rows;
-		idx_t left_offset = lhs_first ? 0 : right_projection_map.size();
-		idx_t right_offset = lhs_first ? left_projection_map.size() : 0;
+	else {
+		//chunk = move(state->result_chunk);
+		//opLineage->FetchResultChunk(equal_value, state->result_chunk);
+		DataChunk join_chunk;
+		vector<shared_ptr<LineageDataWithOffset>> child_ptrs;
+		// bqp == base query plan
+		// lqp == lineage query plan
+		// If no child_ptrs (root in bqp OR parent is pipeline breaker in bqp)
+		// then child_ptrs is an empty vector
+		// else child_ptrs contains pointers set by child in lqp)
 
-		auto state = reinterpret_cast<PhysicalIndexJoinOperatorState *>(state_p);
-		for (idx_t i = 0; i < right_projection_map.size(); i++) {
-			auto it = index_ids.find(column_ids[right_projection_map[i]]);
-			if (it == index_ids.end()) {
-				chunk.data[right_offset + i].Sequence(1, 1);
-			} else {
-				chunk.data[right_offset + i].Sequence(1, 1);
+		// 1. Access THIS child_ptrs to pass to AccessIndex
+		if (dynamic_cast<PhysicalIndexJoinOperatorState*>(state->child_state.get()) != nullptr){
+			auto child_state = dynamic_cast<PhysicalIndexJoinOperatorState*>(state->child_state.get());
+			if (!child_state->child_ptrs.empty()) {
+				child_ptrs = child_state->child_ptrs;
 			}
 		}
-		for (idx_t i = 0; i < left_projection_map.size(); i++) {
-			chunk.data[right_offset + i].Sequence(1, 1);
+		if (child_ptrs.empty()) {
+			child_ptrs.reserve(STANDARD_VECTOR_SIZE);
+			for (idx_t i = 0; i < STANDARD_VECTOR_SIZE; i++) {
+				child_ptrs.push_back(nullptr);
+			}
 		}
 
-		state->result_size = 1;
-		chunk.Reset();
+		opLineage->AccessIndex({state->child_chunk, child_ptrs, join_chunk, state->cached_values, state->cached_child_ptrs});
+
+		// 2. Set PARENT'S child_ptrs so that it can pass it to AccessIndex
+		state->child_ptrs = child_ptrs;
+		chunk.Reference(state->child_chunk);
+		state->result_size = state->child_chunk.size();
+		state->lhs_idx += state->child_chunk.size();
+		if (join_chunk.size() > 0) {
+			chunk_collection->Append(join_chunk);
+		}
 	}
 }
 
 void PhysicalIndexJoin::GetRHSMatches(ExecutionContext &context, PhysicalOperatorState *state_p) const {
 	auto state = reinterpret_cast<PhysicalIndexJoinOperatorState *>(state_p);
-	if (index->type == IndexType::ART){
+	if (!isLineageJoin){
 		auto &art = (ART &)*index;
 		auto &transaction = Transaction::GetTransaction(context.client);
 		for (idx_t i = 0; i < state->child_chunk.size(); i++) {
@@ -213,25 +228,6 @@ void PhysicalIndexJoin::GetRHSMatches(ExecutionContext &context, PhysicalOperato
 			state->result_sizes[i] = 0;
 		}
 	}
-	else if (index->type == IndexType::LINEAGE_INDEX){
-		auto &lineage_index = (Lineage_Index &)*index;
-		auto &transaction = Transaction::GetTransaction(context.client);
-		for (idx_t i = 0; i < state->child_chunk.size(); i++) {
-			auto equal_value = state->join_keys.GetValue(0, i);
-			auto index_state = lineage_index.InitializeScanSinglePredicate(transaction, equal_value, ExpressionType::COMPARE_EQUAL);
-			state->rhs_rows[i].clear();
-			if(!equal_value.is_null){
-				IndexLock lock;
-				index->InitializeLock(lock);
-				lineage_index.SearchEqual((LineageIndexScanState *)index_state.get(), (idx_t)-1, state->rhs_rows[i]);
-				state->result_sizes[i] = state->rhs_rows[i].size();
-			}
-			else{
-				state->result_sizes[i] = 0;
-			}
-		}
-	}
-
 }
 
 void PhysicalIndexJoin::GetChunkInternal(ExecutionContext &context, DataChunk &chunk,
@@ -239,6 +235,23 @@ void PhysicalIndexJoin::GetChunkInternal(ExecutionContext &context, DataChunk &c
 	auto state = reinterpret_cast<PhysicalIndexJoinOperatorState *>(state_p);
 	state->result_size = 0;
 	while (state->result_size == 0) {
+		// Return cached values if there are any
+		if (!state->cached_values.empty()) {
+			for (idx_t i = 0; i < STANDARD_VECTOR_SIZE; i++) {
+				chunk.SetValue(0, i, state->cached_values[state->cached_values_idx++]);
+				if (!state->cached_child_ptrs.empty()) {
+					state->child_ptrs[i] = state->cached_child_ptrs[state->cached_values_idx];
+				}
+				chunk.SetCardinality(i + 1);
+				if (state->cached_values_idx == state->cached_values.size()) {
+					state->cached_values_idx = 0;
+					state->cached_values.clear();
+					state->cached_child_ptrs.clear();
+					break;
+				}
+			}
+			return;
+		}
 		//! Check if we need to get a new LHS chunk
 		if (state->lhs_idx >= state->child_chunk.size()) {
 			children[0]->GetChunk(context, state->child_chunk, state->child_state.get());
@@ -274,9 +287,14 @@ unique_ptr<PhysicalOperatorState> PhysicalIndexJoin::GetOperatorState() {
 			left_projection_map.push_back(i);
 		}
 	}
+	if(condition_types.size() == 0){
+		condition_types.push_back(LogicalType::INTEGER);
+	}
 	state->join_keys.Initialize(condition_types);
 	for (auto &cond : conditions) {
-		state->probe_executor.AddExpression(*cond.left);
+		if(cond.left){
+			state->probe_executor.AddExpression(*cond.left);
+		}
 	}
 	return move(state);
 }

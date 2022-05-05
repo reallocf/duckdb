@@ -1,6 +1,6 @@
 # name: test/sql/lineage/inmemory_lineage_query/test_bw_hash_join.test
 # description: Test In-Memory Lineage Querying for Hash Joins
-# group: [inmemory_lineage_query]
+# group: [inmem_hash_join]
 
 statement ok
 CREATE TABLE t1(i INTEGER, j INTEGER);
@@ -40,6 +40,6 @@ statement ok
 PRAGMA trace_lineage = "OFF";
 
 query I
-PRAGMA lineage_query('select t1.rowid, t2.rowid, t1.j, t2.k from t1 inner join t2 on (t1.i = t2.i)', 'VALUE', 0)
+PRAGMA backward_lineage('select t1.rowid, t2.rowid, t1.j, t2.k from t1 inner join t2 on (t1.i = t2.i)', 'VALUE', '0')
 ----
 [0, 4]

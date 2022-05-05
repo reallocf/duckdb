@@ -1086,7 +1086,7 @@ PRAGMA trace_lineage = "OFF";
 
 
 query II
-select in_index, out_index from LINEAGE_1_PERFECT_HASH_GROUP_BY_2_1 as source;
+select out_index, in_index from LINEAGE_1_PERFECT_HASH_GROUP_BY_2_1 as source;
 ----
 1	0
 2	1
@@ -3186,6 +3186,8 @@ select in_index, out_index from LINEAGE_2_PERFECT_HASH_GROUP_BY_2_1 as source
 1028	1027
 1029	1028
 1030	1029
+
+
 
 query II
 select sink.in_index, source.out_index

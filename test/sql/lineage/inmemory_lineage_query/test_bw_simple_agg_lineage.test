@@ -1,0 +1,26 @@
+# name: test/sql/index/inmemory_lineage_query/test_bw_simple_agg_lineage.test
+# description: Test Simple Agg
+# group: [inmemory_lineage_query]
+
+statement ok
+CREATE TABLE t1(i INTEGER);
+
+statement ok
+INSERT INTO t1 SELECT i FROM range(0,10) tbl(i);
+
+statement ok
+PRAGMA trace_lineage = "ON";
+
+# standalone limit
+query I
+select SUM(i) FROM t1
+----
+45
+
+statement ok
+PRAGMA trace_lineage = "OFF";
+
+query I
+PRAGMA lineage_query('select SUM(i) FROM t1', '', 0)
+----
+[0, 1, 2, 3, 4, 5, 6, 7, 8, 9]

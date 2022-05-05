@@ -31,11 +31,11 @@ PRAGMA trace_lineage = "OFF";
 
 
 query I
-PRAGMA backward_lineage('select t1.i, t1.j, t2.i, t2.k from t1 inner join t2 on (t1.i < t2.i)', 'VALUE', '0')
+PRAGMA lineage_query('select t1.i, t1.j, t2.i, t2.k from t1 inner join t2 on (t1.i < t2.i)', 'VALUE', 0)
 ----
 [2, 2]
 
 query I
-PRAGMA backward_lineage('select t1.i, t1.j, t2.i, t2.k from t1 inner join t2 on (t1.i < t2.i)', 'VALUE', '2')
+PRAGMA lineage_query('select t1.i, t1.j, t2.i, t2.k from t1 inner join t2 on (t1.i < t2.i)', 'VALUE', 2)
 ----
-[4, 2]
+[2, 4]

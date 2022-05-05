@@ -14,6 +14,7 @@ public:
 void PhysicalChunkScan::GetChunkInternal(ExecutionContext &context, DataChunk &chunk,
                                          PhysicalOperatorState *state_p) const {
 	auto state = (PhysicalChunkScanState *)state_p;
+	D_ASSERT(!should_be_set || collection->Count() > 0);
 	D_ASSERT(collection);
 	if (collection->Count() == 0) {
 		return;

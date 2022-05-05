@@ -303,6 +303,31 @@ unique_ptr<QueryResult> ClientContext::ExecutePreparedStatement(ClientContextLoc
 	return move(result);
 }
 
+unique_ptr<QueryResult> ClientContext::RunPlan(PhysicalOperator* plan) {
+	if (enable_progress_bar) {
+		progress_bar->Initialize(wait_time);
+		progress_bar->Start();
+	}
+
+	executor.Initialize(plan);
+
+	auto types = executor.GetTypes();
+
+	// create a materialized result by continuously fetching
+	auto result = make_unique<MaterializedQueryResult>(StatementType::SELECT_STATEMENT);
+	while (true) {
+		auto chunk = executor.FetchChunk();
+		if (chunk->size() == 0) {
+			break;
+		}
+		result->collection.Append(*chunk);
+	}
+	if (enable_progress_bar) {
+		progress_bar->Stop();
+	}
+	return move(result);
+}
+
 void ClientContext::InitialCleanup(ClientContextLock &lock) {
 	//! Cleanup any open results and reset the interrupted flag
 	CleanupInternal(lock);

@@ -65,6 +65,7 @@ select out_index, in_index from LINEAGE_1_LIMIT_1_0
 1	2
 2	3
 3	4
+4	5
 
 query II
 select out_index, in_index from LINEAGE_1_SEQ_SCAN_0_0

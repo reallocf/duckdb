@@ -27,10 +27,6 @@ void PhysicalCreateIndex::GetChunkInternal(ExecutionContext &context, DataChunk 
 		index = make_unique<ART>(column_ids, unbound_expressions, info->unique);
 		break;
 	}
-	case IndexType::LINEAGE_INDEX:{
-		index = make_unique<Lineage_Index>(column_ids, unbound_expressions, info->table.get()->table_name, info->unique);
-		break;
-	}
 	default:
 		throw InternalException("Unimplemented index type");
 	}

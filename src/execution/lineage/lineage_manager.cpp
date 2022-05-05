@@ -190,6 +190,7 @@ void LineageManager::CreateOperatorLineage(PhysicalOperator *op, int thd_id, boo
 	    GetPipelineLineageNodeForOp(op, thd_id),
 	    GetChildrenForOp(op, thd_id),
 	    op->type,
+	    op->id,
 	    should_index
 	);
 	op->lineage_op[thd_id]->trace_lineage = trace_lineage;
@@ -383,7 +384,7 @@ idx_t LineageManager::CreateLineageTables(PhysicalOperator *op) {
 //
 //		vector<column_t> col_ids;
 //		col_ids.push_back(0);
-//		unique_ptr<Index> index = make_unique<Lineage_Index>(col_ids, exps);
+//		unique_ptr<Index> index = make_unique<LineageIndex>(col_ids, exps);
 //
 //		dataTable->AddIndex(move(index), exps);
 //

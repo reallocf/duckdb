@@ -51,16 +51,16 @@ statement ok
 select rowid, i from t1 as t2 order by i;
 
 query I
-PRAGMA backward_lineage('select rowid, i from t1 as t2 order by i;', 'VALUE', '0')
+PRAGMA lineage_query('select rowid, i from t1 as t2 order by i;', 'VALUE', 0)
 ----
 [6]
 
 query I
-PRAGMA backward_lineage('select rowid, i from t1 as t2 order by i;', 'VALUE', '1')
+PRAGMA lineage_query('select rowid, i from t1 as t2 order by i;', 'VALUE', 1)
 ----
 [2000]
 
 query I
-PRAGMA backward_lineage('select rowid, i from t1 as t2 order by i;', 'VALUE', '2000')
+PRAGMA lineage_query('select rowid, i from t1 as t2 order by i;', 'VALUE', 2000)
 ----
 [1997]

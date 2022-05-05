@@ -1,4 +1,6 @@
 #include "duckdb/storage/index.hpp"
+
+#include <utility>
 #include "duckdb/execution/expression_executor.hpp"
 #include "duckdb/planner/expression_iterator.hpp"
 #include "duckdb/planner/expression/bound_columnref_expression.hpp"
@@ -23,6 +25,10 @@ Index::Index(IndexType type, const vector<column_t> &column_ids_p,
 	for (auto column_id : column_ids) {
 		column_id_set.insert(column_id);
 	}
+}
+
+Index::Index(): type(IndexType::LINEAGE_INDEX) {
+
 }
 
 void Index::InitializeLock(IndexLock &state) {

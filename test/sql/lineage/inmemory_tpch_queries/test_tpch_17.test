@@ -17,12 +17,12 @@ statement ok
 PRAGMA trace_lineage = "OFF";
 
 query I
-PRAGMA backward_lineage("SELECT sum(l_extendedprice) / 7.0 AS avg_yearly FROM lineitem, part WHERE p_partkey = l_partkey AND p_brand = 'Brand#23' AND p_container = 'MED BOX' AND l_quantity < (  SELECT 0.2 * avg(l_quantity)  FROM  lineitem   WHERE  l_partkey = p_partkey);", 'VALUE', '0')
+PRAGMA lineage_query("SELECT sum(l_extendedprice) / 7.0 AS avg_yearly FROM lineitem, part WHERE p_partkey = l_partkey AND p_brand = 'Brand#23' AND p_container = 'MED BOX' AND l_quantity < (  SELECT 0.2 * avg(l_quantity)  FROM  lineitem   WHERE  l_partkey = p_partkey);", 'VALUE', 0)
 ----
 [32366, 94002, 95007, 99417, 105402, 140146, 142373, 143384, 147287, 152378, 152838, 160143, 163431, 191197, 250061, 263432, 275665, 284680, 333052, 364659, 377864, 378912, 389369, 398320, 403816, 413474, 414961, 453890, 459348, 485257, 498410, 508673, 532921, 538311, 549480, 559949, 564178, 579999, 581086, 589379, 592564, 594123, 594923, 10686, 11255, 2408, 14348, 2424, 11815, 12553, 10686, 14348, 2408, 10686, 4879, 14348, 19780, 18281, 11815, 11255, 7681, 5626, 10686, 12553, 18622, 2424, 12553, 18622, 19284, 4879, 7681, 12553, 2424, 2424, 11199, 19284, 6078, 2408, 19780, 12918, 14348, 18281, 11199, 10686, 18622, 4879, 32366, 10186, 14742, 2466, 38392, 20426, 50501, 32366, 2466, 14742, 32366, 13895, 2466, 48217, 21597, 20426, 10186, 13587, 450, 32366, 50501, 16525, 38392, 50501, 16525, 16952, 13895, 13587, 50501, 38392, 38392, 59820, 16952, 11748, 14742, 48217, 35585, 2466, 21597, 59820, 32366, 16525, 13895, 11, 2, 6, 1, 14, 9, 16, 11, 1, 6, 11, 5, 1, 15, 10, 9, 2, 4, 0, 11, 16, 7, 14, 16, 7, 8, 5, 4, 16, 14, 14, 17, 8, 3, 6, 15, 12, 1, 10, 17, 11, 7, 5]
 
 query I
-PRAGMA backward_lineage("SELECT sum(l_extendedprice) / 7.0 AS avg_yearly FROM lineitem, part WHERE p_partkey = l_partkey AND p_brand = 'Brand#23' AND p_container = 'MED BOX' AND l_quantity < (  SELECT 0.2 * avg(l_quantity)  FROM  lineitem   WHERE  l_partkey = p_partkey);", 'COUNT', '0')
+PRAGMA lineage_query("SELECT sum(l_extendedprice) / 7.0 AS avg_yearly FROM lineitem, part WHERE p_partkey = l_partkey AND p_brand = 'Brand#23' AND p_container = 'MED BOX' AND l_quantity < (  SELECT 0.2 * avg(l_quantity)  FROM  lineitem   WHERE  l_partkey = p_partkey);", 'COUNT', 0)
 ----
 172
 

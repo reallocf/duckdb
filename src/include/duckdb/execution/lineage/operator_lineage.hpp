@@ -42,6 +42,7 @@ struct LineageDataWithOffset;
 struct LineageProcessStruct;
 struct SimpleAggQueryStruct;
 struct SourceAndMaybeData;
+struct LineageIndexStruct;
 
 enum LineageJoinType {
 	LIN,
@@ -61,12 +62,15 @@ public:
 
 	void Capture(const shared_ptr<LineageData>& datum, idx_t lineage_idx, int thread_id=-1);
 
+	void FetchResultChunk(Value equal_value, DataChunk& result_chunk);
+
 	void FinishedProcessing(idx_t data_idx, idx_t finished_idx);
 	shared_ptr<PipelineLineage> GetPipelineLineage();
 	// Leaky... should refactor this so we don't need a pure pass-through function like this
 	void MarkChunkReturned();
-	LineageProcessStruct Process(const vector<LogicalType>& types, idx_t count_so_far, DataChunk &insert_chunk, idx_t size=0, int thread_id=-1);
-	LineageProcessStruct PostProcess(idx_t chunk_count, idx_t count_so_far, int thread_id=-1);
+	LineageProcessStruct Process(const vector<column_t> column_ids, const vector<LogicalType>& types, idx_t count_so_far, DataChunk &insert_chunk, idx_t size=0, int thread_id=-1, idx_t data_idx = 0, idx_t finished_idx = 0);
+
+	LineageProcessStruct PostProcess(idx_t chunk_count, idx_t count_so_far, idx_t data_idx = 0, idx_t finished_idx = 0);
 	Generator<shared_ptr<vector<SourceAndMaybeData>>> Backward(shared_ptr<vector<SourceAndMaybeData>> lineage, LineageJoinType join_type);
 	// Leaky... should refactor this so we don't need a pure pass-through function like this
 	void SetChunkId(idx_t idx);
@@ -76,11 +80,14 @@ public:
 	idx_t GetThisOffset(idx_t lineage_idx);
 	SimpleAggQueryStruct RecurseForSimpleAgg(const shared_ptr<OperatorLineage>& child);
 
+	void AccessIndex(LineageIndexStruct val);
+
 public:
 	idx_t opid;
 	bool trace_lineage;
 	shared_ptr<PipelineLineage> pipeline_lineage;
 	// data[0] used by all ops; data[1] used by pipeline breakers
+	// Lineage data in here!
 	std::vector<LineageDataWithOffset> data[3];
 	PhysicalOperatorType type;
 	shared_ptr<LineageNested> cached_internal_lineage = nullptr;
@@ -95,13 +102,15 @@ public:
 	idx_t start_base = 0;
 	idx_t last_base = 0;
 
-   std::unordered_map<idx_t, vector<SourceAndMaybeData>> hash_map_agg;
-   // index: used to index selection vectors
-   //        it stores the size of SV from each chunk
-   //        which helps in locating the one needed
-   //        using binary-search.
-   vector<idx_t> index;
-   bool should_index;
+	// Index for hash aggregate
+    std::unordered_map<idx_t, vector<SourceAndMaybeData>> hash_map_agg;
+    // index: used to index selection vectors
+    //        it stores the size of SV from each chunk
+    //        which helps in locating the one needed
+    //        using binary-search.
+    // Index for when we need to identify the chunk from a global offset
+    vector<idx_t> index;
+    bool should_index;
 };
 
 struct LineageProcessStruct {
@@ -121,6 +130,19 @@ struct SimpleAggQueryStruct {
 struct SourceAndMaybeData {
 	idx_t source;
 	shared_ptr<LineageDataWithOffset> data;
+};
+
+struct LineageIndexStruct {
+	// Input chunk that we transform via the index to replace the appropriate values
+	DataChunk &chunk;
+	// Pointers to quickly jump into the right child lineage data
+	vector<shared_ptr<LineageDataWithOffset>> &child_ptrs;
+	// Returned join chunk to be pushed into chunk scan
+	DataChunk &join_chunk;
+	// For when we overflow the chunk ex: aggregations with more than 1024 values
+	vector<Value> &cached_values;
+	// For when we overflow the chunk with ptrs ex: simple aggs
+	vector<shared_ptr<LineageDataWithOffset>> &cached_child_ptrs;
 };
 
 // Adapted from https://github.com/roger-dv/cpp20-coro-generator/blob/master/generator.h

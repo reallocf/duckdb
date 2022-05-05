@@ -14,6 +14,367 @@ namespace duckdb {
 class PhysicalDelimJoin;
 class PhysicalJoin;
 
+//void OperatorLineage::AccessIndex(LineageIndexStruct key) {
+//	D_ASSERT(key.child_ptrs.empty() || key.chunk.size() == key.child_ptrs.size());
+//}
+
+vector<shared_ptr<LineageDataWithOffset>> LookupChunksFromGlobalIndex(
+    DataChunk &chunk,
+    const vector<LineageDataWithOffset>& data,
+    const vector<idx_t>& index
+) {
+	vector<shared_ptr<LineageDataWithOffset>> res;
+	res.reserve(chunk.size());
+	// Binary Search index
+	for (idx_t i = 0; i < chunk.size(); i++) {
+		idx_t val = chunk.GetValue(0, i).GetValue<uint64_t>();
+		// we need a way to locate the exact data we should access
+		// from the source index
+		auto lower = lower_bound(index.begin(), index.end(), val);
+		if (lower == index.end()) {
+			throw std::logic_error("Out of bounds lineage requested");
+		}
+		auto chunk_id = lower - index.begin();
+		if (*lower == val) {
+			chunk_id += 1;
+		}
+		auto this_data = data[chunk_id];
+		if (chunk_id > 0) {
+			val -= index[chunk_id-1];
+		}
+		chunk.SetValue(0, i, Value::UBIGINT(val));
+		res.push_back(make_unique<LineageDataWithOffset>(this_data));
+	}
+	return res;
+}
+
+void OperatorLineage::AccessIndex(LineageIndexStruct key) {
+//	std::cout << PhysicalOperatorToString(this->type) << std::endl;
+//	for (idx_t i = 0; i < key.chunk.size(); i++) {
+//		std::cout << key.chunk.GetValue(0,i) << std::endl;
+//	}
+	switch (this->type) {
+	case (PhysicalOperatorType::DELIM_JOIN): {
+		// TODO handle delim join
+		break;
+	}
+	case PhysicalOperatorType::DELIM_SCAN: {
+		// TODO handle delim scan
+		break;
+	}
+	case PhysicalOperatorType::TABLE_SCAN: {
+		if (data[LINEAGE_UNARY].empty() && key.child_ptrs.empty()) {
+			// Nothing to do! Lineage correct as-is
+		} else {
+			if (key.child_ptrs[0] == nullptr) {
+				key.child_ptrs = LookupChunksFromGlobalIndex(key.chunk, data[LINEAGE_UNARY], index);
+			}
+			for (idx_t i = 0; i < key.chunk.size(); i++) {
+				key.chunk.SetValue(
+				    0,
+				    i,
+				    Value::UBIGINT(key.chunk.GetValue(0, i).GetValue<uint64_t>() + key.child_ptrs[i]->child_offset)
+				);
+			}
+		}
+		break;
+	}
+	case PhysicalOperatorType::FILTER:
+	case PhysicalOperatorType::LIMIT: {
+		if (key.child_ptrs[0] == nullptr) {
+			key.child_ptrs = LookupChunksFromGlobalIndex(key.chunk, data[LINEAGE_UNARY], index);
+		}
+		for (idx_t i = 0; i < key.chunk.size(); i++) {
+			idx_t source = key.chunk.GetValue(0, i).GetValue<uint64_t>();
+			idx_t new_val = key.child_ptrs[i]->data->Backward(source);
+			key.chunk.SetValue(0, i, Value::UBIGINT(new_val));
+			key.child_ptrs[i] = key.child_ptrs[i]->data->GetChild();
+		}
+		break;
+	}
+	case PhysicalOperatorType::HASH_JOIN: {
+		// we need hash table from the build side
+		// access the probe side, get the address from the right side
+		if (key.child_ptrs[0] == nullptr) {
+			key.child_ptrs = LookupChunksFromGlobalIndex(key.chunk, data[LINEAGE_PROBE], index);
+		}
+
+		// Setup build chunk
+		key.join_chunk.Initialize({LogicalType::UBIGINT});
+		key.join_chunk.SetCardinality(key.chunk.size());
+
+		// Replace values in probe chunk and set values in build chunk
+		for (idx_t i = 0; i < key.chunk.size(); i++) {
+			idx_t source = key.chunk.GetValue(0, i).GetValue<uint64_t>();
+			auto data_index = dynamic_cast<LineageNested &>(*key.child_ptrs[i]->data).LocateChunkIndex(source);
+			auto binary_data = dynamic_cast<LineageNested &>(*key.child_ptrs[i]->data).GetChunkAt(data_index);
+			idx_t adjust_offset = 0;
+			if (data_index > 0) {
+				// adjust the source
+				adjust_offset = dynamic_cast<LineageNested &>(*key.child_ptrs[i]->data).GetAccCount(data_index - 1);
+			}
+			if (dynamic_cast<LineageBinary&>(*binary_data->data).right != nullptr) {
+				key.chunk.SetValue(
+				    0,
+				    i,
+				    Value::UBIGINT(dynamic_cast<LineageBinary &>(*binary_data->data).right->Backward(source - adjust_offset))
+				);
+				key.child_ptrs[i] = binary_data->data->GetChild();
+			}
+
+			if (dynamic_cast<LineageBinary&>(*binary_data->data).left != nullptr) {
+				auto left = dynamic_cast<LineageBinary&>(*binary_data->data).left->Backward(source - adjust_offset);
+				if (left == 0) {
+					continue;
+				}
+				if (offset == 0) {
+					key.join_chunk.SetValue(0, i, Value::UBIGINT(0));
+				} else {
+					bool flag = false;
+					for (idx_t it = 0; it < hm_range.size();  ++it) {
+						if (left >= hm_range[it].first && left <= hm_range[it].second) {
+							auto val = ((left - hm_range[it].first) / offset) + hash_chunk_count[it];
+							key.join_chunk.SetValue(0, i, Value::UBIGINT(val));
+							flag = true;
+							break;
+						}
+					}
+					D_ASSERT(flag);
+				}
+			}
+		}
+		break;
+	}
+	case PhysicalOperatorType::HASH_GROUP_BY: {
+		if (key.child_ptrs[0] == nullptr) {
+			key.child_ptrs = LookupChunksFromGlobalIndex(key.chunk, data[LINEAGE_SOURCE], index);
+		}
+
+		DataChunk orig_chunk;
+		orig_chunk.Initialize({LogicalType::UBIGINT});
+		key.chunk.Copy(orig_chunk);
+		key.chunk.Reset();
+		idx_t out_idx = 0;
+		if (data[LINEAGE_SOURCE].size() > PROBE_SIZE) {
+			for (idx_t i = 0; i < orig_chunk.size(); i++) {
+				auto payload = (uint64_t*)key.child_ptrs[i]->data->Process(0);
+				auto val = payload[orig_chunk.GetValue(0, i).GetValue<uint64_t>()];
+				// iterate the index to find potential chunks
+				auto flag = false;
+				for (idx_t it = 0; it < hm_range.size(); ++it) {
+					if (val >= hm_range[it].first && val <= hm_range[it].second) {
+						// scan this chunk
+						LineageDataWithOffset this_data = data[LINEAGE_SINK][it];
+						idx_t res_count = this_data.data->Count();
+						auto sink_payload = (uint64_t *)this_data.data->Process(0);
+						for (idx_t it2 = 0; it2 < res_count; ++it2) {
+							if (sink_payload[it2] == val) {
+								if (out_idx < STANDARD_VECTOR_SIZE) {
+									key.chunk.SetValue(0, out_idx++, Value::UBIGINT(it2 + hash_chunk_count[it]));
+								} else {
+									key.cached_values.push_back(Value::UBIGINT(it2 + hash_chunk_count[it]));
+								}
+								flag = true;
+								break;
+							}
+						}
+					}
+					if (flag) {
+						break;
+					}
+				}
+			}
+		} else {
+			for (idx_t i = 0; i < orig_chunk.size(); i++) {
+				auto payload = (uint64_t*)key.child_ptrs[i]->data->Process(0);
+				auto res_list = hash_map_agg[payload[orig_chunk.GetValue(0, i).GetValue<uint64_t>()]];
+				if (res_list.size() > STANDARD_VECTOR_SIZE) {
+					key.cached_values.reserve(key.cached_values.size() + res_list.size() - STANDARD_VECTOR_SIZE);
+				}
+				for (const auto& res : res_list) {
+					if (out_idx < STANDARD_VECTOR_SIZE) {
+						key.chunk.SetValue(0, out_idx++, Value::UBIGINT(res.source));
+					} else {
+						key.cached_values.push_back(Value::UBIGINT(res.source));
+					}
+				}
+			}
+		}
+		key.chunk.SetCardinality(out_idx);
+		key.child_ptrs = {};
+		break;
+	}
+	case PhysicalOperatorType::PERFECT_HASH_GROUP_BY: {
+		if (key.child_ptrs[0] == nullptr) {
+			key.child_ptrs = LookupChunksFromGlobalIndex(key.chunk, data[LINEAGE_SOURCE], index);
+		}
+
+		DataChunk orig_chunk;
+		orig_chunk.Initialize({LogicalType::UBIGINT});
+		key.chunk.Copy(orig_chunk);
+		key.chunk.Reset();
+		idx_t out_idx = 0;
+		if (data[LINEAGE_SOURCE].size() > PROBE_SIZE) {
+			for (idx_t i = 0; i < orig_chunk.size(); i++) {
+				auto payload = (sel_t*)key.child_ptrs[i]->data->Process(0);
+				auto val = payload[orig_chunk.GetValue(0, i).GetValue<uint64_t>()];
+				// iterate the index to find potential chunks
+				auto flag = false;
+				for (idx_t it = 0; it < hm_range.size(); ++it) {
+					if (val >= hm_range[it].first && val <= hm_range[it].second) {
+						// scan this chunk
+						LineageDataWithOffset this_data = data[LINEAGE_SINK][it];
+						idx_t res_count = this_data.data->Count();
+						auto sink_payload = (sel_t *)this_data.data->Process(0);
+						for (idx_t it2 = 0; it2 < res_count; ++it2) {
+							if (sink_payload[it2] == val) {
+								if (out_idx < STANDARD_VECTOR_SIZE) {
+									key.chunk.SetValue(0, out_idx++, Value::UBIGINT(it2 + hash_chunk_count[it]));
+								} else {
+									key.cached_values.push_back(Value::UBIGINT(it2 + hash_chunk_count[it]));
+								}
+								flag = true;
+								break;
+							}
+						}
+					}
+					if (flag) {
+						break;
+					}
+				}
+			}
+		} else {
+			for (idx_t i = 0; i < orig_chunk.size(); i++) {
+				auto payload = (sel_t*)key.child_ptrs[i]->data->Process(0);
+				auto res_list = hash_map_agg[payload[orig_chunk.GetValue(0, i).GetValue<uint64_t>()]];
+				if (res_list.size() > STANDARD_VECTOR_SIZE) {
+					key.cached_values.reserve(key.cached_values.size() + res_list.size() - STANDARD_VECTOR_SIZE);
+				}
+				for (const auto& res : res_list) {
+					if (out_idx < STANDARD_VECTOR_SIZE) {
+						key.chunk.SetValue(0, out_idx++, Value::UBIGINT(res.source));
+					} else {
+						key.cached_values.push_back(Value::UBIGINT(res.source));
+					}
+				}
+			}
+		}
+		key.chunk.SetCardinality(out_idx);
+		key.child_ptrs = {};
+		break;
+	}
+	case PhysicalOperatorType::PROJECTION: {
+		break;
+	}
+	case PhysicalOperatorType::BLOCKWISE_NL_JOIN:
+	case PhysicalOperatorType::PIECEWISE_MERGE_JOIN:
+	case PhysicalOperatorType::NESTED_LOOP_JOIN: {
+		if (key.child_ptrs[0] == nullptr) {
+			key.child_ptrs = LookupChunksFromGlobalIndex(key.chunk, data[LINEAGE_PROBE], index);
+		}
+
+		// Setup build chunk
+		key.join_chunk.Initialize({LogicalType::UBIGINT});
+		key.join_chunk.SetCardinality(key.chunk.size());
+
+		for (idx_t i = 0; i < key.chunk.size(); i++) {
+			idx_t source = key.chunk.GetValue(0, i).GetValue<uint64_t>();
+
+			if (dynamic_cast<LineageBinary&>(*key.child_ptrs[i]->data).right != nullptr) {
+				auto right = dynamic_cast<LineageBinary&>(*key.child_ptrs[i]->data).right->Backward(source);
+				key.join_chunk.SetValue(0, i, Value::UBIGINT(right));
+			}
+
+			if (dynamic_cast<LineageBinary&>(*key.child_ptrs[i]->data).left != nullptr) {
+				auto left = dynamic_cast<LineageBinary&>(*key.child_ptrs[i]->data).left->Backward(source);
+				key.chunk.SetValue(0, i, Value::UBIGINT(left));
+				key.child_ptrs[i] = key.child_ptrs[i]->data->GetChild();
+			}
+		}
+		break;
+	}
+	case PhysicalOperatorType::CROSS_PRODUCT: {
+		if (key.child_ptrs[0] == nullptr) {
+			key.child_ptrs = LookupChunksFromGlobalIndex(key.chunk, data[LINEAGE_PROBE], index);
+		}
+
+		// Setup build chunk
+		key.join_chunk.Initialize({LogicalType::UBIGINT});
+		key.join_chunk.SetCardinality(key.chunk.size());
+
+		for (idx_t i = 0; i < key.chunk.size(); i++) {
+			idx_t source = key.chunk.GetValue(0, i).GetValue<uint64_t>();
+
+			key.join_chunk.SetValue(0, i, Value::UBIGINT(key.child_ptrs[i]->data->Backward(source)));
+			key.chunk.SetValue(0, i, Value::UBIGINT(source));
+			key.child_ptrs[i] = key.child_ptrs[i]->data->GetChild();
+		}
+		break;
+	}
+	case PhysicalOperatorType::INDEX_JOIN: {
+		if (key.child_ptrs[0] == nullptr) {
+			key.child_ptrs = LookupChunksFromGlobalIndex(key.chunk, data[LINEAGE_UNARY], index);
+		}
+
+		// Setup build chunk
+		key.join_chunk.Initialize({LogicalType::UBIGINT});
+		key.join_chunk.SetCardinality(key.chunk.size());
+
+		for (idx_t i = 0; i < key.chunk.size(); i++) {
+			idx_t source = key.chunk.GetValue(0, i).GetValue<uint64_t>();
+
+			if (dynamic_cast<LineageBinary&>(*key.child_ptrs[i]->data).right != nullptr) {
+				auto right = dynamic_cast<LineageBinary&>(*key.child_ptrs[i]->data).right->Backward(source);
+				key.join_chunk.SetValue(0, i, Value::UBIGINT(right));
+			}
+
+			if (dynamic_cast<LineageBinary&>(*key.child_ptrs[i]->data).left != nullptr) {
+				auto left = dynamic_cast<LineageBinary&>(*key.child_ptrs[i]->data).left->Backward(source);
+				key.chunk.SetValue(0, i, Value::UBIGINT(left));
+				key.child_ptrs[i] = key.child_ptrs[i]->data->GetChild();
+			}
+		}
+		break;
+	}
+	case PhysicalOperatorType::ORDER_BY: {
+		auto data_ptr = make_shared<LineageDataWithOffset>(data[LINEAGE_UNARY][0]);
+		for (idx_t i = 0; i < key.chunk.size(); i++) {
+			idx_t new_val = data_ptr->data->Backward(key.chunk.GetValue(0, i).GetValue<uint64_t>());
+			key.chunk.SetValue(0, i, Value::UBIGINT(new_val));
+		}
+		key.child_ptrs = {};
+		break;
+	}
+	case PhysicalOperatorType::SIMPLE_AGGREGATE: {
+		// Recurse until we find a filter-like child, then use all of its lineage
+		// This optimizations allows us to skip aggregations and order bys - especially helping for query 15
+		SimpleAggQueryStruct agg_struct = RecurseForSimpleAgg(children[0]);
+
+		idx_t out_idx = 0;
+		LineageDataWithOffset final_child = agg_struct.child_lineage_data_vector[agg_struct.child_lineage_data_vector.size() - 1];
+		idx_t child_total_size = final_child.this_offset + final_child.data->Count();
+		key.cached_child_ptrs.reserve(child_total_size < STANDARD_VECTOR_SIZE ? 0 : child_total_size - STANDARD_VECTOR_SIZE);
+		for (const LineageDataWithOffset& child_lineage_data : agg_struct.child_lineage_data_vector) {
+			for (idx_t i = 0; i < child_lineage_data.data->Count(); i++) {
+				if (out_idx < STANDARD_VECTOR_SIZE) {
+					key.chunk.SetValue(0, out_idx, Value::UBIGINT(i));
+					key.child_ptrs[out_idx++] = make_shared<LineageDataWithOffset>(child_lineage_data);
+				} else {
+					key.cached_values.push_back(Value::UBIGINT(i));
+					key.cached_child_ptrs.push_back(make_shared<LineageDataWithOffset>(child_lineage_data));
+				}
+			}
+		}
+		key.chunk.SetCardinality(out_idx < STANDARD_VECTOR_SIZE ? out_idx : STANDARD_VECTOR_SIZE);
+		break;
+	}
+	default: {
+		// We must capture lineage for everything that BACKWARD is called on
+		D_ASSERT(false);
+	}
+	}
+}
+
 void LineageManager::PostProcess(PhysicalOperator *op, bool should_index) {
 	// massage the data to make it easier to query
 	bool always_post_process =
@@ -39,7 +400,7 @@ void LineageManager::PostProcess(PhysicalOperator *op, bool should_index) {
 				idx_t chunk_count = 0;
 				LineageProcessStruct lps = lineage_op.second->PostProcess(chunk_count, 0, lineage_op.first);
 				while (lps.still_processing) {
-					lps = lineage_op.second->PostProcess(++chunk_count,  lps.count_so_far, lineage_op.first);
+					lps = lineage_op.second->PostProcess(++chunk_count,  lps.count_so_far, lps.data_idx, lps.finished_idx);
 				}
 				lineage_op.second->FinishedProcessing(lps.data_idx, lps.finished_idx);
 			}
@@ -68,7 +429,7 @@ void LineageManager::PostProcess(PhysicalOperator *op, bool should_index) {
 }
 
 
-LineageProcessStruct OperatorLineage::PostProcess(idx_t chunk_count, idx_t count_so_far, int thread_id, idx_t data_idx, idx_t finished_idx) {
+LineageProcessStruct OperatorLineage::PostProcess(idx_t chunk_count, idx_t count_so_far, idx_t data_idx, idx_t finished_idx) {
 	if (data[finished_idx].size() > data_idx) {
 		switch (this->type) {
 		case PhysicalOperatorType::FILTER:
@@ -206,35 +567,23 @@ void AccessLineageDataViaIndex(
     const vector<LineageDataWithOffset>& data,
     const vector<idx_t>& index
 ) {
-	if (LINEAGE_INDEX_TYPE == 0) {
-		// Binary Search index
-		for (idx_t i = 0; i < lineage->size(); i++) {
-			// we need a way to locate the exact data we should access
-			// from the source index
-			auto lower = lower_bound(index.begin(), index.end(), (*lineage.get())[i].source);
-			if (lower == index.end()) {
-				throw std::logic_error("Out of bounds lineage requested");
-			}
-			auto chunk_id = lower - index.begin();
-			if (*lower == (*lineage.get())[i].source) {
-				chunk_id += 1;
-			}
-			auto this_data = data[chunk_id];
-			if (chunk_id > 0) {
-				(*lineage.get())[i].source -= index[chunk_id-1];
-			}
-			(*lineage.get())[i].data = make_unique<LineageDataWithOffset>(this_data);
+	// Binary Search index
+	for (idx_t i = 0; i < lineage->size(); i++) {
+		// we need a way to locate the exact data we should access
+		// from the source index
+		auto lower = lower_bound(index.begin(), index.end(), (*lineage.get())[i].source);
+		if (lower == index.end()) {
+			throw std::logic_error("Out of bounds lineage requested");
 		}
-	} else {
-		// Array index
-		for (idx_t i = 0; i < lineage->size(); i++) {
-			idx_t chunk_id = index[(*lineage.get())[i].source];
-			auto this_data = data[chunk_id];
-			(*lineage.get())[i] = {
-				(*lineage.get())[i].source - this_data.this_offset,
-				make_unique<LineageDataWithOffset>(this_data)
-			};
+		auto chunk_id = lower - index.begin();
+		if (*lower == (*lineage.get())[i].source) {
+			chunk_id += 1;
 		}
+		auto this_data = data[chunk_id];
+		if (chunk_id > 0) {
+			(*lineage.get())[i].source -= index[chunk_id-1];
+		}
+		(*lineage.get())[i].data = make_unique<LineageDataWithOffset>(this_data);
 	}
 }
 
@@ -244,7 +593,8 @@ SimpleAggQueryStruct OperatorLineage::RecurseForSimpleAgg(const shared_ptr<Opera
 	case PhysicalOperatorType::HASH_GROUP_BY:
 	case PhysicalOperatorType::ORDER_BY:
 	case PhysicalOperatorType::PERFECT_HASH_GROUP_BY:
-	case PhysicalOperatorType::SIMPLE_AGGREGATE: {
+	case PhysicalOperatorType::SIMPLE_AGGREGATE:
+	case PhysicalOperatorType::PROJECTION: {
 		return RecurseForSimpleAgg(child->children[0]);
 	}
 	case PhysicalOperatorType::TABLE_SCAN:
@@ -274,6 +624,7 @@ Generator<unique_ptr<LineageRes>> GenWrapper(unique_ptr<LineageRes> res) {
 	co_yield move(res);
 }
 
+// All lineage index usage is in here!
 Generator<shared_ptr<vector<SourceAndMaybeData>>> OperatorLineage::Backward(
     shared_ptr<vector<SourceAndMaybeData>> lineage,
 	LineageJoinType join_type

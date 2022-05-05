@@ -47,16 +47,16 @@ enum class LineageIndexType{
 	AGGREGATION
 };
 
-class Lineage_Index : public Index {
+class LineageIndex : public Index {
 public:
-	Lineage_Index(const vector<column_t> &column_ids, const vector<unique_ptr<Expression>> &unbound_expressions,
-	    string table, bool is_unique = false, bool is_primary = false);
-	~Lineage_Index() override;
+	LineageIndex(const vector<column_t> &column_ids, const vector<unique_ptr<Expression>> &unbound_expressions
+	             ,shared_ptr<OperatorLineage> op_lineage,  bool is_unique = false, bool is_primary = false);
+	~LineageIndex() override;
 
-	//! Root of the tree
-	unique_ptr<Node> tree;
 	//! True if machine is little endian
 	bool is_little_endian;
+	//! Lineage index info
+	OperatorLineage *op_lineage;
 
 public:
 	//! Initialize a scan on the index with the given expression and column ids
@@ -88,8 +88,6 @@ public:
 
 private:
 	DataChunk expression_result;
-
-	string table_name;
 
 	LineageIndexType cust_idx_type;
 

@@ -22,8 +22,8 @@ public:
 	PhysicalIndexJoin(LogicalOperator &op, unique_ptr<PhysicalOperator> left, unique_ptr<PhysicalOperator> right,
 	                  vector<JoinCondition> cond, JoinType join_type, const vector<idx_t> &left_projection_map,
 	                  vector<idx_t> right_projection_map, vector<column_t> column_ids, Index *index, bool lhs_first,
-	                  idx_t estimated_cardinality);
-	PhysicalIndexJoin(LogicalOperator &op, Index *index);
+	                  idx_t estimated_cardinality, bool isLineageJoin = false, shared_ptr<OperatorLineage> opLineage = nullptr,
+	                  ChunkCollection *chunk_collection = nullptr);
 	//! Columns from RHS used in the query
 	vector<column_t> column_ids;
 	//! Columns to be fetched
@@ -46,6 +46,9 @@ public:
 	vector<JoinCondition> conditions;
 
 	JoinType join_type;
+	bool isLineageJoin;
+	shared_ptr<OperatorLineage> opLineage;
+	ChunkCollection *chunk_collection;
 	//! In case we swap rhs with lhs we need to output columns related to rhs first.
 	bool lhs_first = true;
 	void GetChunkInternal(ExecutionContext &context, DataChunk &chunk, PhysicalOperatorState *state) const override;
