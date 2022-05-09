@@ -269,7 +269,7 @@ vector<vector<ColumnDefinition>> LineageManager::GetTableColumnTypes(PhysicalOpe
 	case PhysicalOperatorType::ORDER_BY: {
 		// schema: [INTEGER in_index, INTEGER out_index]
 		vector<ColumnDefinition> table_columns;
-		table_columns.emplace_back("rowid", LogicalType::INTEGER);
+		table_columns.emplace_back("rowid", LogicalType::BIGINT);
 		table_columns.emplace_back("in_index", LogicalType::INTEGER);
 		table_columns.emplace_back("out_index", LogicalType::INTEGER);
 		table_columns.emplace_back("Thread_id", LogicalType::INTEGER);
@@ -300,8 +300,8 @@ vector<vector<ColumnDefinition>> LineageManager::GetTableColumnTypes(PhysicalOpe
 		res.emplace_back(move(sink_table_columns));
 		// source schema: [BIGINT in_index, INTEGER out_index]
 		vector<ColumnDefinition> source_table_columns;
-		source_table_columns.emplace_back("in_index", LogicalType::BIGINT);
 		source_table_columns.emplace_back("out_index", LogicalType::INTEGER);
+		source_table_columns.emplace_back("in_index", LogicalType::BIGINT);
 		source_table_columns.emplace_back("thread_id", LogicalType::INTEGER);
 		res.emplace_back(move(source_table_columns));
 		// combine schema: [BIGINT in_index, INTEGER out_index]

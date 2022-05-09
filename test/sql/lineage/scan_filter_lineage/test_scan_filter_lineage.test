@@ -10,33 +10,13 @@ statement ok
 CREATE TABLE t1(i INTEGER);
 
 statement ok
-INSERT INTO t1 SELECT i FROM range(0,200000) tbl(i);
-INSERT INTO t1 SELECT i FROM range(0,5) tabl(i);
+INSERT INTO t1 VALUES(1),(30),(15);
 
 statement ok
 PRAGMA trace_lineage = "ON";
 
 query I
-select * from t1 where i < 2
+select * from t1 where i < 30
 ----
-0
 1
-0
-1
-
-statement ok
-PRAGMA trace_lineage = "OFF";
-
-query III
-SELECT * FROM queries_list;
-----
-0	PRAGMA trace_lineage = "ON";	0
-1	select * from t1 where i < 2	0
-
-query II
-SELECT rowid, in_index FROM LINEAGE_1_SEQ_SCAN_0_0
-----
-0	0
-1	1
-2	200000
-3	200001
+15

@@ -49,6 +49,17 @@ select rowid, in_index, out_index from LINEAGE_1_ORDER_BY_1_0
 6	5	6
 7	2	7
 
+query II
+select out_index, in_index from LINEAGE_1_SEQ_SCAN_0_0
+----
+0	0
+1	1
+2	2
+3	3
+4	4
+5	5
+6	6
+7	7
 
 # Run with more than 1 input chunk
 statement ok

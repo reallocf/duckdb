@@ -56,7 +56,7 @@ void LineageDataVectorBufferArray::Debug() {
 }
 
 data_ptr_t LineageDataVectorBufferArray::Process(idx_t offset) {
-	if (offset == 0) return (data_ptr_t)vec.get();
+	//if (offset == 0) return (data_ptr_t)vec.get();
 	for (idx_t i = 0; i < count; i++) {
 		vec[i] += offset;
 	}
