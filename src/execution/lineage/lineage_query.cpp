@@ -73,7 +73,7 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 				key.chunk.SetValue(
 				    0,
 				    i,
-				    Value::UBIGINT(key.chunk.GetValue(0, i).GetValue<uint64_t>() + key.child_ptrs[i]->child_offset)
+				    Value::UBIGINT(data[LINEAGE_UNARY].data()->data->Backward(key.chunk.GetValue(0, i).GetValue<uint64_t>()) + key.child_ptrs[i]->child_offset)
 				);
 			}
 		}
