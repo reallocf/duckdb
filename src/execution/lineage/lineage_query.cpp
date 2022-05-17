@@ -56,14 +56,16 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 	switch (this->type) {
 	case (PhysicalOperatorType::DELIM_JOIN): {
 		// TODO handle delim join
+		D_ASSERT(false);
 		break;
 	}
 	case PhysicalOperatorType::DELIM_SCAN: {
 		// TODO handle delim scan
+		D_ASSERT(false);
 		break;
 	}
 	case PhysicalOperatorType::TABLE_SCAN: {
-		if (data[LINEAGE_UNARY].empty() && key.child_ptrs.empty()) {
+		if (data[LINEAGE_UNARY].empty() && key.child_ptrs[0] == nullptr) {
 			// Nothing to do! Lineage correct as-is
 		} else {
 			if (key.child_ptrs[0] == nullptr) {
@@ -101,9 +103,10 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 
 		// Setup build chunk
 		key.join_chunk.Initialize({LogicalType::UBIGINT});
-		key.join_chunk.SetCardinality(key.chunk.size());
 
 		// Replace values in probe chunk and set values in build chunk
+		idx_t right_idx = 0;
+		idx_t left_idx = 0;
 		for (idx_t i = 0; i < key.chunk.size(); i++) {
 			idx_t source = key.chunk.GetValue(0, i).GetValue<uint64_t>();
 			auto data_index = dynamic_cast<LineageNested &>(*key.child_ptrs[i]->data).LocateChunkIndex(source);
@@ -116,10 +119,10 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 			if (dynamic_cast<LineageBinary&>(*binary_data->data).right != nullptr) {
 				key.chunk.SetValue(
 				    0,
-				    i,
+				    right_idx,
 				    Value::UBIGINT(dynamic_cast<LineageBinary &>(*binary_data->data).right->Backward(source - adjust_offset))
 				);
-				key.child_ptrs[i] = binary_data->data->GetChild();
+				key.child_ptrs[right_idx++] = binary_data->data->GetChild();
 			}
 
 			if (dynamic_cast<LineageBinary&>(*binary_data->data).left != nullptr) {
@@ -128,20 +131,29 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 					continue;
 				}
 				if (offset == 0) {
-					key.join_chunk.SetValue(0, i, Value::UBIGINT(0));
+					key.join_chunk.SetValue(0, left_idx, Value::UBIGINT(0));
 				} else {
 					bool flag = false;
 					for (idx_t it = 0; it < hm_range.size();  ++it) {
 						if (left >= hm_range[it].first && left <= hm_range[it].second) {
 							auto val = ((left - hm_range[it].first) / offset) + hash_chunk_count[it];
-							key.join_chunk.SetValue(0, i, Value::UBIGINT(val));
+							key.join_chunk.SetValue(0, left_idx, Value::UBIGINT(val));
 							flag = true;
 							break;
 						}
 					}
 					D_ASSERT(flag);
 				}
+				left_idx++;
 			}
+		}
+		// Set cardinality of chunks
+		key.chunk.SetCardinality(right_idx);
+		key.join_chunk.SetCardinality(left_idx);
+
+		// Clear out child pointers for values that didn't have a right match
+		for (; right_idx < key.chunk.size(); right_idx++) {
+			key.child_ptrs[right_idx] = nullptr;
 		}
 		break;
 	}
@@ -275,21 +287,30 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 
 		// Setup build chunk
 		key.join_chunk.Initialize({LogicalType::UBIGINT});
-		key.join_chunk.SetCardinality(key.chunk.size());
 
+		idx_t right_idx = 0;
+		idx_t left_idx = 0;
 		for (idx_t i = 0; i < key.chunk.size(); i++) {
 			idx_t source = key.chunk.GetValue(0, i).GetValue<uint64_t>();
 
 			if (dynamic_cast<LineageBinary&>(*key.child_ptrs[i]->data).right != nullptr) {
 				auto right = dynamic_cast<LineageBinary&>(*key.child_ptrs[i]->data).right->Backward(source);
-				key.join_chunk.SetValue(0, i, Value::UBIGINT(right));
+				key.join_chunk.SetValue(0, right_idx++, Value::UBIGINT(right));
 			}
 
 			if (dynamic_cast<LineageBinary&>(*key.child_ptrs[i]->data).left != nullptr) {
 				auto left = dynamic_cast<LineageBinary&>(*key.child_ptrs[i]->data).left->Backward(source);
-				key.chunk.SetValue(0, i, Value::UBIGINT(left));
-				key.child_ptrs[i] = key.child_ptrs[i]->data->GetChild();
+				key.chunk.SetValue(0, left_idx, Value::UBIGINT(left));
+				key.child_ptrs[left_idx++] = key.child_ptrs[i]->data->GetChild();
 			}
+		}
+		// Set cardinality of chunks
+		key.chunk.SetCardinality(right_idx);
+		key.join_chunk.SetCardinality(left_idx);
+
+		// Clear out child pointers for values that didn't have a left match
+		for (; left_idx < key.chunk.size(); left_idx++) {
+			key.child_ptrs[left_idx] = nullptr;
 		}
 		break;
 	}
@@ -318,21 +339,30 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 
 		// Setup build chunk
 		key.join_chunk.Initialize({LogicalType::UBIGINT});
-		key.join_chunk.SetCardinality(key.chunk.size());
 
+		idx_t right_idx = 0;
+		idx_t left_idx = 0;
 		for (idx_t i = 0; i < key.chunk.size(); i++) {
 			idx_t source = key.chunk.GetValue(0, i).GetValue<uint64_t>();
 
 			if (dynamic_cast<LineageBinary&>(*key.child_ptrs[i]->data).right != nullptr) {
 				auto right = dynamic_cast<LineageBinary&>(*key.child_ptrs[i]->data).right->Backward(source);
-				key.join_chunk.SetValue(0, i, Value::UBIGINT(right));
+				key.join_chunk.SetValue(0, right_idx++, Value::UBIGINT(right));
 			}
 
 			if (dynamic_cast<LineageBinary&>(*key.child_ptrs[i]->data).left != nullptr) {
 				auto left = dynamic_cast<LineageBinary&>(*key.child_ptrs[i]->data).left->Backward(source);
-				key.chunk.SetValue(0, i, Value::UBIGINT(left));
-				key.child_ptrs[i] = key.child_ptrs[i]->data->GetChild();
+				key.chunk.SetValue(0, left_idx, Value::UBIGINT(left));
+				key.child_ptrs[left_idx++] = key.child_ptrs[i]->data->GetChild();
 			}
+		}
+		// Set cardinality of chunks
+		key.chunk.SetCardinality(right_idx);
+		key.join_chunk.SetCardinality(left_idx);
+
+		// Clear out child pointers for values that didn't have a left match
+		for (; left_idx < key.chunk.size(); left_idx++) {
+			key.child_ptrs[left_idx] = nullptr;
 		}
 		break;
 	}

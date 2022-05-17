@@ -86,28 +86,27 @@ string PragmaBackwardLineage(ClientContext &context, const FunctionParameters &p
 #endif
 
 
-std::unique_ptr<PhysicalIndexJoin> PreparePhysicalIndexJoin(PhysicalOperator *op, unique_ptr<PhysicalOperator> left, ClientContext &cxt, ChunkCollection *chunk_collection) {
+unique_ptr<PhysicalIndexJoin> PreparePhysicalIndexJoin(PhysicalOperator *op, unique_ptr<PhysicalOperator> left, ClientContext &cxt, ChunkCollection *chunk_collection) {
 	auto logical_join = make_unique<LogicalComparisonJoin>(JoinType::INNER);
 	logical_join->types = {LogicalType::UBIGINT};
 	vector<JoinCondition> conds; // TODO anything else for this one?
-	unique_ptr<Expression> left_expression = make_unique<BoundReferenceExpression>("",LogicalType::UBIGINT,0);
-	unique_ptr<Expression> right_expression = make_unique<BoundReferenceExpression>("",LogicalType::UBIGINT,0);
+	unique_ptr<Expression> left_expression = make_unique<BoundReferenceExpression>("", LogicalType::UBIGINT, 0);
+	unique_ptr<Expression> right_expression = make_unique<BoundReferenceExpression>("", LogicalType::UBIGINT, 0);
 	JoinCondition cond = JoinCondition();
-	cond.left = std::move(left_expression);
-	cond.right = std::move(right_expression);
+	cond.left = move(left_expression);
+	cond.right = move(right_expression);
 	cond.comparison = ExpressionType::COMPARE_EQUAL;
 	cond.null_values_are_equal = false;
-	conds.push_back(std::move(cond));
+	conds.push_back(move(cond));
 	vector<LogicalType> empty_types = {LogicalType::UBIGINT};
 	const vector<column_t> cids = {0L};
 	unique_ptr<ColumnBinding> col_bind = make_unique<ColumnBinding>(0,0);
 	unique_ptr<BoundColumnRefExpression> exp = make_unique<BoundColumnRefExpression>(LogicalType::UBIGINT, *col_bind.get());
 	vector<unique_ptr<Expression>> exps ;
-	exps.push_back(std::move(exp));
+	exps.push_back(move(exp));
 	unique_ptr<Index> lineage_index = make_unique<LineageIndex>(cids, exps, op->lineage_op.at(-1));
 	lineage_index->unbound_expressions.push_back(move(exp));
 	lineage_index->column_ids.push_back(0);
-	//lineage_index->op_lineage = op->lineage_op.at(-1);
 	vector<idx_t> left_projection_map = {};
 	vector<idx_t> right_projection_map = {0};
 	vector<column_t> column_ids = {0};
@@ -130,9 +129,14 @@ std::unique_ptr<PhysicalIndexJoin> PreparePhysicalIndexJoin(PhysicalOperator *op
 }
 
 
-vector<unique_ptr<PhysicalOperator>> pipelines;
-
-unique_ptr<PhysicalOperator> GenerateCustomPlan(PhysicalOperator* op, ClientContext &cxt, int lineage_id, unique_ptr<PhysicalOperator> left, bool simple_agg_flag) {
+shared_ptr<PhysicalOperator> GenerateCustomPlan(
+    PhysicalOperator* op,
+    ClientContext &cxt,
+    int lineage_id,
+	unique_ptr<PhysicalOperator> left,
+    bool simple_agg_flag,
+	vector<shared_ptr<PhysicalOperator>> *pipelines
+) {
 	if (!op) {
 		return left;
 	}
@@ -146,7 +150,7 @@ unique_ptr<PhysicalOperator> GenerateCustomPlan(PhysicalOperator* op, ClientCont
 	                           op->type == PhysicalOperatorType::ORDER_BY ||
 	                           op->type == PhysicalOperatorType::PROJECTION
 	                           )) {
-		return GenerateCustomPlan(op->children[0].get(), cxt, lineage_id, move(left), true);
+		return GenerateCustomPlan(op->children[0].get(), cxt, lineage_id, move(left), true, pipelines);
 	}
 	vector<LogicalType> types = {LogicalType::UBIGINT};
 	PhysicalOperatorType op_type = PhysicalOperatorType::CHUNK_SCAN;
@@ -166,13 +170,13 @@ unique_ptr<PhysicalOperator> GenerateCustomPlan(PhysicalOperator* op, ClientCont
 			build_chunk_scan->collection = new ChunkCollection();
 
 			// Probe side of join
-			unique_ptr<PhysicalOperator> custom_plan = GenerateCustomPlan(op->children[0].get(), cxt, lineage_id, PreparePhysicalIndexJoin(op, move(chunk_scan), cxt, build_chunk_scan->collection), false);
+			shared_ptr<PhysicalOperator> custom_plan = GenerateCustomPlan(op->children[0].get(), cxt, lineage_id, PreparePhysicalIndexJoin(op, move(chunk_scan), cxt, build_chunk_scan->collection), false, pipelines);
 
 			// Push build side chunk scan to pipelines
 			if (op->type == PhysicalOperatorType::INDEX_JOIN) {
-				pipelines.push_back(move(build_chunk_scan));
+				pipelines->push_back(move(build_chunk_scan));
 			} else {
-				pipelines.push_back(GenerateCustomPlan(op->children[1].get(), cxt, lineage_id, move(build_chunk_scan), false));
+				pipelines->push_back(GenerateCustomPlan(op->children[1].get(), cxt, lineage_id, move(build_chunk_scan), false, pipelines));
 			}
 
 			return custom_plan;
@@ -182,7 +186,8 @@ unique_ptr<PhysicalOperator> GenerateCustomPlan(PhysicalOperator* op, ClientCont
 		    cxt,
 		    lineage_id,
 		    PreparePhysicalIndexJoin(op, move(chunk_scan), cxt, nullptr),
-		    op->type == PhysicalOperatorType::SIMPLE_AGGREGATE
+		    op->type == PhysicalOperatorType::SIMPLE_AGGREGATE,
+		    pipelines
 		);
 	} else {
 		if (op->children.size() == 2) {
@@ -191,13 +196,13 @@ unique_ptr<PhysicalOperator> GenerateCustomPlan(PhysicalOperator* op, ClientCont
 			build_chunk_scan->collection = new ChunkCollection();
 
 			// Probe side of join
-			unique_ptr<PhysicalOperator> custom_plan = GenerateCustomPlan(op->children[0].get(), cxt, lineage_id, PreparePhysicalIndexJoin(op, move(left), cxt,  build_chunk_scan->collection), false);
+			shared_ptr<PhysicalOperator> custom_plan = GenerateCustomPlan(op->children[0].get(), cxt, lineage_id, PreparePhysicalIndexJoin(op, move(left), cxt,  build_chunk_scan->collection), false, pipelines);
 
 			// Push build side chunk scan to pipelines
 			if (op->type == PhysicalOperatorType::INDEX_JOIN) {
-				pipelines.push_back(move(build_chunk_scan));
+				pipelines->push_back(move(build_chunk_scan));
 			} else {
-				pipelines.push_back(GenerateCustomPlan(op->children[1].get(), cxt, lineage_id, move(build_chunk_scan), false));
+				pipelines->push_back(GenerateCustomPlan(op->children[1].get(), cxt, lineage_id, move(build_chunk_scan), false, pipelines));
 			}
 
 			// probe side of hash join
@@ -208,7 +213,8 @@ unique_ptr<PhysicalOperator> GenerateCustomPlan(PhysicalOperator* op, ClientCont
 		    cxt,
 		    lineage_id,
 		    PreparePhysicalIndexJoin(op, move(left), cxt, nullptr),
-		    op->type == PhysicalOperatorType::SIMPLE_AGGREGATE
+		    op->type == PhysicalOperatorType::SIMPLE_AGGREGATE,
+		    pipelines
 		);
 	}
 
@@ -221,14 +227,14 @@ string PragmaBackwardLineageDuckDBExecEngine(ClientContext &context, const Funct
 	string mode = parameters.values[1].ToString();
 	int lineage_id = parameters.values[2].GetValue<int>();
 	auto op = context.query_to_plan[query].get();
-	unique_ptr<PhysicalOperator> plan = GenerateCustomPlan(op, context, lineage_id, nullptr, false);
+	vector<shared_ptr<PhysicalOperator>> pipelines;
+	shared_ptr<PhysicalOperator> plan = GenerateCustomPlan(op, context, lineage_id, nullptr, false, &pipelines);
 	vector<unique_ptr<QueryResult>> results;
 	results.push_back(context.RunPlan(plan.get()));
 	for (idx_t i = 0; i < pipelines.size(); ++i) {
 		// Iterate through pipelines backwards because we construct in reverse order
 		results.push_back(context.RunPlan(pipelines[pipelines.size() - i - 1].get()));
 	}
-	pipelines.clear();
 	if (op == nullptr) {
 		throw std::logic_error("Querying non-existent lineage");
 	}

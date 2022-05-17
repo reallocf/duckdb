@@ -238,10 +238,11 @@ void PhysicalIndexJoin::GetChunkInternal(ExecutionContext &context, DataChunk &c
 		// Return cached values if there are any
 		if (!state->cached_values.empty()) {
 			for (idx_t i = 0; i < STANDARD_VECTOR_SIZE; i++) {
-				chunk.SetValue(0, i, state->cached_values[state->cached_values_idx++]);
+				chunk.SetValue(0, i, state->cached_values[state->cached_values_idx]);
 				if (!state->cached_child_ptrs.empty()) {
 					state->child_ptrs[i] = state->cached_child_ptrs[state->cached_values_idx];
 				}
+				state->cached_values_idx++;
 				chunk.SetCardinality(i + 1);
 				if (state->cached_values_idx == state->cached_values.size()) {
 					state->cached_values_idx = 0;
