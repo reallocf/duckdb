@@ -49,18 +49,18 @@ vector<shared_ptr<LineageDataWithOffset>> LookupChunksFromGlobalIndex(
 }
 
 void OperatorLineage::AccessIndex(LineageIndexStruct key) {
-//	std::cout << PhysicalOperatorToString(this->type) << std::endl;
+//	std::cout << PhysicalOperatorToString(this->type) << this->opid << std::endl;
 //	for (idx_t i = 0; i < key.chunk.size(); i++) {
 //		std::cout << key.chunk.GetValue(0,i) << std::endl;
 //	}
 	switch (this->type) {
 	case (PhysicalOperatorType::DELIM_JOIN): {
-		// TODO handle delim join
+		// These should have been removed from the query plan
 		D_ASSERT(false);
 		break;
 	}
 	case PhysicalOperatorType::DELIM_SCAN: {
-		// TODO handle delim scan
+		// These should have been removed from the query plan
 		D_ASSERT(false);
 		break;
 	}
@@ -276,6 +276,8 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 		break;
 	}
 	case PhysicalOperatorType::PROJECTION: {
+		// These should have been removed from the query plan
+		D_ASSERT(false);
 		break;
 	}
 	case PhysicalOperatorType::BLOCKWISE_NL_JOIN:

@@ -5,7 +5,7 @@
 #include "duckdb/execution/index/lineage_index/lineage_index.hpp"
 #include "duckdb/execution/operator/scan/physical_chunk_scan.hpp"
 #include "duckdb/execution/operator/scan/physical_empty_result.hpp"
-
+#include "duckdb/execution/operator/join/physical_delim_join.hpp"
 
 namespace duckdb {
 
@@ -140,21 +140,54 @@ shared_ptr<PhysicalOperator> GenerateCustomPlan(
 	if (!op) {
 		return left;
 	}
+	if (op->type == PhysicalOperatorType::HASH_JOIN && dynamic_cast<PhysicalJoin *>(op)->join_type == JoinType::MARK) {
+		// Skip Mark Joins
+		return GenerateCustomPlan(op->children[0].get(), cxt, lineage_id, move(left), simple_agg_flag, pipelines);
+	}
+	if (op->type == PhysicalOperatorType::PROJECTION) {
+		// Skip Projections
+		return GenerateCustomPlan(op->children[0].get(), cxt, lineage_id, move(left), simple_agg_flag, pipelines);
+	}
+	if (op->type == PhysicalOperatorType::DELIM_SCAN) {
+		// Skip DELIM_SCANs since they never affect the lineage
+		return left;
+	}
 	if (op->children.empty()) {
 		return PreparePhysicalIndexJoin(op, move(left), cxt, nullptr);
 	}
 	if (simple_agg_flag && (
-	                           op->type == PhysicalOperatorType::HASH_GROUP_BY ||
-	                           op->type == PhysicalOperatorType::PERFECT_HASH_GROUP_BY ||
-	                           op->type == PhysicalOperatorType::SIMPLE_AGGREGATE ||
-	                           op->type == PhysicalOperatorType::ORDER_BY ||
-	                           op->type == PhysicalOperatorType::PROJECTION
-	                           )) {
+		op->type == PhysicalOperatorType::HASH_GROUP_BY ||
+		op->type == PhysicalOperatorType::PERFECT_HASH_GROUP_BY ||
+		op->type == PhysicalOperatorType::SIMPLE_AGGREGATE ||
+		op->type == PhysicalOperatorType::ORDER_BY ||
+		op->type == PhysicalOperatorType::PROJECTION
+	)) {
 		return GenerateCustomPlan(op->children[0].get(), cxt, lineage_id, move(left), true, pipelines);
 	}
 	vector<LogicalType> types = {LogicalType::UBIGINT};
 	PhysicalOperatorType op_type = PhysicalOperatorType::CHUNK_SCAN;
 	idx_t estimated_cardinality = 1;
+
+	if (op->type == PhysicalOperatorType::DELIM_JOIN) {
+		if (!op->delim_handled) {
+			// TODO handle multithreading here?
+			idx_t thread_id = -1;
+
+			// set this child to join's child to appropriately line up chunk scan lineage
+			dynamic_cast<PhysicalDelimJoin *>(op)->join->children[0] = move(op->children[0]);
+
+			// distinct input is delim join input
+			// distinct should be the input to delim scan
+			op->lineage_op[thread_id]->children[2]->children.push_back(op->lineage_op[thread_id]->children[0]);
+
+			// chunk scan input is delim join input
+			op->lineage_op[thread_id]->children[1]->children[1] = op->lineage_op[thread_id]->children[0];
+
+			// we only want to do the child reordering once
+			op->delim_handled = true;
+		}
+		return GenerateCustomPlan(dynamic_cast<PhysicalDelimJoin *>(op)->join.get(), cxt, lineage_id, move(left), simple_agg_flag, pipelines);
+	}
 	if (left == nullptr) {
 		unique_ptr<PhysicalChunkScan> chunk_scan = make_unique<PhysicalChunkScan>(types, op_type, estimated_cardinality, true);
 		DataChunk lineage_chunk;
@@ -164,7 +197,7 @@ shared_ptr<PhysicalOperator> GenerateCustomPlan(
 		lineage_chunk.data[0].Reference(lineage);
 		chunk_scan->collection = new ChunkCollection();
 		chunk_scan->collection->Append(lineage_chunk);
-		if (op->children.size() == 2) {
+		if (op->children.size() == 2 && dynamic_cast<PhysicalJoin *>(op)->join_type != JoinType::ANTI) {
 			// Chunk scan that refers to build side of join
 			unique_ptr<PhysicalChunkScan> build_chunk_scan = make_unique<PhysicalChunkScan>(types, op_type, estimated_cardinality, true);
 			build_chunk_scan->collection = new ChunkCollection();
@@ -190,7 +223,7 @@ shared_ptr<PhysicalOperator> GenerateCustomPlan(
 		    pipelines
 		);
 	} else {
-		if (op->children.size() == 2) {
+		if (op->children.size() == 2 && dynamic_cast<PhysicalJoin *>(op)->join_type != JoinType::ANTI) {
 			// Chunk scan that refers to build side of join
 			unique_ptr<PhysicalChunkScan> build_chunk_scan = make_unique<PhysicalChunkScan>(types, op_type, estimated_cardinality, true);
 			build_chunk_scan->collection = new ChunkCollection();
@@ -217,7 +250,6 @@ shared_ptr<PhysicalOperator> GenerateCustomPlan(
 		    pipelines
 		);
 	}
-
 }
 
 
@@ -227,6 +259,9 @@ string PragmaBackwardLineageDuckDBExecEngine(ClientContext &context, const Funct
 	string mode = parameters.values[1].ToString();
 	int lineage_id = parameters.values[2].GetValue<int>();
 	auto op = context.query_to_plan[query].get();
+	if (op == nullptr) {
+		throw std::logic_error("Querying non-existent lineage");
+	}
 	vector<shared_ptr<PhysicalOperator>> pipelines;
 	shared_ptr<PhysicalOperator> plan = GenerateCustomPlan(op, context, lineage_id, nullptr, false, &pipelines);
 	vector<unique_ptr<QueryResult>> results;
@@ -234,9 +269,6 @@ string PragmaBackwardLineageDuckDBExecEngine(ClientContext &context, const Funct
 	for (idx_t i = 0; i < pipelines.size(); ++i) {
 		// Iterate through pipelines backwards because we construct in reverse order
 		results.push_back(context.RunPlan(pipelines[pipelines.size() - i - 1].get()));
-	}
-	if (op == nullptr) {
-		throw std::logic_error("Querying non-existent lineage");
 	}
 	string str_results;
 	for (idx_t i = 0; i < results.size(); i++) {

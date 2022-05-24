@@ -19,7 +19,7 @@ PRAGMA trace_lineage = "OFF";
 query I
 PRAGMA lineage_query("SELECT s_acctbal,s_name,n_name,p_partkey,s_suppkey, s_nationkey, ps_supplycost FROM part,supplier,partsupp,nation,region WHERE p_partkey = ps_partkey AND s_suppkey = ps_suppkey AND p_size = 15 AND p_type LIKE '%BRASS' AND s_nationkey = n_nationkey AND n_regionkey = r_regionkey AND r_name = 'EUROPE' AND ps_supplycost = ( SELECT min(ps_supplycost) FROM partsupp,supplier,nation,region WHERE p_partkey = ps_partkey AND s_suppkey = ps_suppkey  AND s_nationkey = n_nationkey AND n_regionkey = r_regionkey AND r_name = 'EUROPE') ORDER BY s_acctbal DESC, n_name, s_name, p_partkey LIMIT 100;", 'VALUE', 0)
 ----
-[993, 76, 7, 3, 248, 993, 76, 7, 3, 0]
+[993, 993, 0, 3, 7, 76, 248, 7, 3, 76]
 
 query I
 PRAGMA backward_lineage("SELECT s_acctbal,s_name,n_name,p_partkey,s_suppkey, s_nationkey, ps_supplycost FROM part,supplier,partsupp,nation,region WHERE p_partkey = ps_partkey AND s_suppkey = ps_suppkey AND p_size = 15 AND p_type LIKE '%BRASS' AND s_nationkey = n_nationkey AND n_regionkey = r_regionkey AND r_name = 'EUROPE' AND ps_supplycost = ( SELECT min(ps_supplycost) FROM partsupp,supplier,nation,region WHERE p_partkey = ps_partkey AND s_suppkey = ps_suppkey  AND s_nationkey = n_nationkey AND n_regionkey = r_regionkey AND r_name = 'EUROPE') ORDER BY s_acctbal DESC, n_name, s_name, p_partkey LIMIT 100;", 'COUNT', '0')

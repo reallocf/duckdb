@@ -72,6 +72,7 @@ public:
 	//! Lineage captured for this operator
 	std::unordered_map<int, shared_ptr<OperatorLineage>> lineage_op;
 	bool trace_lineage;
+	bool delim_handled = false;
 #endif
 
 public:
