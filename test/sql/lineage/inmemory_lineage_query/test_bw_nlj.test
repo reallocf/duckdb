@@ -31,21 +31,21 @@ statement ok
 PRAGMA trace_lineage = "OFF";
 
 query I
-PRAGMA lineage_query('select t1.rowid, t2.rowid, t1.i, t2.i from t1, t2 where  t1.i > t2.i and t1.i <> t2.i', 'VALUE', 0)
+PRAGMA lineage_query('select t1.rowid, t2.rowid, t1.i, t2.i from t1, t2 where  t1.i > t2.i and t1.i <> t2.i', 0, 'LIN', 0)
 ----
 [0, 1023]
 
 query I
-PRAGMA lineage_query('select t1.rowid, t2.rowid, t1.i, t2.i from t1, t2 where  t1.i > t2.i and t1.i <> t2.i', 'VALUE', 1)
+PRAGMA lineage_query('select t1.rowid, t2.rowid, t1.i, t2.i from t1, t2 where  t1.i > t2.i and t1.i <> t2.i', 1, 'LIN', 0)
 ----
 [0, 2047]
 
 query I
-PRAGMA lineage_query('select t1.rowid, t2.rowid, t1.i, t2.i from t1, t2 where  t1.i > t2.i and t1.i <> t2.i', 'VALUE', 2)
+PRAGMA lineage_query('select t1.rowid, t2.rowid, t1.i, t2.i from t1, t2 where  t1.i > t2.i and t1.i <> t2.i', 2, 'LIN', 0)
 ----
 [2049, 1023]
 
 query I
-PRAGMA lineage_query('select t1.rowid, t2.rowid, t1.i, t2.i from t1, t2 where  t1.i > t2.i and t1.i <> t2.i', 'VALUE', 3)
+PRAGMA lineage_query('select t1.rowid, t2.rowid, t1.i, t2.i from t1, t2 where  t1.i > t2.i and t1.i <> t2.i', 3, 'LIN', 0)
 ----
 [2049, 2047]

@@ -6,6 +6,10 @@
 #include "duckdb/execution/operator/scan/physical_chunk_scan.hpp"
 #include "duckdb/execution/operator/scan/physical_empty_result.hpp"
 #include "duckdb/execution/operator/join/physical_delim_join.hpp"
+#include "duckdb/execution/operator/set/physical_union.hpp"
+#include "duckdb/execution/operator/aggregate/physical_simple_aggregate.hpp"
+#include "duckdb/function/aggregate/distributive_functions.hpp"
+#include "duckdb/execution/operator/join/physical_cross_product.hpp"
 
 namespace duckdb {
 
@@ -89,7 +93,7 @@ string PragmaBackwardLineage(ClientContext &context, const FunctionParameters &p
 unique_ptr<PhysicalIndexJoin> PreparePhysicalIndexJoin(PhysicalOperator *op, unique_ptr<PhysicalOperator> left, ClientContext &cxt, ChunkCollection *chunk_collection) {
 	auto logical_join = make_unique<LogicalComparisonJoin>(JoinType::INNER);
 	logical_join->types = {LogicalType::UBIGINT};
-	vector<JoinCondition> conds; // TODO anything else for this one?
+	vector<JoinCondition> conds;
 	unique_ptr<Expression> left_expression = make_unique<BoundReferenceExpression>("", LogicalType::UBIGINT, 0);
 	unique_ptr<Expression> right_expression = make_unique<BoundReferenceExpression>("", LogicalType::UBIGINT, 0);
 	JoinCondition cond = JoinCondition();
@@ -102,7 +106,7 @@ unique_ptr<PhysicalIndexJoin> PreparePhysicalIndexJoin(PhysicalOperator *op, uni
 	const vector<column_t> cids = {0L};
 	unique_ptr<ColumnBinding> col_bind = make_unique<ColumnBinding>(0,0);
 	unique_ptr<BoundColumnRefExpression> exp = make_unique<BoundColumnRefExpression>(LogicalType::UBIGINT, *col_bind.get());
-	vector<unique_ptr<Expression>> exps ;
+	vector<unique_ptr<Expression>> exps;
 	exps.push_back(move(exp));
 	unique_ptr<Index> lineage_index = make_unique<LineageIndex>(cids, exps, op->lineage_op.at(-1));
 	lineage_index->unbound_expressions.push_back(move(exp));
@@ -122,20 +126,21 @@ unique_ptr<PhysicalIndexJoin> PreparePhysicalIndexJoin(PhysicalOperator *op, uni
 	    column_ids,
 	    lineage_index.get(),
 	    false,
-	    1,true,
+	    1, // TODO improve this?
+	    true,
 	    op->lineage_op.at(-1),
 	    chunk_collection
 	);
 }
 
 
-shared_ptr<PhysicalOperator> GenerateCustomPlan(
+unique_ptr<PhysicalOperator> GenerateCustomPlan(
     PhysicalOperator* op,
     ClientContext &cxt,
     int lineage_id,
 	unique_ptr<PhysicalOperator> left,
     bool simple_agg_flag,
-	vector<shared_ptr<PhysicalOperator>> *pipelines
+	vector<unique_ptr<PhysicalOperator>> *pipelines
 ) {
 	if (!op) {
 		return left;
@@ -197,13 +202,16 @@ shared_ptr<PhysicalOperator> GenerateCustomPlan(
 		lineage_chunk.data[0].Reference(lineage);
 		chunk_scan->collection = new ChunkCollection();
 		chunk_scan->collection->Append(lineage_chunk);
-		if (op->children.size() == 2 && dynamic_cast<PhysicalJoin *>(op)->join_type != JoinType::ANTI) {
+		if (
+		    op->children.size() == 2 &&
+		    (op->type == PhysicalOperatorType::INDEX_JOIN || op->type == PhysicalOperatorType::CROSS_PRODUCT || dynamic_cast<PhysicalJoin *>(op)->join_type != JoinType::ANTI)
+		) {
 			// Chunk scan that refers to build side of join
 			unique_ptr<PhysicalChunkScan> build_chunk_scan = make_unique<PhysicalChunkScan>(types, op_type, estimated_cardinality, true);
 			build_chunk_scan->collection = new ChunkCollection();
 
 			// Probe side of join
-			shared_ptr<PhysicalOperator> custom_plan = GenerateCustomPlan(op->children[0].get(), cxt, lineage_id, PreparePhysicalIndexJoin(op, move(chunk_scan), cxt, build_chunk_scan->collection), false, pipelines);
+			unique_ptr<PhysicalOperator> custom_plan = GenerateCustomPlan(op->children[0].get(), cxt, lineage_id, PreparePhysicalIndexJoin(op, move(chunk_scan), cxt, build_chunk_scan->collection), false, pipelines);
 
 			// Push build side chunk scan to pipelines
 			if (op->type == PhysicalOperatorType::INDEX_JOIN) {
@@ -229,7 +237,7 @@ shared_ptr<PhysicalOperator> GenerateCustomPlan(
 			build_chunk_scan->collection = new ChunkCollection();
 
 			// Probe side of join
-			shared_ptr<PhysicalOperator> custom_plan = GenerateCustomPlan(op->children[0].get(), cxt, lineage_id, PreparePhysicalIndexJoin(op, move(left), cxt,  build_chunk_scan->collection), false, pipelines);
+			unique_ptr<PhysicalOperator> custom_plan = GenerateCustomPlan(op->children[0].get(), cxt, lineage_id, PreparePhysicalIndexJoin(op, move(left), cxt,  build_chunk_scan->collection), false, pipelines);
 
 			// Push build side chunk scan to pipelines
 			if (op->type == PhysicalOperatorType::INDEX_JOIN) {
@@ -252,41 +260,119 @@ shared_ptr<PhysicalOperator> GenerateCustomPlan(
 	}
 }
 
+unique_ptr<PhysicalOperator> CombineByMode(
+	ClientContext &context,
+	const string& mode,
+    bool should_count,
+    unique_ptr<PhysicalOperator> first_plan,
+    vector<unique_ptr<PhysicalOperator>> other_plans
+) {
+	unique_ptr<PhysicalOperator> final_plan = move(first_plan);
+	if (mode == "LIN") {
+		vector<LogicalType> types = {LogicalType::UBIGINT};
+		// Count of Lineage - union then aggregate
+		for (idx_t i = 0; i < other_plans.size(); i++) {
+			final_plan = make_unique<PhysicalUnion>(
+				types,
+				move(final_plan),
+				move(other_plans[i]),
+			    1 // TODO improve this?
+			);
+		}
+	} else if (mode == "PERM") {
+		vector<LogicalType> types = {LogicalType::UBIGINT};
+		for (idx_t i = 0; i < other_plans.size(); i++) {
+			types.push_back(LogicalType::UBIGINT);
+			final_plan = make_unique<PhysicalCrossProduct>(
+			    types,
+			    move(other_plans[i]),
+				move(final_plan),
+			    1 // TODO improve this?
+			);
+		}
+	} else {
+		// Invalid mode
+		throw std::logic_error("Invalid backward query mode - should one of [LIN, PERM, PROV]");
+	}
+	if (should_count) {
+		// Add final aggregation at end
+		vector<LogicalType> types = {LogicalType::UBIGINT};
+		vector<unique_ptr<Expression>> agg_exprs;
+
+		agg_exprs.push_back(AggregateFunction::BindAggregateFunction(context, CountStarFun::GetFunction(), {}));
+		unique_ptr<PhysicalOperator> agg = make_unique<PhysicalSimpleAggregate>(types, move(agg_exprs), true, 1);
+
+		agg->children.push_back(move(final_plan));
+		final_plan = move(agg);
+	}
+	return final_plan;
+}
+
+template <typename T>
+void Reverse(vector<unique_ptr<T>> *vec) {
+	for (idx_t i = 0; i < vec->size() / 2; i++) {
+		unique_ptr<T> tmp = move(vec->at(i));
+		vec->at(i) = move(vec->at(vec->size() - i - 1));
+		vec->at(vec->size() - i - 1) = move(tmp);
+	}
+}
 
 string PragmaBackwardLineageDuckDBExecEngine(ClientContext &context, const FunctionParameters &parameters) {
 	// query the lineage data, create a view on top of it, and then query that
 	string query = parameters.values[0].ToString();
-	string mode = parameters.values[1].ToString();
-	int lineage_id = parameters.values[2].GetValue<int>();
+	int lineage_id = parameters.values[1].GetValue<int>();
+	string mode = parameters.values[2].ToString();
+	bool should_count = parameters.values[3].GetValue<int>() != 0;
 	auto op = context.query_to_plan[query].get();
 	if (op == nullptr) {
 		throw std::logic_error("Querying non-existent lineage");
 	}
-	vector<shared_ptr<PhysicalOperator>> pipelines;
-	shared_ptr<PhysicalOperator> plan = GenerateCustomPlan(op, context, lineage_id, nullptr, false, &pipelines);
-	vector<unique_ptr<QueryResult>> results;
-	results.push_back(context.RunPlan(plan.get()));
-	for (idx_t i = 0; i < pipelines.size(); ++i) {
-		// Iterate through pipelines backwards because we construct in reverse order
-		results.push_back(context.RunPlan(pipelines[pipelines.size() - i - 1].get()));
-	}
-	string str_results;
-	for (idx_t i = 0; i < results.size(); i++) {
-		unique_ptr<DataChunk> chunk = results[i]->Fetch();
-		while (chunk != nullptr) {
-			for (idx_t j = 0; j < chunk->size(); j++) {
-				int val = chunk->GetValue(0, j).GetValue<int>();
+	clock_t start = clock();
+	vector<unique_ptr<PhysicalOperator>> other_plans;
+	unique_ptr<PhysicalOperator> first_plan = GenerateCustomPlan(op, context, lineage_id, nullptr, false, &other_plans);
+	clock_t plan = clock();
+	// We construct other_plans in reverse execution order, swap here
+	Reverse(&other_plans);
 
-				if (!str_results.empty()) {
-					str_results += StringUtil::Format(", %d", val);
+	unique_ptr<PhysicalOperator> final_plan = CombineByMode(context, mode, should_count, move(first_plan), move(other_plans));
+	unique_ptr<QueryResult> result = context.RunPlan(final_plan.get());
+	clock_t execute = clock();
+
+	string str_results;
+	idx_t count = 0;
+	unique_ptr<DataChunk> chunk = result->Fetch();
+	while (chunk != nullptr) {
+		for (idx_t row_idx = 0; row_idx < chunk->size(); row_idx++) {
+			count++;
+			string row;
+			for (idx_t col_idx = 0; col_idx < chunk->ColumnCount(); col_idx++) {
+				int val = chunk->GetValue(col_idx, row_idx).GetValue<int>();
+
+				if (!row.empty()) {
+					row += StringUtil::Format(", %d", val);
 				} else {
-					str_results += to_string(val);
+					row += to_string(val);
 				}
 			}
-			chunk = results[i]->Fetch();
+			if (chunk->ColumnCount() > 1) {
+				row = "list_value(" + row + ")";
+			}
+			if (!str_results.empty()) {
+				str_results += ", " + row;
+			} else {
+				str_results += row;
+			}
 		}
+		chunk = result->Fetch();
 	}
-	str_results = "list_value(" + str_results + ")";
+	if (count > 1) {
+		str_results = "list_value(" + str_results + ")";
+	}
+	clock_t end = clock();
+	std::cout << "Plan time: " << ((float) plan - start) / CLOCKS_PER_SEC << std::endl;
+	std::cout << "Execute time: " << ((float) execute - plan) / CLOCKS_PER_SEC << std::endl;
+	std::cout << "List build time: " << ((float) end - execute) / CLOCKS_PER_SEC << std::endl;
+	std::cout << "Total time: " << ((float) end - start) / CLOCKS_PER_SEC << std::endl;
 	return StringUtil::Format("SELECT %s", str_results);
 }
 
@@ -355,7 +441,7 @@ string PragmaStorageInfo(ClientContext &context, const FunctionParameters &param
 void PragmaQueries::RegisterFunction(BuiltinFunctions &set) {
 #ifdef LINEAGE
 	set.AddFunction(PragmaFunction::PragmaCall("backward_lineage", PragmaBackwardLineage,  {LogicalType::VARCHAR, LogicalType::VARCHAR, LogicalType::VARCHAR}));
-	set.AddFunction(PragmaFunction::PragmaCall("lineage_query", PragmaBackwardLineageDuckDBExecEngine, {LogicalType::VARCHAR, LogicalType::VARCHAR, LogicalType::INTEGER}));
+	set.AddFunction(PragmaFunction::PragmaCall("lineage_query", PragmaBackwardLineageDuckDBExecEngine, {LogicalType::VARCHAR, LogicalType::INTEGER, LogicalType::VARCHAR, LogicalType::INTEGER}));
 #endif
 	set.AddFunction(PragmaFunction::PragmaCall("table_info", PragmaTableInfo, {LogicalType::VARCHAR}));
 	set.AddFunction(PragmaFunction::PragmaCall("storage_info", PragmaStorageInfo, {LogicalType::VARCHAR}));

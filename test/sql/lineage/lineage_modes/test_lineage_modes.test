@@ -1,0 +1,163 @@
+# name: test/sql/lineage/lineage_modes/test_lineage_modes.test
+# description: Test all lineage modes
+# group: [lineage_modes]
+
+statement ok
+CREATE TABLE t1(i INTEGER, j INTEGER);
+CREATE TABLE t2(i INTEGER);
+CREATE TABLE t3(i INTEGER);
+CREATE TABLE t4(i INTEGER);
+CREATE TABLE t5(i INTEGER);
+
+statement ok
+INSERT INTO t1 SELECT i, i+1 FROM range(0,3072) tbl(i);
+INSERT INTO t1 SELECT i, i+1 FROM range(0,3072) tbl(i);
+INSERT INTO t1 SELECT i, i+1 FROM range(0,3072) tbl(i);
+INSERT INTO t1 SELECT i, i+1 FROM range(0,3072) tbl(i);
+INSERT INTO t2 SELECT i FROM range(0, 10) tbl(i);
+INSERT INTO t2 SELECT i FROM range(5000,7000) tbl(i);
+INSERT INTO t2 SELECT i FROM range(30, 40) tbl(i);
+INSERT INTO t3 SELECT i FROM range(0,1030) tbl(i);
+INSERT INTO t4 SELECT i FROM range(0,5) tbl(i);
+INSERT INTO t5 SELECT i FROM range(1,6) tbl(i);
+
+statement ok
+PRAGMA trace_lineage = "ON"
+
+query III
+SELECT t1.i, SUM(t2.i), COUNT(t3.i) FROM t1, t2, t3 WHERE t1.i = t2.i AND t2.i = t3.i AND t1.j + t2.i > 12 GROUP BY t1.i
+----
+6	24	4
+7	28	4
+8	32	4
+9	36	4
+30	120	4
+31	124	4
+32	128	4
+33	132	4
+34	136	4
+35	140	4
+36	144	4
+37	148	4
+38	152	4
+39	156	4
+
+query II
+SELECT t4.i, t5.i FROM t4, t5 WHERE t4.i = t5.i
+----
+1	1
+2	2
+3	3
+4	4
+
+query I
+SELECT COUNT(t4.i) FROM t4, t5 WHERE t4.i = t5.i
+----
+4
+
+statement ok
+PRAGMA trace_lineage = "OFF";
+
+# LIN
+
+query I
+PRAGMA lineage_query('SELECT t4.i, t5.i FROM t4, t5 WHERE t4.i = t5.i', 0, 'LIN', 0)
+----
+[1, 0]
+
+query I
+PRAGMA lineage_query('SELECT t4.i, t5.i FROM t4, t5 WHERE t4.i = t5.i', 3, 'LIN', 0)
+----
+[4, 3]
+
+query I
+PRAGMA lineage_query('SELECT t4.i, t5.i FROM t4, t5 WHERE t4.i = t5.i', 0, 'LIN', 1)
+----
+2
+
+query I
+PRAGMA lineage_query('SELECT t4.i, t5.i FROM t4, t5 WHERE t4.i = t5.i', 3, 'LIN', 1)
+----
+2
+
+query I
+PRAGMA lineage_query('SELECT COUNT(t4.i) FROM t4, t5 WHERE t4.i = t5.i', 0, 'LIN', 0)
+----
+[1, 2, 3, 4, 0, 1, 2, 3]
+
+query I
+PRAGMA lineage_query('SELECT COUNT(t4.i) FROM t4, t5 WHERE t4.i = t5.i', 0, 'LIN', 1)
+----
+8
+
+query I
+PRAGMA lineage_query('SELECT t1.i, SUM(t2.i), COUNT(t3.i) FROM t1, t2, t3 WHERE t1.i = t2.i AND t2.i = t3.i AND t1.j + t2.i > 12 GROUP BY t1.i', 0, 'LIN', 0)
+----
+[6, 3078, 6150, 9222, 6, 6, 6, 6, 6, 6, 6, 6]
+
+query I
+PRAGMA lineage_query('SELECT t1.i, SUM(t2.i), COUNT(t3.i) FROM t1, t2, t3 WHERE t1.i = t2.i AND t2.i = t3.i AND t1.j + t2.i > 12 GROUP BY t1.i', 4, 'LIN', 0)
+----
+[30, 3102, 6174, 9246, 2010, 2010, 2010, 2010, 30, 30, 30, 30]
+
+query I
+PRAGMA lineage_query('SELECT t1.i, SUM(t2.i), COUNT(t3.i) FROM t1, t2, t3 WHERE t1.i = t2.i AND t2.i = t3.i AND t1.j + t2.i > 12 GROUP BY t1.i', 0, 'LIN', 1)
+----
+12
+
+query I
+PRAGMA lineage_query('SELECT t1.i, SUM(t2.i), COUNT(t3.i) FROM t1, t2, t3 WHERE t1.i = t2.i AND t2.i = t3.i AND t1.j + t2.i > 12 GROUP BY t1.i', 4, 'LIN', 1)
+----
+12
+
+# PERM
+
+query I
+PRAGMA lineage_query('SELECT t4.i, t5.i FROM t4, t5 WHERE t4.i = t5.i', 0, 'PERM', 0)
+----
+[0, 1]
+
+query I
+PRAGMA lineage_query('SELECT t4.i, t5.i FROM t4, t5 WHERE t4.i = t5.i', 3, 'PERM', 0)
+----
+[3, 4]
+
+query I
+PRAGMA lineage_query('SELECT t4.i, t5.i FROM t4, t5 WHERE t4.i = t5.i', 0, 'PERM', 1)
+----
+1
+
+query I
+PRAGMA lineage_query('SELECT t4.i, t5.i FROM t4, t5 WHERE t4.i = t5.i', 3, 'PERM', 1)
+----
+1
+
+query I
+PRAGMA lineage_query('SELECT COUNT(t4.i) FROM t4, t5 WHERE t4.i = t5.i', 0, 'PERM', 0)
+----
+[[0, 1], [1, 2], [2, 3], [3, 4]]
+
+query I
+PRAGMA lineage_query('SELECT COUNT(t4.i) FROM t4, t5 WHERE t4.i = t5.i', 0, 'PERM', 1)
+----
+2
+
+query I
+PRAGMA lineage_query('SELECT t1.i, SUM(t2.i), COUNT(t3.i) FROM t1, t2, t3 WHERE t1.i = t2.i AND t2.i = t3.i AND t1.j + t2.i > 12 GROUP BY t1.i', 0, 'PERM', 0)
+----
+[[6, 6, 6], [6, 6, 6], [6, 6, 6], [6, 6, 6], [6, 6, 6], [6, 6, 6], [6, 6, 6], [6, 6, 6], [6, 6, 6], [6, 6, 6], [6, 6, 6], [6, 6, 6], [6, 6, 6], [6, 6, 6], [6, 6, 6], [6, 6, 6], [6, 6, 3078], [6, 6, 3078], [6, 6, 3078], [6, 6, 3078], [6, 6, 3078], [6, 6, 3078], [6, 6, 3078], [6, 6, 3078], [6, 6, 3078], [6, 6, 3078], [6, 6, 3078], [6, 6, 3078], [6, 6, 3078], [6, 6, 3078], [6, 6, 3078], [6, 6, 3078], [6, 6, 6150], [6, 6, 6150], [6, 6, 6150], [6, 6, 6150], [6, 6, 6150], [6, 6, 6150], [6, 6, 6150], [6, 6, 6150], [6, 6, 6150], [6, 6, 6150], [6, 6, 6150], [6, 6, 6150], [6, 6, 6150], [6, 6, 6150], [6, 6, 6150], [6, 6, 6150], [6, 6, 9222], [6, 6, 9222], [6, 6, 9222], [6, 6, 9222], [6, 6, 9222], [6, 6, 9222], [6, 6, 9222], [6, 6, 9222], [6, 6, 9222], [6, 6, 9222], [6, 6, 9222], [6, 6, 9222], [6, 6, 9222], [6, 6, 9222], [6, 6, 9222], [6, 6, 9222]]
+
+query I
+PRAGMA lineage_query('SELECT t1.i, SUM(t2.i), COUNT(t3.i) FROM t1, t2, t3 WHERE t1.i = t2.i AND t2.i = t3.i AND t1.j + t2.i > 12 GROUP BY t1.i', 4, 'PERM', 0)
+----
+[[30, 2010, 30], [30, 2010, 30], [30, 2010, 30], [30, 2010, 30], [30, 2010, 30], [30, 2010, 30], [30, 2010, 30], [30, 2010, 30], [30, 2010, 30], [30, 2010, 30], [30, 2010, 30], [30, 2010, 30], [30, 2010, 30], [30, 2010, 30], [30, 2010, 30], [30, 2010, 30], [30, 2010, 3102], [30, 2010, 3102], [30, 2010, 3102], [30, 2010, 3102], [30, 2010, 3102], [30, 2010, 3102], [30, 2010, 3102], [30, 2010, 3102], [30, 2010, 3102], [30, 2010, 3102], [30, 2010, 3102], [30, 2010, 3102], [30, 2010, 3102], [30, 2010, 3102], [30, 2010, 3102], [30, 2010, 3102], [30, 2010, 6174], [30, 2010, 6174], [30, 2010, 6174], [30, 2010, 6174], [30, 2010, 6174], [30, 2010, 6174], [30, 2010, 6174], [30, 2010, 6174], [30, 2010, 6174], [30, 2010, 6174], [30, 2010, 6174], [30, 2010, 6174], [30, 2010, 6174], [30, 2010, 6174], [30, 2010, 6174], [30, 2010, 6174], [30, 2010, 9246], [30, 2010, 9246], [30, 2010, 9246], [30, 2010, 9246], [30, 2010, 9246], [30, 2010, 9246], [30, 2010, 9246], [30, 2010, 9246], [30, 2010, 9246], [30, 2010, 9246], [30, 2010, 9246], [30, 2010, 9246], [30, 2010, 9246], [30, 2010, 9246], [30, 2010, 9246], [30, 2010, 9246]]
+
+query I
+PRAGMA lineage_query('SELECT t1.i, SUM(t2.i), COUNT(t3.i) FROM t1, t2, t3 WHERE t1.i = t2.i AND t2.i = t3.i AND t1.j + t2.i > 12 GROUP BY t1.i', 0, 'PERM', 1)
+----
+64
+
+query I
+PRAGMA lineage_query('SELECT t1.i, SUM(t2.i), COUNT(t3.i) FROM t1, t2, t3 WHERE t1.i = t2.i AND t2.i = t3.i AND t1.j + t2.i > 12 GROUP BY t1.i', 4, 'PERM', 1)
+----
+64

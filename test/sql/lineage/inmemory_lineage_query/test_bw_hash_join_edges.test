@@ -44,26 +44,26 @@ statement ok
 PRAGMA trace_lineage = "OFF";
 
 query I
-PRAGMA lineage_query('select t1.rowid as t1_rowid, t2.rowid as t2_rowid, t1.i, t2.i from t1 inner join t2 on (t1.i = t2.i) where t1.i + t2.i = 0', 'VALUE', 0)
+PRAGMA lineage_query('select t1.rowid as t1_rowid, t2.rowid as t2_rowid, t1.i, t2.i from t1 inner join t2 on (t1.i = t2.i) where t1.i + t2.i = 0', 0, 'LIN', 0)
 ----
 [0, 43]
 
 query I
-PRAGMA lineage_query('select t1.rowid as t1_rowid, t2.rowid as t2_rowid, t1.i, t2.i from t1 inner join t2 on (t1.i = t2.i) where t1.i + t2.i = 0', 'VALUE', 101)
+PRAGMA lineage_query('select t1.rowid as t1_rowid, t2.rowid as t2_rowid, t1.i, t2.i from t1 inner join t2 on (t1.i = t2.i) where t1.i + t2.i = 0', 101, 'LIN', 0)
 ----
 [2060, 0]
 
 query I
-PRAGMA lineage_query('select l.rowid as l_rowid, r.rowid as r_rowid, l.i, r.i from t1 as l inner join t1 as r on (l.i = r.i) where l.i + r.i = 0', 'VALUE', 33)
+PRAGMA lineage_query('select l.rowid as l_rowid, r.rowid as r_rowid, l.i, r.i from t1 as l inner join t1 as r on (l.i = r.i) where l.i + r.i = 0', 33, 'LIN', 0)
 ----
 [43, 43]
 
 query I
-PRAGMA lineage_query('select l.rowid as l_rowid, r.rowid as r_rowid, l.i, r.i from t1 as l inner join t1 as r on (l.i = r.i) where l.i + r.i = 0', 'VALUE', 1155)
+PRAGMA lineage_query('select l.rowid as l_rowid, r.rowid as r_rowid, l.i, r.i from t1 as l inner join t1 as r on (l.i = r.i) where l.i + r.i = 0', 1155, 'LIN', 0)
 ----
 [43, 0]
 
 query I
-PRAGMA lineage_query('select a.i, b.i, c.i from t3 as a, t3 as b, t3 as c where a.i = b.i and b.i = c.i', 'VALUE', 0)
+PRAGMA lineage_query('select a.i, b.i, c.i from t3 as a, t3 as b, t3 as c where a.i = b.i and b.i = c.i', 0, 'LIN', 0)
 ----
 [0, 0, 0]

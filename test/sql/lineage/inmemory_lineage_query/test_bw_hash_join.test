@@ -40,6 +40,6 @@ statement ok
 PRAGMA trace_lineage = "OFF";
 
 query I
-PRAGMA lineage_query('select t1.rowid, t2.rowid, t1.j, t2.k from t1 inner join t2 on (t1.i = t2.i)', 'VALUE', 0)
+PRAGMA lineage_query('select t1.rowid, t2.rowid, t1.j, t2.k from t1 inner join t2 on (t1.i = t2.i)', 0, 'LIN', 0)
 ----
 [0, 4]

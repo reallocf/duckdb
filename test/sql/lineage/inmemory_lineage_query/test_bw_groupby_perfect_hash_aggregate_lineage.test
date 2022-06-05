@@ -29,21 +29,21 @@ statement ok
 PRAGMA trace_lineage = "OFF";
 
 query I
-PRAGMA lineage_query('select t1.i, avg(t1.j) from t1 GROUP BY t1.i', 'VALUE', 3)
+PRAGMA lineage_query('select t1.i, avg(t1.j) from t1 GROUP BY t1.i', 3, 'LIN', 0)
 ----
 [1, 7]
 
 query I
-PRAGMA lineage_query('select t1.i, avg(t1.j) from t1 GROUP BY t1.i', 'VALUE', 0)
+PRAGMA lineage_query('select t1.i, avg(t1.j) from t1 GROUP BY t1.i', 0, 'LIN', 0)
 ----
 [0, 2, 4]
 
 query I
-PRAGMA lineage_query('SELECT i FROM t2 GROUP BY i', 'VALUE', 0)
+PRAGMA lineage_query('SELECT i FROM t2 GROUP BY i', 0, 'LIN', 0)
 ----
-[0]
+0
 
 query I
-PRAGMA lineage_query('SELECT i FROM t2 GROUP BY i', 'VALUE', 129)
+PRAGMA lineage_query('SELECT i FROM t2 GROUP BY i', 129, 'LIN', 0)
 ----
-[129]
+129

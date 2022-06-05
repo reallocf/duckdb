@@ -30,14 +30,14 @@ statement ok
 PRAGMA trace_lineage = "OFF";
 
 query I
-PRAGMA backward_lineage('select rowid, i from t1 order by i;', 'VALUE', '7')
+PRAGMA lineage_query('select rowid, i from t1 order by i;', 7, 'LIN', 0)
 ----
-[2]
+2
 
 query I
-PRAGMA backward_lineage('select rowid, i from t1 order by i;', 'VALUE', '0')
+PRAGMA lineage_query('select rowid, i from t1 order by i;', 0, 'LIN', 0)
 ----
-[6]
+6
 
 # Run with more than 1 input chunk
 statement ok
@@ -51,16 +51,16 @@ statement ok
 select rowid, i from t1 as t2 order by i;
 
 query I
-PRAGMA lineage_query('select rowid, i from t1 as t2 order by i;', 'VALUE', 0)
+PRAGMA lineage_query('select rowid, i from t1 as t2 order by i;', 0, 'LIN', 0)
 ----
-[6]
+6
 
 query I
-PRAGMA lineage_query('select rowid, i from t1 as t2 order by i;', 'VALUE', 1)
+PRAGMA lineage_query('select rowid, i from t1 as t2 order by i;', 1, 'LIN', 0)
 ----
-[2000]
+2000
 
 query I
-PRAGMA lineage_query('select rowid, i from t1 as t2 order by i;', 'VALUE', 2000)
+PRAGMA lineage_query('select rowid, i from t1 as t2 order by i;', 2000, 'LIN', 0)
 ----
-[1997]
+1997

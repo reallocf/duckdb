@@ -31,7 +31,7 @@ vector<shared_ptr<LineageDataWithOffset>> LookupChunksFromGlobalIndex(
 		// we need a way to locate the exact data we should access
 		// from the source index
 		auto lower = lower_bound(index.begin(), index.end(), val);
-		if (lower == index.end()) {
+		if (lower == index.end() || (lower == index.end() - 1 && *lower == val)) {
 			throw std::logic_error("Out of bounds lineage requested");
 		}
 		auto chunk_id = lower - index.begin();

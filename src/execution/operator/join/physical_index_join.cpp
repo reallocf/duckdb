@@ -157,15 +157,8 @@ void PhysicalIndexJoin::Output(ExecutionContext &context, DataChunk &chunk, Phys
 		chunk.SetCardinality(state->result_size);
 	}
 	else {
-		//chunk = move(state->result_chunk);
-		//opLineage->FetchResultChunk(equal_value, state->result_chunk);
 		DataChunk join_chunk;
 		vector<shared_ptr<LineageDataWithOffset>> child_ptrs;
-		// bqp == base query plan
-		// lqp == lineage query plan
-		// If no child_ptrs (root in bqp OR parent is pipeline breaker in bqp)
-		// then child_ptrs is an empty vector
-		// else child_ptrs contains pointers set by child in lqp)
 
 		// 1. Access THIS child_ptrs to pass to AccessIndex
 		if (dynamic_cast<PhysicalIndexJoinOperatorState*>(state->child_state.get()) != nullptr){
