@@ -1,0 +1,1 @@
+customer_rowid, orders_rowid,lineitem_rowid,nation_rowid

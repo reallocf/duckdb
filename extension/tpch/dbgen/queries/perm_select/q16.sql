@@ -1,0 +1,1 @@
+partsupp_rowid,part_rowid,supplier_rowid

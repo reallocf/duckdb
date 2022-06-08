@@ -1,0 +1,1 @@
+supplier_rowid,nation_rowid,partsupp_rowid,part_rowid,lineitem_rowid

@@ -1,0 +1,1 @@
+join_partsupp_rowid,join_supplier_rowid,join_nation_rowid,partsupp_rowid_2,supplier_rowid_2,nation_rowid_2
