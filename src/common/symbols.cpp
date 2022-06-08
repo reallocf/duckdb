@@ -78,8 +78,8 @@ template class std::unique_ptr<JoinRef>;
 template class std::unique_ptr<SubqueryRef>;
 template class std::unique_ptr<TableFunctionRef>;
 template class std::unique_ptr<Pipeline>;
-// template class std::shared_ptr<Pipeline>; // TODO disallowed when bumping from c++11 to c++20
-// template class std::shared_ptr<PreparedStatementData>; // TODO disallowed when bumping from c++11 to c++20
+ template class std::shared_ptr<Pipeline>;
+ template class std::shared_ptr<PreparedStatementData>;
 
 template class std::unique_ptr<Expression>;
 template class std::unique_ptr<BoundQueryNode>;
@@ -128,7 +128,7 @@ template class std::unique_ptr<LogicalComparisonJoin>;
 template class std::unique_ptr<FilterInfo>;
 template class std::unique_ptr<JoinOrderOptimizer::JoinNode>;
 template class std::unique_ptr<SingleJoinRelation>;
-// template class std::shared_ptr<Relation>; // TODO disallowed when bumping from c++11 to c++20
+template class std::shared_ptr<Relation>;
 template class std::unique_ptr<CatalogSet>;
 template class std::unique_ptr<Binder>;
 
