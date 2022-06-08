@@ -140,9 +140,11 @@ struct LineageIndexStruct {
 	// Returned join chunk to be pushed into chunk scan
 	DataChunk &join_chunk;
 	// For when we overflow the chunk ex: aggregations with more than 1024 values
-	vector<Value> &cached_values;
+	vector<Vector> &cached_values_arr;
 	// For when we overflow the chunk with ptrs ex: simple aggs
-	vector<shared_ptr<LineageDataWithOffset>> &cached_child_ptrs;
+	vector<vector<shared_ptr<LineageDataWithOffset>>> &cached_child_ptrs_arr;
+	// For when we overflow the chunk - the count
+	idx_t &overflow_count;
 };
 
 // Adapted from https://github.com/roger-dv/cpp20-coro-generator/blob/master/generator.h

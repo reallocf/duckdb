@@ -3,7 +3,6 @@
 #include "duckdb/common/vector_operations/vector_operations.hpp"
 #include "duckdb/execution/expression_executor.hpp"
 #include "duckdb/execution/index/art/art.hpp"
-#include "duckdb/execution/index/lineage_index/lineage_index.hpp"
 #include "duckdb/execution/operator/scan/physical_table_scan.hpp"
 #include "duckdb/execution/operator/scan/physical_lineage_scan.hpp"
 #include "duckdb/function/table/table_scan.hpp"
@@ -38,8 +37,9 @@ public:
 	vector<vector<row_t>> rhs_rows;
 	ExpressionExecutor probe_executor;
 	vector<shared_ptr<LineageDataWithOffset>> child_ptrs;
-	vector<Value> cached_values;
-	vector<shared_ptr<LineageDataWithOffset>> cached_child_ptrs;
+	vector<Vector> cached_values_arr;
+	vector<vector<shared_ptr<LineageDataWithOffset>>> cached_child_ptrs_arr;
+	idx_t overflow_count = 0;
 	idx_t cached_values_idx = 0;
 };
 
@@ -174,7 +174,7 @@ void PhysicalIndexJoin::Output(ExecutionContext &context, DataChunk &chunk, Phys
 			}
 		}
 
-		opLineage->AccessIndex({state->child_chunk, child_ptrs, join_chunk, state->cached_values, state->cached_child_ptrs});
+		opLineage->AccessIndex({state->child_chunk, child_ptrs, join_chunk, state->cached_values_arr, state->cached_child_ptrs_arr, state->overflow_count});
 
 		// 2. Set PARENT'S child_ptrs so that it can pass it to AccessIndex
 		state->child_ptrs = child_ptrs;
@@ -229,20 +229,24 @@ void PhysicalIndexJoin::GetChunkInternal(ExecutionContext &context, DataChunk &c
 	state->result_size = 0;
 	while (state->result_size == 0) {
 		// Return cached values if there are any
-		if (!state->cached_values.empty()) {
-			for (idx_t i = 0; i < STANDARD_VECTOR_SIZE; i++) {
-				chunk.SetValue(0, i, state->cached_values[state->cached_values_idx]);
-				if (!state->cached_child_ptrs.empty()) {
-					state->child_ptrs[i] = state->cached_child_ptrs[state->cached_values_idx];
-				}
-				state->cached_values_idx++;
-				chunk.SetCardinality(i + 1);
-				if (state->cached_values_idx == state->cached_values.size()) {
-					state->cached_values_idx = 0;
-					state->cached_values.clear();
-					state->cached_child_ptrs.clear();
-					break;
-				}
+		if (!state->cached_values_arr.empty()) {
+			chunk.data[0].Reference(state->cached_values_arr[state->cached_values_idx]);
+			if (!state->cached_child_ptrs_arr.empty()) {
+				state->child_ptrs = state->cached_child_ptrs_arr[state->cached_values_idx];
+			}
+			if (state->overflow_count > STANDARD_VECTOR_SIZE) {
+				chunk.SetCardinality(STANDARD_VECTOR_SIZE);
+				state->overflow_count -= STANDARD_VECTOR_SIZE;
+			} else {
+				chunk.SetCardinality(state->overflow_count);
+				state->overflow_count = 0;
+			}
+			state->cached_values_idx++;
+			if (state->cached_values_idx == state->cached_values_arr.size()) {
+				D_ASSERT(state->overflow_count == 0);
+				state->cached_values_idx = 0;
+				state->cached_values_arr.clear();
+				state->cached_child_ptrs_arr.clear();
 			}
 			return;
 		}

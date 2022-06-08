@@ -167,50 +167,61 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 		key.chunk.Copy(orig_chunk);
 		key.chunk.Reset();
 		idx_t out_idx = 0;
-		if (data[LINEAGE_SOURCE].size() > PROBE_SIZE) {
-			for (idx_t i = 0; i < orig_chunk.size(); i++) {
-				auto payload = (uint64_t*)key.child_ptrs[i]->data->Process(0);
-				auto val = payload[orig_chunk.GetValue(0, i).GetValue<uint64_t>()];
-				// iterate the index to find potential chunks
-				auto flag = false;
-				for (idx_t it = 0; it < hm_range.size(); ++it) {
-					if (val >= hm_range[it].first && val <= hm_range[it].second) {
-						// scan this chunk
-						LineageDataWithOffset this_data = data[LINEAGE_SINK][it];
-						idx_t res_count = this_data.data->Count();
-						auto sink_payload = (uint64_t *)this_data.data->Process(0);
-						for (idx_t it2 = 0; it2 < res_count; ++it2) {
-							if (sink_payload[it2] == val) {
-								if (out_idx < STANDARD_VECTOR_SIZE) {
-									key.chunk.SetValue(0, out_idx++, Value::UBIGINT(it2 + hash_chunk_count[it]));
-								} else {
-									key.cached_values.push_back(Value::UBIGINT(it2 + hash_chunk_count[it]));
-								}
-								flag = true;
-								break;
-							}
-						}
-					}
-					if (flag) {
-						break;
-					}
-				}
-			}
-		} else {
+//		if (data[LINEAGE_SOURCE].size() > PROBE_SIZE) {
+//			for (idx_t i = 0; i < orig_chunk.size(); i++) {
+//				auto payload = (uint64_t*)key.child_ptrs[i]->data->Process(0);
+//				auto val = payload[orig_chunk.GetValue(0, i).GetValue<uint64_t>()];
+//				// iterate the index to find potential chunks
+//				auto flag = false;
+//				for (idx_t it = 0; it < hm_range.size(); ++it) {
+//					if (val >= hm_range[it].first && val <= hm_range[it].second) {
+//						// scan this chunk
+//						LineageDataWithOffset this_data = data[LINEAGE_SINK][it];
+//						idx_t res_count = this_data.data->Count();
+//						auto sink_payload = (uint64_t *)this_data.data->Process(0);
+//						for (idx_t it2 = 0; it2 < res_count; ++it2) {
+//							if (sink_payload[it2] == val) {
+//								if (out_idx < STANDARD_VECTOR_SIZE) {
+//									key.chunk.SetValue(0, out_idx++, Value::UBIGINT(it2 + hash_chunk_count[it]));
+//								} else {
+//									if (key.overflow_count % STANDARD_VECTOR_SIZE == 0) {
+//										key.cached_values_arr.emplace_back(LogicalType::UBIGINT);
+//									}
+//									key.cached_values_arr[key.overflow_count / STANDARD_VECTOR_SIZE].SetValue(
+//										key.overflow_count % STANDARD_VECTOR_SIZE,
+//										Value::UBIGINT(it2 + hash_chunk_count[it])
+//									);
+//									key.overflow_count++;
+//								}
+//								flag = true;
+//								break;
+//							}
+//						}
+//					}
+//					if (flag) {
+//						break;
+//					}
+//				}
+//			}
+//		} else {
 			for (idx_t i = 0; i < orig_chunk.size(); i++) {
 				auto payload = (uint64_t*)key.child_ptrs[i]->data->Process(0);
 				auto res_list = hash_map_agg[payload[orig_chunk.GetValue(0, i).GetValue<uint64_t>()]];
-				if (res_list.size() > STANDARD_VECTOR_SIZE) {
-					key.cached_values.reserve(key.cached_values.size() + res_list.size() - STANDARD_VECTOR_SIZE);
-				}
 				for (const auto& res : res_list) {
 					if (out_idx < STANDARD_VECTOR_SIZE) {
 						key.chunk.SetValue(0, out_idx++, Value::UBIGINT(res.source));
 					} else {
-						key.cached_values.push_back(Value::UBIGINT(res.source));
+						if (key.overflow_count % STANDARD_VECTOR_SIZE == 0) {
+							key.cached_values_arr.emplace_back(LogicalType::UBIGINT);
+						}
+						key.cached_values_arr[key.overflow_count / STANDARD_VECTOR_SIZE].SetValue(
+							key.overflow_count % STANDARD_VECTOR_SIZE,
+							Value::UBIGINT(res.source)
+						);
+						key.overflow_count++;
 					}
 				}
-			}
+//			}
 		}
 		key.chunk.SetCardinality(out_idx);
 		key.child_ptrs = {};
@@ -226,51 +237,62 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 		key.chunk.Copy(orig_chunk);
 		key.chunk.Reset();
 		idx_t out_idx = 0;
-		if (data[LINEAGE_SOURCE].size() > PROBE_SIZE) {
-			for (idx_t i = 0; i < orig_chunk.size(); i++) {
-				auto payload = (sel_t*)key.child_ptrs[i]->data->Process(0);
-				auto val = payload[orig_chunk.GetValue(0, i).GetValue<uint64_t>()];
-				// iterate the index to find potential chunks
-				auto flag = false;
-				for (idx_t it = 0; it < hm_range.size(); ++it) {
-					if (val >= hm_range[it].first && val <= hm_range[it].second) {
-						// scan this chunk
-						LineageDataWithOffset this_data = data[LINEAGE_SINK][it];
-						idx_t res_count = this_data.data->Count();
-						auto sink_payload = (sel_t *)this_data.data->Process(0);
-						for (idx_t it2 = 0; it2 < res_count; ++it2) {
-							if (sink_payload[it2] == val) {
-								if (out_idx < STANDARD_VECTOR_SIZE) {
-									key.chunk.SetValue(0, out_idx++, Value::UBIGINT(it2 + hash_chunk_count[it]));
-								} else {
-									key.cached_values.push_back(Value::UBIGINT(it2 + hash_chunk_count[it]));
-								}
-								flag = true;
-								break;
-							}
-						}
-					}
-					if (flag) {
-						break;
-					}
-				}
-			}
-		} else {
+//		if (data[LINEAGE_SOURCE].size() > PROBE_SIZE) {
+//			for (idx_t i = 0; i < orig_chunk.size(); i++) {
+//				auto payload = (sel_t*)key.child_ptrs[i]->data->Process(0);
+//				auto val = payload[orig_chunk.GetValue(0, i).GetValue<uint64_t>()];
+//				// iterate the index to find potential chunks
+//				auto flag = false;
+//				for (idx_t it = 0; it < hm_range.size(); ++it) {
+//					if (val >= hm_range[it].first && val <= hm_range[it].second) {
+//						// scan this chunk
+//						LineageDataWithOffset this_data = data[LINEAGE_SINK][it];
+//						idx_t res_count = this_data.data->Count();
+//						auto sink_payload = (sel_t *)this_data.data->Process(0);
+//						for (idx_t it2 = 0; it2 < res_count; ++it2) {
+//							if (sink_payload[it2] == val) {
+//								if (out_idx < STANDARD_VECTOR_SIZE) {
+//									key.chunk.SetValue(0, out_idx++, Value::UBIGINT(it2 + hash_chunk_count[it]));
+//								} else {
+//									if (key.overflow_count % STANDARD_VECTOR_SIZE == 0) {
+//										key.cached_values_arr.emplace_back(LogicalType::UBIGINT);
+//									}
+//									key.cached_values_arr[key.overflow_count / STANDARD_VECTOR_SIZE].SetValue(
+//										key.overflow_count % STANDARD_VECTOR_SIZE,
+//										Value::UBIGINT(it2 + hash_chunk_count[it])
+//									);
+//									key.overflow_count++;
+//								}
+//								flag = true;
+//								break;
+//							}
+//						}
+//					}
+//					if (flag) {
+//						break;
+//					}
+//				}
+//			}
+//		} else {
 			for (idx_t i = 0; i < orig_chunk.size(); i++) {
 				auto payload = (sel_t*)key.child_ptrs[i]->data->Process(0);
 				auto res_list = hash_map_agg[payload[orig_chunk.GetValue(0, i).GetValue<uint64_t>()]];
-				if (res_list.size() > STANDARD_VECTOR_SIZE) {
-					key.cached_values.reserve(key.cached_values.size() + res_list.size() - STANDARD_VECTOR_SIZE);
-				}
 				for (const auto& res : res_list) {
 					if (out_idx < STANDARD_VECTOR_SIZE) {
 						key.chunk.SetValue(0, out_idx++, Value::UBIGINT(res.source));
 					} else {
-						key.cached_values.push_back(Value::UBIGINT(res.source));
+						if (key.overflow_count % STANDARD_VECTOR_SIZE == 0) {
+							key.cached_values_arr.emplace_back(LogicalType::UBIGINT);
+						}
+						key.cached_values_arr[key.overflow_count / STANDARD_VECTOR_SIZE].SetValue(
+							key.overflow_count % STANDARD_VECTOR_SIZE,
+							Value::UBIGINT(res.source)
+						);
+						key.overflow_count++;
 					}
 				}
 			}
-		}
+//		}
 		key.chunk.SetCardinality(out_idx);
 		key.child_ptrs = {};
 		break;
@@ -385,15 +407,29 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 		idx_t out_idx = 0;
 		LineageDataWithOffset final_child = agg_struct.child_lineage_data_vector[agg_struct.child_lineage_data_vector.size() - 1];
 		idx_t child_total_size = final_child.this_offset + final_child.data->Count();
-		key.cached_child_ptrs.reserve(child_total_size < STANDARD_VECTOR_SIZE ? 0 : child_total_size - STANDARD_VECTOR_SIZE);
 		for (const LineageDataWithOffset& child_lineage_data : agg_struct.child_lineage_data_vector) {
 			for (idx_t i = 0; i < child_lineage_data.data->Count(); i++) {
 				if (out_idx < STANDARD_VECTOR_SIZE) {
 					key.chunk.SetValue(0, out_idx, Value::UBIGINT(i));
 					key.child_ptrs[out_idx++] = make_shared<LineageDataWithOffset>(child_lineage_data);
 				} else {
-					key.cached_values.push_back(Value::UBIGINT(i));
-					key.cached_child_ptrs.push_back(make_shared<LineageDataWithOffset>(child_lineage_data));
+					if (key.overflow_count % STANDARD_VECTOR_SIZE == 0) {
+						key.cached_values_arr.emplace_back(LogicalType::UBIGINT);
+						key.cached_child_ptrs_arr.emplace_back();
+						key.cached_child_ptrs_arr[key.overflow_count / STANDARD_VECTOR_SIZE].reserve(
+						    child_total_size - key.overflow_count > STANDARD_VECTOR_SIZE ?
+						    	STANDARD_VECTOR_SIZE :
+						        child_total_size - key.overflow_count
+						);
+					}
+					key.cached_values_arr[key.overflow_count / STANDARD_VECTOR_SIZE].SetValue(
+						key.overflow_count % STANDARD_VECTOR_SIZE,
+						Value::UBIGINT(i)
+					);
+					key.cached_child_ptrs_arr[key.overflow_count / STANDARD_VECTOR_SIZE].push_back(
+					    make_shared<LineageDataWithOffset>(child_lineage_data)
+					);
+					key.overflow_count++;
 				}
 			}
 		}
@@ -510,26 +546,26 @@ LineageProcessStruct OperatorLineage::PostProcess(idx_t chunk_count, idx_t count
 				// build hash table
 				LineageDataWithOffset this_data = data[LINEAGE_SINK][data_idx];
 				idx_t res_count = this_data.data->Count();
-				if (data[LINEAGE_SOURCE].size() > PROBE_SIZE) {
-					// get min-max on this payload
-					auto min_v = std::numeric_limits<idx_t>::max();
-					auto max_v = std::numeric_limits<idx_t>::min();
-					if (type == PhysicalOperatorType::PERFECT_HASH_GROUP_BY) {
-						auto payload = (sel_t*)this_data.data->Process(0);
-						for (idx_t i=0; i < res_count; ++i) {
-							if ( (idx_t)payload[i] < min_v) min_v  = (idx_t)payload[i];
-							if ( (idx_t)payload[i] > max_v) max_v  = (idx_t)payload[i];
-						}
-					} else {
-						auto payload = (uint64_t*)this_data.data->Process(0);
-						for (idx_t i=0; i < res_count; ++i) {
-							if ( payload[i] < min_v) min_v  = payload[i];
-							if ( payload[i] > max_v) max_v  = payload[i];
-						}
-					}
-					hm_range.push_back(std::make_pair(min_v, max_v));
-					hash_chunk_count.push_back(count_so_far);
-				} else {
+//				if (data[LINEAGE_SOURCE].size() > PROBE_SIZE) {
+//					// get min-max on this payload
+//					auto min_v = std::numeric_limits<idx_t>::max();
+//					auto max_v = std::numeric_limits<idx_t>::min();
+//					if (type == PhysicalOperatorType::PERFECT_HASH_GROUP_BY) {
+//						auto payload = (sel_t*)this_data.data->Process(0);
+//						for (idx_t i=0; i < res_count; ++i) {
+//							if ( (idx_t)payload[i] < min_v) min_v  = (idx_t)payload[i];
+//							if ( (idx_t)payload[i] > max_v) max_v  = (idx_t)payload[i];
+//						}
+//					} else {
+//						auto payload = (uint64_t*)this_data.data->Process(0);
+//						for (idx_t i=0; i < res_count; ++i) {
+//							if ( payload[i] < min_v) min_v  = payload[i];
+//							if ( payload[i] > max_v) max_v  = payload[i];
+//						}
+//					}
+//					hm_range.push_back(std::make_pair(min_v, max_v));
+//					hash_chunk_count.push_back(count_so_far);
+//				} else {
 					if (type == PhysicalOperatorType::PERFECT_HASH_GROUP_BY) {
 						auto payload = (sel_t*)this_data.data->Process(0);
 						for (idx_t i=0; i < res_count; ++i) {
@@ -547,7 +583,7 @@ LineageProcessStruct OperatorLineage::PostProcess(idx_t chunk_count, idx_t count
 							hash_map_agg[(idx_t)payload[i]].push_back({i + count_so_far, nullptr});
 						}
 					}
-				}
+//				}
 				count_so_far += res_count;
 			} else if (finished_idx == LINEAGE_COMBINE) {
 			} else {
@@ -650,10 +686,6 @@ SimpleAggQueryStruct OperatorLineage::RecurseForSimpleAgg(const shared_ptr<Opera
 	}
 
 	return {child, child_lineage_data_vector};
-}
-
-Generator<unique_ptr<LineageRes>> GenWrapper(unique_ptr<LineageRes> res) {
-	co_yield move(res);
 }
 
 // All lineage index usage is in here!
