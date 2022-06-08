@@ -70,7 +70,7 @@ void StreamQueryResult::Close() {
 			clock_t start = clock();
 			context->lineage_manager->PostProcess(prepared->plan.get(), true);
 			clock_t end = clock();
-			std::cout << "PostProcess time: " << ((float) end - start) / CLOCKS_PER_SEC << " sec" << std::endl;
+			//std::cout << "PostProcess time: " << ((float) end - start) / CLOCKS_PER_SEC << " sec" << std::endl;
 		}
 		context->lineage_manager->LogQuery(context->query, 0);
 		context->query_to_plan[context->query] = move(prepared->plan);

@@ -26,7 +26,7 @@ def DropLineageTables(con):
         if row["name"][:7] == "LINEAGE":
             con.execute("DROP TABLE "+row["name"])
 
-def Run(q, args, con, table_name=None):
+def InternalRun(q, args, con, table_name=None):
     dur_acc = 0.0
     print("Run: ", table_name, q)
     for j in range(args.repeat-1):
@@ -43,8 +43,11 @@ def Run(q, args, con, table_name=None):
         print(df)
     avg = dur_acc/args.repeat
     print("Avg Time in sec: ", avg, " output size: ", len(df)) 
-    return avg, len(df)
+    return avg, len(df), df
 
+def Run(q, args, con, table_name=None):
+    avg, lendf, _ = InternalRun(q, args, con, table_name)
+    return avg, lendf
 """
 z is an integer that follows a zipfian distribution
 and v is a double that follows a uniform distribution

@@ -8,7 +8,7 @@
 
 #include <utility>
 
-#define PROBE_SIZE 10
+#define PROBE_SIZE 1000
 
 namespace duckdb {
 class PhysicalDelimJoin;
@@ -308,6 +308,7 @@ SimpleAggQueryStruct OperatorLineage::RecurseForSimpleAgg(const shared_ptr<Opera
 }
 
 unique_ptr<LineageRes> OperatorLineage::Backward(unique_ptr<vector<SourceAndMaybeData>> lineage) {
+  //std::cout << "Backward " << PhysicalOperatorToString(this->type) << std::endl;
 	if (lineage->empty()) {
 		// Skip if empty
 		return make_unique<LineageResVal>(LineageResVal({}));
@@ -326,9 +327,6 @@ unique_ptr<LineageRes> OperatorLineage::Backward(unique_ptr<vector<SourceAndMayb
 		return make_unique<LineageResVal>(LineageResVal(move(lineage)));
 	}
 	case PhysicalOperatorType::TABLE_SCAN: {
-		vector<unique_ptr<LineageRes>> res;
-		res.reserve(lineage->size());
-
 		// End of the recursion!
 		if (data[LINEAGE_UNARY].empty() && (*lineage.get())[0].data == nullptr) {
 			// Nothing to do! Lineage correct as-is
@@ -412,7 +410,7 @@ unique_ptr<LineageRes> OperatorLineage::Backward(unique_ptr<vector<SourceAndMayb
 	}
 	case PhysicalOperatorType::HASH_GROUP_BY: {
 		if ((*lineage.get())[0].data == nullptr) {
-			AccessLineageDataViaIndex(move(lineage), data[LINEAGE_SOURCE], index);
+			lineage = AccessLineageDataViaIndex(move(lineage), data[LINEAGE_SOURCE], index);
 		}
 
 		vector<unique_ptr<LineageRes>> res;
@@ -420,7 +418,7 @@ unique_ptr<LineageRes> OperatorLineage::Backward(unique_ptr<vector<SourceAndMayb
 		  for (const SourceAndMaybeData& source : *lineage.get()) {
 				auto payload = (uint64_t *)source.data->data->Process(0);
 				auto val = payload[source.source];
-        unique_ptr<vector<SourceAndMaybeData>> res_list;
+        unique_ptr<vector<SourceAndMaybeData>> res_list = make_unique<vector<SourceAndMaybeData>>();
 				// iterate the index to find potential chunks
 				for (auto it = 0; it < hm_range.size(); ++it) {
 					if (val >= hm_range[it].first && val <= hm_range[it].second) {
@@ -440,13 +438,6 @@ unique_ptr<LineageRes> OperatorLineage::Backward(unique_ptr<vector<SourceAndMayb
 			}
 		} else {
 			// First find size to reserve
-			idx_t lineage_size = 0;
-		  for (const SourceAndMaybeData& source : *lineage.get()) {
-				auto payload = (uint64_t*)source.data->data->Process(0);
-				auto val = payload[source.source];
-				lineage_size += hash_map_agg[val].size();
-			}
-			lineage->reserve(lineage_size);
 			// Now fill TODO is it right to do two passes like this? Yes, this genuinely is faster :)
 		  for (const SourceAndMaybeData& source : *lineage.get()) {
 				auto payload = (uint64_t*)source.data->data->Process(0);
@@ -461,7 +452,7 @@ unique_ptr<LineageRes> OperatorLineage::Backward(unique_ptr<vector<SourceAndMayb
 	}
 	case PhysicalOperatorType::PERFECT_HASH_GROUP_BY: {
 		if ((*lineage.get())[0].data == nullptr) {
-			AccessLineageDataViaIndex(move(lineage), data[LINEAGE_SOURCE], index);
+			lineage = AccessLineageDataViaIndex(move(lineage), data[LINEAGE_SOURCE], index);
 		}
 
 		vector<unique_ptr<LineageRes>> res;
@@ -471,7 +462,7 @@ unique_ptr<LineageRes> OperatorLineage::Backward(unique_ptr<vector<SourceAndMayb
 		  for (const SourceAndMaybeData& source : *lineage.get()) {
 				auto payload = (sel_t *)source.data->data->Process(0);
 				auto val = payload[source.source];
-        unique_ptr<vector<SourceAndMaybeData>> res_list;
+        unique_ptr<vector<SourceAndMaybeData>> res_list = make_unique<vector<SourceAndMaybeData>>();
 				// iterate the index to find potential chunks
 				for (auto it = 0; it < hm_range.size(); ++it) {
 					if (val >= hm_range[it].first && val <= hm_range[it].second) {
@@ -489,14 +480,6 @@ unique_ptr<LineageRes> OperatorLineage::Backward(unique_ptr<vector<SourceAndMayb
         res.push_back(children[0]->Backward(move(res_list)));
 			}
 		} else {
-			// First find size to reserve
-			idx_t lineage_size = 0;
-		  for (const SourceAndMaybeData& source : *lineage.get()) {
-				auto payload = (sel_t*)source.data->data->Process(0);
-				auto val = payload[source.source];
-				lineage_size += hash_map_agg[val].size();
-			}
-			lineage->reserve(lineage_size);
 			// Now fill TODO is it right to do two passes like this? Yes, this genuinely is faster :)
 		  for (const SourceAndMaybeData& source : *lineage.get()) {
 				auto payload = (sel_t*)source.data->data->Process(0);

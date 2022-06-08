@@ -288,7 +288,7 @@ unique_ptr<QueryResult> ClientContext::ExecutePreparedStatement(ClientContextLoc
 			clock_t start = clock();
 			lineage_manager->PostProcess(statement.plan.get(), true);
 			clock_t end = clock();
-			std::cout << "PostProcess time: " << ((float) end - start) / CLOCKS_PER_SEC << " sec" << std::endl;
+			//std::cout << "PostProcess time: " << ((float) end - start) / CLOCKS_PER_SEC << " sec" << std::endl;
 		}
 		lineage_manager->LogQuery(query, 0);
 		query_to_plan[query] = move(statement.plan);

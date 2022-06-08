@@ -604,7 +604,7 @@ void ScanStructure::ConstructMarkJoinResult(DataChunk &join_keys, DataChunk &chi
 		for (idx_t i = 0; i < child.size(); i++) {
 			bool_result[i] = found_match[i];
 #ifdef LINEAGE
-			key_locations_lineage[i] = ptrs[i];
+      if (found_match[i]) key_locations_lineage[i] = ptrs[i];
 #endif
 		}
 	} else {
