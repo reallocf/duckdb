@@ -1,7 +1,7 @@
 //===----------------------------------------------------------------------===//
 //                         DuckDB
 //
-// duckdb/execution/operator_lineage.hpp
+// duckdb/execution/lineage/operator_lineage.hpp
 //
 //
 //===----------------------------------------------------------------------===//
@@ -40,12 +40,6 @@ struct LineageProcessStruct;
 struct SimpleAggQueryStruct;
 struct SourceAndMaybeData;
 struct LineageIndexStruct;
-
-enum LineageJoinType {
-	LIN,
-	PERM,
-	PROV
-};
 
 class OperatorLineage {
 public:

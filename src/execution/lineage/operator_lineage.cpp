@@ -25,7 +25,7 @@ void OperatorLineage::Capture(const shared_ptr<LineageData>& datum, idx_t lineag
 	}
 
 	// Add to index
-	if (should_index && LINEAGE_INDEX_TYPE == 0) {
+	if (should_index) {
 		switch (type) {
 		case PhysicalOperatorType::FILTER:
 		case PhysicalOperatorType::INDEX_JOIN:
