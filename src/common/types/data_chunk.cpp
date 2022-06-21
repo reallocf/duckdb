@@ -63,6 +63,9 @@ void DataChunk::Destroy() {
 }
 
 Value DataChunk::GetValue(idx_t col_idx, idx_t index) const {
+	if (index < size()) {
+		D_ASSERT(false);
+	}
 	D_ASSERT(index < size());
 	return data[col_idx].GetValue(index);
 }

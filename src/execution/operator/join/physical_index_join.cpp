@@ -37,7 +37,8 @@ public:
 	vector<vector<row_t>> rhs_rows;
 	ExpressionExecutor probe_executor;
 	vector<shared_ptr<LineageDataWithOffset>> child_ptrs;
-	vector<Vector> cached_values_arr;
+	idx_t output_ctr = 0;
+	vector<vector<Vector>> cached_values_chunk;
 	vector<vector<shared_ptr<LineageDataWithOffset>>> cached_child_ptrs_arr;
 	idx_t overflow_count = 0;
 	idx_t cached_values_idx = 0;
@@ -174,7 +175,16 @@ void PhysicalIndexJoin::Output(ExecutionContext &context, DataChunk &chunk, Phys
 			}
 		}
 
-		opLineage->AccessIndex({state->child_chunk, child_ptrs, join_chunk, state->cached_values_arr, state->cached_child_ptrs_arr, state->overflow_count});
+		opLineage->AccessIndex({
+		    state->child_chunk,
+		    child_ptrs,
+		    types.size(),
+		    state->output_ctr,
+		    join_chunk,
+		    state->cached_values_chunk,
+		    state->cached_child_ptrs_arr,
+		    state->overflow_count
+		});
 
 		// 2. Set PARENT'S child_ptrs so that it can pass it to AccessIndex
 		state->child_ptrs = child_ptrs;
@@ -184,6 +194,7 @@ void PhysicalIndexJoin::Output(ExecutionContext &context, DataChunk &chunk, Phys
 		if (join_chunk.size() > 0) {
 			chunk_collection->Append(join_chunk);
 		}
+		state->output_ctr += state->child_chunk.size();
 	}
 }
 
@@ -229,8 +240,11 @@ void PhysicalIndexJoin::GetChunkInternal(ExecutionContext &context, DataChunk &c
 	state->result_size = 0;
 	while (state->result_size == 0) {
 		// Return cached values if there are any
-		if (!state->cached_values_arr.empty()) {
-			chunk.data[0].Reference(state->cached_values_arr[state->cached_values_idx]);
+		if (!state->cached_values_chunk.empty()) {
+			auto cached_chunk = state->cached_values_chunk[state->cached_values_idx];
+			for (idx_t col_idx = 0; col_idx < cached_chunk.size(); col_idx++) {
+				chunk.data[col_idx].Reference(cached_chunk[col_idx]);
+			}
 			if (!state->cached_child_ptrs_arr.empty()) {
 				state->child_ptrs = state->cached_child_ptrs_arr[state->cached_values_idx];
 			}
@@ -242,10 +256,10 @@ void PhysicalIndexJoin::GetChunkInternal(ExecutionContext &context, DataChunk &c
 				state->overflow_count = 0;
 			}
 			state->cached_values_idx++;
-			if (state->cached_values_idx == state->cached_values_arr.size()) {
+			if (state->cached_values_idx == state->cached_values_chunk.size()) {
 				D_ASSERT(state->overflow_count == 0);
 				state->cached_values_idx = 0;
-				state->cached_values_arr.clear();
+				state->cached_values_chunk.clear();
 				state->cached_child_ptrs_arr.clear();
 			}
 			return;
