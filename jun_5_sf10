@@ -1,0 +1,26 @@
+queryId,sf,mode,avg_duration,rowCount
+1,10.0,LIN,5.612716243799994,14804077
+2,10.0,LIN,0.006238743000005797,10
+3,10.0,LIN,0.009284600799998089,3
+4,10.0,LIN,0.22068584099999383,210428
+5,10.0,LIN,0.08285979139999995,88782
+6,10.0,LIN,0.3686454565999952,1139264
+7,10.0,LIN,0.11466026279999823,86238
+8,10.0,LIN,0.09343117540000208,96032
+9,10.0,LIN,0.12286300719998736,67998
+10,10.0,LIN,0.004547393399991506,4
+12,10.0,LIN,0.3167140258000245,310232
+14,10.0,LIN,0.8408694642000001,1498446
+15,10.0,LIN,0.5473988768000027,2265716
+16,10.0,LIN,0.0027218168000104014,2
+17,10.0,LIN,0.03337047660000962,22104
+18,10.0,LIN,0.006417087199997696,28
+19,10.0,LIN,0.009013945399999557,2268
+20,10.0,LIN,0.00881143480000901,6
+21,10.0,LIN,0.006014500400010547,144
+Traceback (most recent call last):
+  File "scripts/lineage_benchmark_2/charlie_tpch_svh_benchmark.py", line 69, in <module>
+    run_experiment(tpch_q, qid, args.repeat)
+  File "scripts/lineage_benchmark_2/charlie_tpch_svh_benchmark.py", line 56, in run_experiment
+    print(f'{qid},{args.sf},{mode},{avg_duration},{size_lst[0][0]}', file=sys.stderr)
+TypeError: 'int' object is not subscriptable
