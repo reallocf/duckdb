@@ -57,6 +57,11 @@ string PragmaBackwardLineageDuckDBExecEngine(ClientContext &context, const Funct
 	std::cout << "Total time: " << ((float) end - start) / CLOCKS_PER_SEC << std::endl;
 	return StringUtil::Format("SELECT %s", str_results);
 }
+
+string PragmaClearLineage(ClientContext &context, const FunctionParameters &parameters) {
+    context.query_to_plan.clear();
+	return "SELECT 1";
+}
 #endif
 
 string PragmaTableInfo(ClientContext &context, const FunctionParameters &parameters) {
@@ -124,6 +129,7 @@ string PragmaStorageInfo(ClientContext &context, const FunctionParameters &param
 void PragmaQueries::RegisterFunction(BuiltinFunctions &set) {
 #ifdef LINEAGE
 	set.AddFunction(PragmaFunction::PragmaCall("lineage_query", PragmaBackwardLineageDuckDBExecEngine, {LogicalType::VARCHAR, LogicalType::INTEGER, LogicalType::VARCHAR, LogicalType::INTEGER}));
+	set.AddFunction(PragmaFunction::PragmaStatement("clear_lineage", PragmaClearLineage));
 #endif
 	set.AddFunction(PragmaFunction::PragmaCall("table_info", PragmaTableInfo, {LogicalType::VARCHAR}));
 	set.AddFunction(PragmaFunction::PragmaCall("storage_info", PragmaStorageInfo, {LogicalType::VARCHAR}));
