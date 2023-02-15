@@ -115,6 +115,8 @@ public:
 	std::unordered_map<string, std::unique_ptr<PhysicalOperator>> query_to_plan;
 	//! Set which join type explicitly we want to use
 	unique_ptr<string> explict_join_type = nullptr;
+	unique_ptr<string> explicit_agg_type = nullptr;
+	unique_ptr<string> explicit_filter_type = nullptr;
 #endif
 
 public:
