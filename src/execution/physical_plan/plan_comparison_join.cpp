@@ -92,6 +92,10 @@ unique_ptr<PhysicalOperator> PhysicalPlanGenerator::CreatePlan(LogicalComparison
 		} else if (*this->context.explict_join_type.get() == "nl") {
 			return make_unique<PhysicalNestedLoopJoin>(op, move(left), move(right), move(op.conditions), op.join_type,
 			                                           op.estimated_cardinality);
+		} else if (*this->context.explict_join_type.get() == "block") {
+			D_ASSERT(op.conditions.size() == 1);
+			return make_unique<PhysicalBlockwiseNLJoin>(op, move(left), move(right), JoinCondition::CreateExpression(move(op.conditions[0])), op.join_type,
+			                                            op.estimated_cardinality);
 		} else if (*this->context.explict_join_type.get() == "index") {
 			force_index_join = true;
 		}

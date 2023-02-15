@@ -67,10 +67,12 @@ unique_ptr<LogicalOperator> Optimizer::Optimize(unique_ptr<LogicalOperator> plan
 	});
 
 	// perform filter pushdown
-	RunOptimizer(OptimizerType::FILTER_PUSHDOWN, [&]() {
-		FilterPushdown filter_pushdown(*this);
-		plan = filter_pushdown.Rewrite(move(plan));
-	});
+	if (context.explicit_filter_type == nullptr || *context.explicit_filter_type.get() != "filter") {
+		RunOptimizer(OptimizerType::FILTER_PUSHDOWN, [&]() {
+			FilterPushdown filter_pushdown(*this);
+			plan = filter_pushdown.Rewrite(move(plan));
+		});
+	}
 
 	RunOptimizer(OptimizerType::REGEX_RANGE, [&]() {
 		RegexRangeFilter regex_opt;

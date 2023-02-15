@@ -155,13 +155,26 @@ unique_ptr<PhysicalOperator> PhysicalPlanGenerator::CreatePlan(LogicalAggregate 
 		// groups! create a GROUP BY aggregator
 		// use a perfect hash aggregate if possible
 		vector<idx_t> required_bits;
-		if (CanUsePerfectHashAggregate(context, op, required_bits)) {
-			groupby = make_unique_base<PhysicalOperator, PhysicalPerfectHashAggregate>(
-			    context, op.types, move(op.expressions), move(op.groups), move(op.group_stats), move(required_bits),
-			    op.estimated_cardinality);
+		bool can_use_perfect_hash_aggregate = CanUsePerfectHashAggregate(context, op, required_bits);
+		if (context.explicit_agg_type != nullptr) {
+			if (*context.explicit_agg_type.get() == "perfect") {
+				D_ASSERT(can_use_perfect_hash_aggregate);
+				groupby = make_unique_base<PhysicalOperator, PhysicalPerfectHashAggregate>(
+				    context, op.types, move(op.expressions), move(op.groups), move(op.group_stats), move(required_bits),
+				    op.estimated_cardinality);
+			} else if (*context.explicit_agg_type.get() == "reg") {
+				groupby = make_unique_base<PhysicalOperator, PhysicalHashAggregate>(
+				    context, op.types, move(op.expressions), move(op.groups), op.estimated_cardinality);
+			}
 		} else {
-			groupby = make_unique_base<PhysicalOperator, PhysicalHashAggregate>(
-			    context, op.types, move(op.expressions), move(op.groups), op.estimated_cardinality);
+			if (can_use_perfect_hash_aggregate) {
+				groupby = make_unique_base<PhysicalOperator, PhysicalPerfectHashAggregate>(
+				    context, op.types, move(op.expressions), move(op.groups), move(op.group_stats), move(required_bits),
+				    op.estimated_cardinality);
+			} else {
+				groupby = make_unique_base<PhysicalOperator, PhysicalHashAggregate>(
+				    context, op.types, move(op.expressions), move(op.groups), op.estimated_cardinality);
+			}
 		}
 	}
 	groupby->children.push_back(move(plan));
