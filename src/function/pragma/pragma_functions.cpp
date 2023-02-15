@@ -293,6 +293,13 @@ static void PragmaClearLineage(ClientContext &context, const FunctionParameters 
 	context.lineage_manager->query_to_id.clear();
 	std::cout << "\nClear Lineage" << std::endl;
 }
+
+static void PragmaSetJoin(ClientContext &context, const FunctionParameters &parameters) {
+	string join_type = parameters.values[0].ToString();
+	D_ASSERT(join_type == "hash" || join_type == "merge" || join_type == "nl" || join_type == "index");
+	std::cout << "Setting join type to " << join_type << " - be careful! Failures possible for hash/index join if non equijoin." << std::endl;
+	context.explict_join_type = make_unique<string>(join_type);
+}
 #endif
 
 void PragmaFunctions::RegisterFunction(BuiltinFunctions &set) {
@@ -378,6 +385,7 @@ void PragmaFunctions::RegisterFunction(BuiltinFunctions &set) {
 	set.AddFunction(PragmaFunction::PragmaStatement("clear_lineage", PragmaClearLineage));
 	set.AddFunction(PragmaFunction::PragmaAssignment("trace_lineage", PragmaTraceLineage, LogicalType::VARCHAR));
 	set.AddFunction(PragmaFunction::PragmaAssignment("intermediate_tables", PragmaIntermediateTables, LogicalType::VARCHAR));
+	set.AddFunction(PragmaFunction::PragmaAssignment("set_join", PragmaSetJoin, LogicalType::VARCHAR));
 #endif
 }
 

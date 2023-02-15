@@ -79,6 +79,24 @@ unique_ptr<PhysicalOperator> PhysicalPlanGenerator::CreatePlan(LogicalComparison
 		return make_unique<PhysicalCrossProduct>(op.types, move(left), move(right), op.estimated_cardinality);
 	}
 
+	bool force_index_join = context.force_index_join;
+
+	if (this->context.explict_join_type != nullptr) {
+		if (*this->context.explict_join_type.get() == "hash") {
+			return make_unique<PhysicalHashJoin>(op, move(left), move(right), move(op.conditions), op.join_type,
+			                                     op.left_projection_map, op.right_projection_map, move(op.delim_types),
+			                                     op.estimated_cardinality);
+		} else if (*this->context.explict_join_type.get() == "merge") {
+			return make_unique<PhysicalPiecewiseMergeJoin>(op, move(left), move(right), move(op.conditions),
+			                                               op.join_type, op.estimated_cardinality);
+		} else if (*this->context.explict_join_type.get() == "nl") {
+			return make_unique<PhysicalNestedLoopJoin>(op, move(left), move(right), move(op.conditions), op.join_type,
+			                                           op.estimated_cardinality);
+		} else if (*this->context.explict_join_type.get() == "index") {
+			force_index_join = true;
+		}
+	}
+
 	bool has_equality = false;
 	bool has_inequality = false;
 	bool has_null_equal_conditions = false;
@@ -101,14 +119,14 @@ unique_ptr<PhysicalOperator> PhysicalPlanGenerator::CreatePlan(LogicalComparison
 	if (has_equality) {
 		Index *left_index {}, *right_index {};
 		TransformIndexJoin(context, op, &left_index, &right_index, left.get(), right.get());
-		if (left_index && (context.force_index_join || rhs_cardinality < 0.01 * lhs_cardinality)) {
+		if (left_index && (force_index_join || rhs_cardinality < 0.01 * lhs_cardinality)) {
 			auto &tbl_scan = (PhysicalTableScan &)*left;
 			swap(op.conditions[0].left, op.conditions[0].right);
 			return make_unique<PhysicalIndexJoin>(op, move(right), move(left), move(op.conditions), op.join_type,
 			                                      op.right_projection_map, op.left_projection_map, tbl_scan.column_ids,
 			                                      left_index, false, op.estimated_cardinality);
 		}
-		if (right_index && (context.force_index_join || lhs_cardinality < 0.01 * rhs_cardinality)) {
+		if (right_index && (force_index_join || lhs_cardinality < 0.01 * rhs_cardinality)) {
 			auto &tbl_scan = (PhysicalTableScan &)*right;
 			return make_unique<PhysicalIndexJoin>(op, move(left), move(right), move(op.conditions), op.join_type,
 			                                      op.left_projection_map, op.right_projection_map, tbl_scan.column_ids,
