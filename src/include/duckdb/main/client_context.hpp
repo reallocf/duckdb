@@ -107,6 +107,8 @@ public:
 	unique_ptr<LineageManager> lineage_manager;
 	//! Set which join type explicitly we want to use
 	unique_ptr<string> explict_join_type = nullptr;
+	unique_ptr<string> explicit_agg_type = nullptr;
+	unique_ptr<string> explicit_filter_type = nullptr;
 #endif
 public:
 

@@ -296,9 +296,35 @@ static void PragmaClearLineage(ClientContext &context, const FunctionParameters 
 
 static void PragmaSetJoin(ClientContext &context, const FunctionParameters &parameters) {
 	string join_type = parameters.values[0].ToString();
-	D_ASSERT(join_type == "hash" || join_type == "merge" || join_type == "nl" || join_type == "index");
+	D_ASSERT(join_type == "hash" || join_type == "merge" || join_type == "nl" || join_type == "index" || join_type == "block" || join_type == "clear");
 	std::cout << "Setting join type to " << join_type << " - be careful! Failures possible for hash/index join if non equijoin." << std::endl;
-	context.explict_join_type = make_unique<string>(join_type);
+	if (join_type == "clear") {
+		context.explict_join_type = nullptr;
+	} else {
+		context.explict_join_type = make_unique<string>(join_type);
+	}
+}
+
+static void PragmaSetAgg(ClientContext &context, const FunctionParameters &parameters) {
+	string agg_type = parameters.values[0].ToString();
+	D_ASSERT(agg_type == "perfect" || agg_type == "reg" || agg_type == "clear");
+	std::cout << "Setting agg type to " << agg_type << " - be careful! Failures possible if too many buckets (I think)." << std::endl;
+	if (agg_type == "clear") {
+		context.explicit_agg_type = nullptr;
+	} else {
+		context.explicit_agg_type = make_unique<string>(agg_type);
+	}
+}
+
+static void PragmaSetFilter(ClientContext &context, const FunctionParameters &parameters) {
+	string filter_type = parameters.values[0].ToString();
+	D_ASSERT(filter_type == "filter" || filter_type == "clear");
+	std::cout << "Setting filter type to " << filter_type << " - be careful!" << std::endl;
+	if (filter_type == "clear") {
+		context.explicit_filter_type = nullptr;
+	} else {
+		context.explicit_filter_type = make_unique<string>(filter_type);
+	}
 }
 #endif
 
@@ -386,6 +412,8 @@ void PragmaFunctions::RegisterFunction(BuiltinFunctions &set) {
 	set.AddFunction(PragmaFunction::PragmaAssignment("trace_lineage", PragmaTraceLineage, LogicalType::VARCHAR));
 	set.AddFunction(PragmaFunction::PragmaAssignment("intermediate_tables", PragmaIntermediateTables, LogicalType::VARCHAR));
 	set.AddFunction(PragmaFunction::PragmaAssignment("set_join", PragmaSetJoin, LogicalType::VARCHAR));
+	set.AddFunction(PragmaFunction::PragmaAssignment("set_agg", PragmaSetAgg, LogicalType::VARCHAR));
+	set.AddFunction(PragmaFunction::PragmaAssignment("set_filter", PragmaSetFilter, LogicalType::VARCHAR));
 #endif
 }
 
