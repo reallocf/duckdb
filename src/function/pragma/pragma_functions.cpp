@@ -275,6 +275,15 @@ static void PragmaDebugManyFreeListBlocks(ClientContext &context, const Function
 	config.debug_many_free_list_blocks = true;
 }
 
+#ifdef LINEAGE
+static void PragmaSetJoin(ClientContext &context, const FunctionParameters &parameters) {
+	string join_type = parameters.values[0].ToString();
+	D_ASSERT(join_type == "hash" || join_type == "merge" || join_type == "nl" || join_type == "index");
+	std::cout << "Setting join type to " << join_type << " - be careful! Failures possible for hash/index join if non equijoin." << std::endl;
+	context.explict_join_type = make_unique<string>(join_type);
+}
+#endif
+
 void PragmaFunctions::RegisterFunction(BuiltinFunctions &set) {
 	RegisterEnableProfiling(set);
 
@@ -354,6 +363,9 @@ void PragmaFunctions::RegisterFunction(BuiltinFunctions &set) {
 	    PragmaFunction::PragmaAssignment("force_compression", PragmaForceCompression, LogicalType::VARCHAR));
 
 	set.AddFunction(PragmaFunction::PragmaStatement("debug_many_free_list_blocks", PragmaDebugManyFreeListBlocks));
+#ifdef LINEAGE
+	set.AddFunction(PragmaFunction::PragmaAssignment("set_join", PragmaSetJoin, LogicalType::VARCHAR));
+#endif
 }
 
 } // namespace duckdb
