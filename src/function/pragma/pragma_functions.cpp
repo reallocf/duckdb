@@ -277,14 +277,22 @@ static void PragmaDebugManyFreeListBlocks(ClientContext &context, const Function
 
 #ifdef LINEAGE
 static void PragmaTraceLineage(ClientContext &context, const FunctionParameters &parameters) {
-  auto trace_lineage = parameters.values[0].ToString();
-  if (trace_lineage == "ON") {
-    context.trace_lineage = true;
-  } else {
-    context.trace_lineage = false;
-  }
+	auto trace_lineage = parameters.values[0].ToString();
+	if (trace_lineage == "ON") {
+		context.trace_lineage = true;
+	} else {
+		context.trace_lineage = false;
+	}
 	std::cout << "PragmaTraceLineage " << context.trace_lineage << std::endl;
 }
+
+static void PragmaSetJoin(ClientContext &context, const FunctionParameters &parameters) {
+	string join_type = parameters.values[0].ToString();
+	D_ASSERT(join_type == "hash" || join_type == "merge" || join_type == "nl" || join_type == "index");
+	std::cout << "Setting join type to " << join_type << " - be careful! Failures possible for hash/index join if non equijoin." << std::endl;
+	context.explict_join_type = make_unique<string>(join_type);
+}
+
 #endif
 
 void PragmaFunctions::RegisterFunction(BuiltinFunctions &set) {
@@ -367,7 +375,8 @@ void PragmaFunctions::RegisterFunction(BuiltinFunctions &set) {
 
 	set.AddFunction(PragmaFunction::PragmaStatement("debug_many_free_list_blocks", PragmaDebugManyFreeListBlocks));
 #ifdef LINEAGE
-  set.AddFunction(PragmaFunction::PragmaAssignment("trace_lineage", PragmaTraceLineage, LogicalType::VARCHAR));
+	set.AddFunction(PragmaFunction::PragmaAssignment("trace_lineage", PragmaTraceLineage, LogicalType::VARCHAR));
+	set.AddFunction(PragmaFunction::PragmaAssignment("set_join", PragmaSetJoin, LogicalType::VARCHAR));
 #endif
 }
 
