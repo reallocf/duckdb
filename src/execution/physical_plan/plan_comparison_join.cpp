@@ -93,8 +93,14 @@ unique_ptr<PhysicalOperator> PhysicalPlanGenerator::CreatePlan(LogicalComparison
 			return make_unique<PhysicalNestedLoopJoin>(op, move(left), move(right), move(op.conditions), op.join_type,
 			                                           op.estimated_cardinality);
 		} else if (*this->context.explict_join_type.get() == "block") {
-			D_ASSERT(op.conditions.size() == 1);
-			return make_unique<PhysicalBlockwiseNLJoin>(op, move(left), move(right), JoinCondition::CreateExpression(move(op.conditions[0])), op.join_type,
+			// AND all the arbitrary expressions together
+			// do the same with any remaining conditions
+			auto cond = JoinCondition::CreateExpression(move(op.conditions[0]));
+			for (idx_t i = 1; i < op.conditions.size(); i++) {
+				cond = make_unique<BoundConjunctionExpression>(
+				    ExpressionType::CONJUNCTION_AND, move(cond), JoinCondition::CreateExpression(move(op.conditions[i])));
+			}
+			return make_unique<PhysicalBlockwiseNLJoin>(op, move(left), move(right), move(cond), op.join_type,
 			                                            op.estimated_cardinality);
 		} else if (*this->context.explict_join_type.get() == "index") {
 			force_index_join = true;
