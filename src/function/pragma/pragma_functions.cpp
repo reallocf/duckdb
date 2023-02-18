@@ -1,3 +1,4 @@
+#include <iostream>
 #include "duckdb/function/pragma/pragma_functions.hpp"
 
 #include "duckdb/common/enums/output_type.hpp"
@@ -275,7 +276,6 @@ static void PragmaDebugManyFreeListBlocks(ClientContext &context, const Function
 	config.debug_many_free_list_blocks = true;
 }
 
-#ifdef LINEAGE
 static void PragmaSetJoin(ClientContext &context, const FunctionParameters &parameters) {
 	string join_type = parameters.values[0].ToString();
 	D_ASSERT(join_type == "hash" || join_type == "merge" || join_type == "nl" || join_type == "index" || join_type == "block" || join_type == "clear");
@@ -308,7 +308,6 @@ static void PragmaSetFilter(ClientContext &context, const FunctionParameters &pa
 		context.explicit_filter_type = make_unique<string>(filter_type);
 	}
 }
-#endif
 
 void PragmaFunctions::RegisterFunction(BuiltinFunctions &set) {
 	RegisterEnableProfiling(set);
@@ -389,11 +388,9 @@ void PragmaFunctions::RegisterFunction(BuiltinFunctions &set) {
 	    PragmaFunction::PragmaAssignment("force_compression", PragmaForceCompression, LogicalType::VARCHAR));
 
 	set.AddFunction(PragmaFunction::PragmaStatement("debug_many_free_list_blocks", PragmaDebugManyFreeListBlocks));
-#ifdef LINEAGE
 	set.AddFunction(PragmaFunction::PragmaAssignment("set_join", PragmaSetJoin, LogicalType::VARCHAR));
 	set.AddFunction(PragmaFunction::PragmaAssignment("set_agg", PragmaSetAgg, LogicalType::VARCHAR));
 	set.AddFunction(PragmaFunction::PragmaAssignment("set_filter", PragmaSetFilter, LogicalType::VARCHAR));
-#endif
 }
 
 } // namespace duckdb

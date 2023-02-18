@@ -100,12 +100,10 @@ public:
 	//! The schema search path, in order by which entries are searched if no schema entry is provided
 	vector<string> catalog_search_path = {TEMP_SCHEMA, DEFAULT_SCHEMA, "pg_catalog"};
 
-#ifdef LINEAGE
 	//! Set which join type explicitly we want to use
 	unique_ptr<string> explict_join_type = nullptr;
 	unique_ptr<string> explicit_agg_type = nullptr;
 	unique_ptr<string> explicit_filter_type = nullptr;
-#endif
 
 public:
 	DUCKDB_API Transaction &ActiveTransaction() {
