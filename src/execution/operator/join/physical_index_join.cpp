@@ -231,11 +231,11 @@ void PhysicalIndexJoin::GetChunkInternal(ExecutionContext &context, DataChunk &c
 		// Return "cached" values if there are any
 		if (state->overflow_count > 0) {
 			if (state->overflow_count > STANDARD_VECTOR_SIZE) {
-				chunk.data[0].Sequence(0, STANDARD_VECTOR_SIZE);
+				chunk.data[0].Sequence(0, 1);
 				chunk.SetCardinality(STANDARD_VECTOR_SIZE);
 				state->overflow_count -= STANDARD_VECTOR_SIZE;
 			} else {
-				chunk.data[0].Sequence(0, state->overflow_count);
+				chunk.data[0].Sequence(0, 1);
 				chunk.SetCardinality(state->overflow_count);
 				state->overflow_count = 0;
 			}
