@@ -698,7 +698,7 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 		auto payload = (uint64_t*)key.child_ptrs[0]->data->Process(0);
 		auto res_list = hash_map_agg[payload[orig_chunk.GetValue(0, 0).GetValue<uint64_t>()]];
 		auto res_size = res_list.size() > STANDARD_VECTOR_SIZE ? STANDARD_VECTOR_SIZE : res_list.size();
-		key.chunk.data[0].Sequence(0, res_size);
+		key.chunk.data[0].Sequence(0, 1);
 		key.overflow_count = res_list.size() > STANDARD_VECTOR_SIZE ? res_list.size() - STANDARD_VECTOR_SIZE : 0;
 		key.chunk.SetCardinality(res_size);
 		key.child_ptrs = {};
