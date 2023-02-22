@@ -228,28 +228,40 @@ void PhysicalIndexJoin::GetChunkInternal(ExecutionContext &context, DataChunk &c
 	auto state = reinterpret_cast<PhysicalIndexJoinOperatorState *>(state_p);
 	state->result_size = 0;
 	while (state->result_size == 0) {
-		// Return cached values if there are any
-		if (!state->cached_values_arr.empty()) {
-			chunk.data[0].Reference(state->cached_values_arr[state->cached_values_idx]);
-			if (!state->cached_child_ptrs_arr.empty()) {
-				state->child_ptrs = state->cached_child_ptrs_arr[state->cached_values_idx];
-			}
+		// Return "cached" values if there are any
+		if (state->overflow_count > 0) {
 			if (state->overflow_count > STANDARD_VECTOR_SIZE) {
+				chunk.data[0].Sequence(0, STANDARD_VECTOR_SIZE);
 				chunk.SetCardinality(STANDARD_VECTOR_SIZE);
 				state->overflow_count -= STANDARD_VECTOR_SIZE;
 			} else {
+				chunk.data[0].Sequence(0, state->overflow_count);
 				chunk.SetCardinality(state->overflow_count);
 				state->overflow_count = 0;
 			}
-			state->cached_values_idx++;
-			if (state->cached_values_idx == state->cached_values_arr.size()) {
-				D_ASSERT(state->overflow_count == 0);
-				state->cached_values_idx = 0;
-				state->cached_values_arr.clear();
-				state->cached_child_ptrs_arr.clear();
-			}
 			return;
 		}
+//		if (!state->cached_values_arr.empty()) {
+//			chunk.data[0].Reference(state->cached_values_arr[state->cached_values_idx]);
+//			if (!state->cached_child_ptrs_arr.empty()) {
+//				state->child_ptrs = state->cached_child_ptrs_arr[state->cached_values_idx];
+//			}
+//			if (state->overflow_count > STANDARD_VECTOR_SIZE) {
+//				chunk.SetCardinality(STANDARD_VECTOR_SIZE);
+//				state->overflow_count -= STANDARD_VECTOR_SIZE;
+//			} else {
+//				chunk.SetCardinality(state->overflow_count);
+//				state->overflow_count = 0;
+//			}
+//			state->cached_values_idx++;
+//			if (state->cached_values_idx == state->cached_values_arr.size()) {
+//				D_ASSERT(state->overflow_count == 0);
+//				state->cached_values_idx = 0;
+//				state->cached_values_arr.clear();
+//				state->cached_child_ptrs_arr.clear();
+//			}
+//			return;
+//		}
 		//! Check if we need to get a new LHS chunk
 		if (state->lhs_idx >= state->child_chunk.size()) {
 			children[0]->GetChunk(context, state->child_chunk, state->child_state.get());

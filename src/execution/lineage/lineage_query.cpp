@@ -655,7 +655,6 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 		orig_chunk.Initialize({LogicalType::UBIGINT});
 		key.chunk.Copy(orig_chunk);
 		key.chunk.Reset();
-		idx_t out_idx = 0;
 //		if (data[LINEAGE_SOURCE].size() > PROBE_SIZE) {
 //			for (idx_t i = 0; i < orig_chunk.size(); i++) {
 //				auto payload = (uint64_t*)key.child_ptrs[i]->data->Process(0);
@@ -693,26 +692,15 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 //				}
 //			}
 //		} else {
-			for (idx_t i = 0; i < orig_chunk.size(); i++) {
-				auto payload = (uint64_t*)key.child_ptrs[i]->data->Process(0);
-				auto res_list = hash_map_agg[payload[orig_chunk.GetValue(0, i).GetValue<uint64_t>()]];
-				for (const auto& res : res_list) {
-					if (out_idx < STANDARD_VECTOR_SIZE) {
-						key.chunk.SetValue(0, out_idx++, Value::UBIGINT(res.source));
-					} else {
-						if (key.overflow_count % STANDARD_VECTOR_SIZE == 0) {
-							key.cached_values_arr.emplace_back(LogicalType::UBIGINT);
-						}
-						key.cached_values_arr[key.overflow_count / STANDARD_VECTOR_SIZE].SetValue(
-							key.overflow_count % STANDARD_VECTOR_SIZE,
-							Value::UBIGINT(res.source)
-						);
-						key.overflow_count++;
-					}
-				}
-//			}
+		if (orig_chunk.size() != 1) {
+			throw std::logic_error("This breaks stuff!");
 		}
-		key.chunk.SetCardinality(out_idx);
+		auto payload = (uint64_t*)key.child_ptrs[0]->data->Process(0);
+		auto res_list = hash_map_agg[payload[orig_chunk.GetValue(0, 0).GetValue<uint64_t>()]];
+		auto res_size = res_list.size() > STANDARD_VECTOR_SIZE ? STANDARD_VECTOR_SIZE : res_list.size();
+		key.chunk.data[0].Sequence(0, res_size);
+		key.overflow_count = res_list.size() > STANDARD_VECTOR_SIZE ? res_list.size() - STANDARD_VECTOR_SIZE : 0;
+		key.chunk.SetCardinality(res_size);
 		key.child_ptrs = {};
 		break;
 	}
