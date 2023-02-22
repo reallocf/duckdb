@@ -693,25 +693,40 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 //				}
 //			}
 //		} else {
-			for (idx_t i = 0; i < orig_chunk.size(); i++) {
-				auto payload = (uint64_t*)key.child_ptrs[i]->data->Process(0);
-				auto res_list = hash_map_agg[payload[orig_chunk.GetValue(0, i).GetValue<uint64_t>()]];
-				for (const auto& res : res_list) {
-					if (out_idx < STANDARD_VECTOR_SIZE) {
-						key.chunk.SetValue(0, out_idx++, Value::UBIGINT(res.source));
-					} else {
-						if (key.overflow_count % STANDARD_VECTOR_SIZE == 0) {
-							key.cached_values_arr.emplace_back(LogicalType::UBIGINT);
-						}
-						key.cached_values_arr[key.overflow_count / STANDARD_VECTOR_SIZE].SetValue(
-							key.overflow_count % STANDARD_VECTOR_SIZE,
-							Value::UBIGINT(res.source)
-						);
-						key.overflow_count++;
+		clock_t start = clock();
+		for (idx_t i = 0; i < orig_chunk.size(); i++) {
+			auto payload = (uint64_t*)key.child_ptrs[i]->data->Process(0);
+			clock_t payld = clock();
+			std::cout << "Payload process time: " << ((float) payld - start) << std::endl;
+			auto res_list = hash_map_agg[payload[orig_chunk.GetValue(0, i).GetValue<uint64_t>()]];
+			clock_t rl = clock();
+			std::cout << "Vector copy time: " << ((float) rl - payld) << std::endl;
+			for (const auto& res : res_list) {
+				clock_t loop_st = clock();
+				if (out_idx < STANDARD_VECTOR_SIZE) {
+					key.chunk.SetValue(0, out_idx++, Value::UBIGINT(res.source));
+					clock_t sett = clock();
+					std::cout << "Set val time: " << ((float) sett - loop_st) / CLOCKS_PER_SEC << std::endl;
+				} else {
+					if (key.overflow_count % STANDARD_VECTOR_SIZE == 0) {
+						key.cached_values_arr.emplace_back(LogicalType::UBIGINT);
 					}
+					clock_t cache_pt1 = clock();
+					std::cout << "Cache1 time: " << ((float) cache_pt1 - loop_st) / CLOCKS_PER_SEC << std::endl;
+					key.cached_values_arr[key.overflow_count / STANDARD_VECTOR_SIZE].SetValue(
+						key.overflow_count % STANDARD_VECTOR_SIZE,
+						Value::UBIGINT(res.source)
+					);
+					clock_t cache_pt2 = clock();
+					std::cout << "Cache2 time: " << ((float) cache_pt2 - cache_pt1) / CLOCKS_PER_SEC << std::endl;
+					key.overflow_count++;
 				}
-//			}
+			}
+			clock_t foo = clock();
+			std::cout << "Filling time: " << ((float) foo - rl) / CLOCKS_PER_SEC << std::endl;
 		}
+		clock_t end = clock();
+		std::cout << "Total time: " << ((float) end - start) / CLOCKS_PER_SEC << std::endl;
 		key.chunk.SetCardinality(out_idx);
 		key.child_ptrs = {};
 		break;
