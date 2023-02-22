@@ -652,7 +652,7 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 		}
 
 		DataChunk orig_chunk;
-		orig_chunk.Initialize({LogicalType::BIGINT});
+		orig_chunk.Initialize({LogicalType::UBIGINT});
 		key.chunk.Copy(orig_chunk);
 		key.chunk.Reset();
 //		if (data[LINEAGE_SOURCE].size() > PROBE_SIZE) {
