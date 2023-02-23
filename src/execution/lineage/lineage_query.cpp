@@ -554,17 +554,18 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 		break;
 	}
 	case PhysicalOperatorType::TABLE_SCAN: {
-		if (true) {//(data[LINEAGE_UNARY].empty() && key.child_ptrs[0] == nullptr) {
+		if (data[LINEAGE_UNARY].empty() && key.child_ptrs[0] == nullptr) {
 			// Nothing to do! Lineage correct as-is
 		} else {
-			if (key.child_ptrs[0] == nullptr) {
-				key.child_ptrs = LookupChunksFromGlobalIndex(key.chunk, data[LINEAGE_UNARY], index);
-			}
+//			if (key.child_ptrs[0] == nullptr) {
+//				key.child_ptrs = LookupChunksFromGlobalIndex(key.chunk, data[LINEAGE_UNARY], index);
+//			}
+			key.child_ptrs[0] = make_unique<LineageDataWithOffset>(data[LINEAGE_UNARY][0]);
 			for (idx_t i = 0; i < key.chunk.size(); i++) {
 				key.chunk.SetValue(
 				    0,
 				    i,
-				    Value::UBIGINT(key.child_ptrs[i]->data->Backward(key.chunk.GetValue(0, i).GetValue<uint64_t>()) + key.child_ptrs[i]->child_offset)
+				    Value::UBIGINT(key.child_ptrs[0]->data->Backward(key.chunk.GetValue(0, i).GetValue<uint64_t>()) + key.child_ptrs[0]->child_offset)
 				);
 			}
 		}
