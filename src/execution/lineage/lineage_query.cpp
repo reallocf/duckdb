@@ -170,7 +170,7 @@ LineageProcessStruct OperatorLineage::PostProcess(idx_t chunk_count, idx_t count
 //							if (hash_map_agg[(idx_t)payload[i]] == nullptr) {
 //								hash_map_agg[(idx_t)payload[i]] = make_shared<vector<SourceAndMaybeData>>();
 //							}
-						hash_map_agg[(idx_t)payload[i]].push_back({i + count_so_far, nullptr});
+						hash_map_agg[(idx_t)payload[i]].push_back({i + count_so_far, this_data.data->GetChild()});
 					}
 				} else {
 					auto payload = (uint64_t*)this_data.data->Process(0);
@@ -178,7 +178,7 @@ LineageProcessStruct OperatorLineage::PostProcess(idx_t chunk_count, idx_t count
 //							if (hash_map_agg[(idx_t)payload[i]] == nullptr) {
 //								hash_map_agg[(idx_t)payload[i]] = make_shared<vector<SourceAndMaybeData>>();
 //							}
-						hash_map_agg[(idx_t)payload[i]].push_back({i + count_so_far, nullptr});
+						hash_map_agg[(idx_t)payload[i]].push_back({i + count_so_far, this_data.data->GetChild()});
 					}
 				}
 //				}
@@ -655,65 +655,39 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 		orig_chunk.Initialize({LogicalType::UBIGINT});
 		key.chunk.Copy(orig_chunk);
 		key.chunk.Reset();
+		vector<shared_ptr<LineageDataWithOffset>> new_child_ptrs;
+		new_child_ptrs.reserve(STANDARD_VECTOR_SIZE);
 		idx_t out_idx = 0;
-//		if (data[LINEAGE_SOURCE].size() > PROBE_SIZE) {
-//			for (idx_t i = 0; i < orig_chunk.size(); i++) {
-//				auto payload = (uint64_t*)key.child_ptrs[i]->data->Process(0);
-//				auto val = payload[orig_chunk.GetValue(0, i).GetValue<uint64_t>()];
-//				// iterate the index to find potential chunks
-//				auto flag = false;
-//				for (idx_t it = 0; it < hm_range.size(); ++it) {
-//					if (val >= hm_range[it].first && val <= hm_range[it].second) {
-//						// scan this chunk
-//						LineageDataWithOffset this_data = data[LINEAGE_SINK][it];
-//						idx_t res_count = this_data.data->Count();
-//						auto sink_payload = (uint64_t *)this_data.data->Process(0);
-//						for (idx_t it2 = 0; it2 < res_count; ++it2) {
-//							if (sink_payload[it2] == val) {
-//								if (out_idx < STANDARD_VECTOR_SIZE) {
-//									key.chunk.SetValue(0, out_idx++, Value::UBIGINT(it2 + hash_chunk_count[it]));
-//								} else {
-//									if (key.overflow_count % STANDARD_VECTOR_SIZE == 0) {
-//										key.cached_values_arr.emplace_back(LogicalType::UBIGINT);
-//									}
-//									key.cached_values_arr[key.overflow_count / STANDARD_VECTOR_SIZE].SetValue(
-//										key.overflow_count % STANDARD_VECTOR_SIZE,
-//										Value::UBIGINT(it2 + hash_chunk_count[it])
-//									);
-//									key.overflow_count++;
-//								}
-//								flag = true;
-//								break;
-//							}
-//						}
-//					}
-//					if (flag) {
-//						break;
-//					}
-//				}
-//			}
-//		} else {
-			for (idx_t i = 0; i < orig_chunk.size(); i++) {
-				auto payload = (uint64_t*)key.child_ptrs[i]->data->Process(0);
-				auto res_list = hash_map_agg[payload[orig_chunk.GetValue(0, i).GetValue<uint64_t>()]];
-				for (const auto& res : res_list) {
-					if (out_idx < STANDARD_VECTOR_SIZE) {
-						key.chunk.SetValue(0, out_idx++, Value::UBIGINT(res.source));
-					} else {
-						if (key.overflow_count % STANDARD_VECTOR_SIZE == 0) {
-							key.cached_values_arr.emplace_back(LogicalType::UBIGINT);
-						}
-						key.cached_values_arr[key.overflow_count / STANDARD_VECTOR_SIZE].SetValue(
-							key.overflow_count % STANDARD_VECTOR_SIZE,
-							Value::UBIGINT(res.source)
+		for (idx_t i = 0; i < orig_chunk.size(); i++) {
+			auto payload = (uint64_t*)key.child_ptrs[i]->data->Process(0);
+			auto res_list = hash_map_agg[payload[orig_chunk.GetValue(0, i).GetValue<uint64_t>()]];
+			auto res_list_size = res_list.size();
+			for (const auto& res : res_list) {
+				// We capture global value, so we convert to child local value here
+				auto val = res.source - res.data->this_offset;
+				if (out_idx < STANDARD_VECTOR_SIZE) {
+					key.chunk.SetValue(0, out_idx++, Value::UBIGINT(val));
+					new_child_ptrs.push_back(res.data);
+				} else {
+					if (key.overflow_count % STANDARD_VECTOR_SIZE == 0) {
+						key.cached_values_arr.emplace_back(LogicalType::UBIGINT);
+						key.cached_child_ptrs_arr.emplace_back();
+						key.cached_child_ptrs_arr[key.overflow_count / STANDARD_VECTOR_SIZE].reserve(
+							res_list_size - key.overflow_count - STANDARD_VECTOR_SIZE >
+									STANDARD_VECTOR_SIZE ? STANDARD_VECTOR_SIZE : res_list_size - key.overflow_count
 						);
-						key.overflow_count++;
 					}
+					key.cached_values_arr[key.overflow_count / STANDARD_VECTOR_SIZE].SetValue(
+						key.overflow_count % STANDARD_VECTOR_SIZE,
+						Value::UBIGINT(val)
+					);
+					key.cached_child_ptrs_arr[key.overflow_count / STANDARD_VECTOR_SIZE].push_back(res.data);
+					key.overflow_count++;
 				}
-//			}
+			}
 		}
 		key.chunk.SetCardinality(out_idx);
-		key.child_ptrs = {};
+		key.child_ptrs = move(new_child_ptrs);
 		break;
 	}
 	case PhysicalOperatorType::PERFECT_HASH_GROUP_BY: {
@@ -725,65 +699,39 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 		orig_chunk.Initialize({LogicalType::UBIGINT});
 		key.chunk.Copy(orig_chunk);
 		key.chunk.Reset();
+		vector<shared_ptr<LineageDataWithOffset>> new_child_ptrs;
+		new_child_ptrs.reserve(STANDARD_VECTOR_SIZE);
 		idx_t out_idx = 0;
-//		if (data[LINEAGE_SOURCE].size() > PROBE_SIZE) {
-//			for (idx_t i = 0; i < orig_chunk.size(); i++) {
-//				auto payload = (sel_t*)key.child_ptrs[i]->data->Process(0);
-//				auto val = payload[orig_chunk.GetValue(0, i).GetValue<uint64_t>()];
-//				// iterate the index to find potential chunks
-//				auto flag = false;
-//				for (idx_t it = 0; it < hm_range.size(); ++it) {
-//					if (val >= hm_range[it].first && val <= hm_range[it].second) {
-//						// scan this chunk
-//						LineageDataWithOffset this_data = data[LINEAGE_SINK][it];
-//						idx_t res_count = this_data.data->Count();
-//						auto sink_payload = (sel_t *)this_data.data->Process(0);
-//						for (idx_t it2 = 0; it2 < res_count; ++it2) {
-//							if (sink_payload[it2] == val) {
-//								if (out_idx < STANDARD_VECTOR_SIZE) {
-//									key.chunk.SetValue(0, out_idx++, Value::UBIGINT(it2 + hash_chunk_count[it]));
-//								} else {
-//									if (key.overflow_count % STANDARD_VECTOR_SIZE == 0) {
-//										key.cached_values_arr.emplace_back(LogicalType::UBIGINT);
-//									}
-//									key.cached_values_arr[key.overflow_count / STANDARD_VECTOR_SIZE].SetValue(
-//										key.overflow_count % STANDARD_VECTOR_SIZE,
-//										Value::UBIGINT(it2 + hash_chunk_count[it])
-//									);
-//									key.overflow_count++;
-//								}
-//								flag = true;
-//								break;
-//							}
-//						}
-//					}
-//					if (flag) {
-//						break;
-//					}
-//				}
-//			}
-//		} else {
-			for (idx_t i = 0; i < orig_chunk.size(); i++) {
-				auto payload = (sel_t*)key.child_ptrs[i]->data->Process(0);
-				auto res_list = hash_map_agg[payload[orig_chunk.GetValue(0, i).GetValue<uint64_t>()]];
-				for (const auto& res : res_list) {
-					if (out_idx < STANDARD_VECTOR_SIZE) {
-						key.chunk.SetValue(0, out_idx++, Value::UBIGINT(res.source));
-					} else {
-						if (key.overflow_count % STANDARD_VECTOR_SIZE == 0) {
-							key.cached_values_arr.emplace_back(LogicalType::UBIGINT);
-						}
-						key.cached_values_arr[key.overflow_count / STANDARD_VECTOR_SIZE].SetValue(
-							key.overflow_count % STANDARD_VECTOR_SIZE,
-							Value::UBIGINT(res.source)
+		for (idx_t i = 0; i < orig_chunk.size(); i++) {
+			auto payload = (sel_t*)key.child_ptrs[i]->data->Process(0);
+			auto res_list = hash_map_agg[payload[orig_chunk.GetValue(0, i).GetValue<uint64_t>()]];
+			auto res_list_size = res_list.size();
+			for (const auto& res : res_list) {
+				// We capture global value, so we convert to child local value here
+				auto val = res.source - res.data->this_offset;
+				if (out_idx < STANDARD_VECTOR_SIZE) {
+					key.chunk.SetValue(0, out_idx++, Value::UBIGINT(val));
+					new_child_ptrs.push_back(res.data);
+				} else {
+					if (key.overflow_count % STANDARD_VECTOR_SIZE == 0) {
+						key.cached_values_arr.emplace_back(LogicalType::UBIGINT);
+						key.cached_child_ptrs_arr.emplace_back();
+						key.cached_child_ptrs_arr[key.overflow_count / STANDARD_VECTOR_SIZE].reserve(
+							res_list_size - key.overflow_count - STANDARD_VECTOR_SIZE >
+									STANDARD_VECTOR_SIZE ? STANDARD_VECTOR_SIZE : res_list_size - key.overflow_count
 						);
-						key.overflow_count++;
 					}
+					key.cached_values_arr[key.overflow_count / STANDARD_VECTOR_SIZE].SetValue(
+						key.overflow_count % STANDARD_VECTOR_SIZE,
+						Value::UBIGINT(val)
+					);
+					key.cached_child_ptrs_arr[key.overflow_count / STANDARD_VECTOR_SIZE].push_back(res.data);
+					key.overflow_count++;
 				}
 			}
-//		}
+		}
 		key.chunk.SetCardinality(out_idx);
-		key.child_ptrs = {};
+		key.child_ptrs = move(new_child_ptrs);
 		break;
 	}
 	case PhysicalOperatorType::PROJECTION: {
