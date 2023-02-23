@@ -695,11 +695,14 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 		if (orig_chunk.size() != 1) {
 			throw std::logic_error("This breaks stuff!");
 		}
+		clock_t start = clock();
 		auto payload = (uint64_t*)key.child_ptrs[0]->data->Process(0);
 		auto res_list = hash_map_agg[payload[orig_chunk.GetValue(0, 0).GetValue<uint64_t>()]];
 		auto res_size = res_list.size() > STANDARD_VECTOR_SIZE ? STANDARD_VECTOR_SIZE : res_list.size();
 		key.chunk.data[0].Sequence(0, 1);
 		key.overflow_count = res_list.size() > STANDARD_VECTOR_SIZE ? res_list.size() - STANDARD_VECTOR_SIZE : 0;
+		clock_t end = clock();
+		std::cout << "Hash group by time: " << ((float) end - start) / CLOCKS_PER_SEC << std::endl;
 		key.chunk.SetCardinality(res_size);
 		key.child_ptrs = {};
 		break;
