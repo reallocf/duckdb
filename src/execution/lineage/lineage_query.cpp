@@ -556,7 +556,9 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 	case PhysicalOperatorType::TABLE_SCAN: {
 		if (data[LINEAGE_UNARY].empty() && key.child_ptrs[0] == nullptr) {
 			// Nothing to do! Lineage correct as-is
+			std::cout << "Nothing to do" << std::endl;
 		} else {
+			std::cout << "Stuff to do" << std::endl;
 			if (key.child_ptrs[0] == nullptr) {
 				key.child_ptrs = LookupChunksFromGlobalIndex(key.chunk, data[LINEAGE_UNARY], index);
 			}
