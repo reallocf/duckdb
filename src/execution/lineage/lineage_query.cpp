@@ -527,7 +527,7 @@ SimpleAggQueryStruct OperatorLineage::RecurseForSimpleAgg(const shared_ptr<Opera
 }
 
 void OperatorLineage::AccessIndex(LineageIndexStruct key) {
-//	std::cout << PhysicalOperatorToString(this->type) << this->opid << std::endl;
+	std::cout << PhysicalOperatorToString(this->type) << this->opid << std::endl;
 //	for (idx_t i = 0; i < key.chunk.size(); i++) {
 //		std::cout << key.chunk.GetValue(0,i) << std::endl;
 //	}
@@ -545,8 +545,10 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 	case PhysicalOperatorType::TABLE_SCAN: {
 		if (key.chunk.lineage_agg_data.empty() && data[LINEAGE_UNARY].empty() && key.child_ptrs[0] == nullptr) {
 			// Nothing to do! Lineage correct as-is
+			std::cout << "Foo1" << std::endl;
 		} else {
 			if (!key.chunk.lineage_agg_data.empty()) {
+				std::cout << "Foo2" << std::endl;
 				// Hash Agg Optimization
 				idx_t out_idx = 0;
 				while(out_idx < STANDARD_VECTOR_SIZE && key.chunk.outer_agg_idx < key.chunk.lineage_agg_data.size()) {
@@ -568,6 +570,7 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 				}
 				key.chunk.SetCardinality(out_idx);
 			} else {
+				std::cout << "Foo3" << std::endl;
 				if (key.child_ptrs[0] == nullptr) {
 					key.child_ptrs = LookupChunksFromGlobalIndex(key.chunk, data[LINEAGE_UNARY], index);
 				}
