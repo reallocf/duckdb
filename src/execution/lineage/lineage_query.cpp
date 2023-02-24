@@ -144,44 +144,33 @@ LineageProcessStruct OperatorLineage::PostProcess(idx_t chunk_count, idx_t count
 				// build hash table
 				LineageDataWithOffset this_data = data[LINEAGE_SINK][data_idx];
 				idx_t res_count = this_data.data->Count();
-//				if (data[LINEAGE_SOURCE].size() > PROBE_SIZE) {
-//					// get min-max on this payload
-//					auto min_v = std::numeric_limits<idx_t>::max();
-//					auto max_v = std::numeric_limits<idx_t>::min();
-//					if (type == PhysicalOperatorType::PERFECT_HASH_GROUP_BY) {
-//						auto payload = (sel_t*)this_data.data->Process(0);
-//						for (idx_t i=0; i < res_count; ++i) {
-//							if ( (idx_t)payload[i] < min_v) min_v  = (idx_t)payload[i];
-//							if ( (idx_t)payload[i] > max_v) max_v  = (idx_t)payload[i];
-//						}
-//					} else {
-//						auto payload = (uint64_t*)this_data.data->Process(0);
-//						for (idx_t i=0; i < res_count; ++i) {
-//							if ( payload[i] < min_v) min_v  = payload[i];
-//							if ( payload[i] > max_v) max_v  = payload[i];
-//						}
-//					}
-//					hm_range.push_back(std::make_pair(min_v, max_v));
-//					hash_chunk_count.push_back(count_so_far);
-//				} else {
 				if (type == PhysicalOperatorType::PERFECT_HASH_GROUP_BY) {
 					auto payload = (sel_t*)this_data.data->Process(0);
 					for (idx_t i=0; i < res_count; ++i) {
-//							if (hash_map_agg[(idx_t)payload[i]] == nullptr) {
-//								hash_map_agg[(idx_t)payload[i]] = make_shared<vector<SourceAndMaybeData>>();
-//							}
-						hash_map_agg[(idx_t)payload[i]].push_back({i + count_so_far, this_data.data->GetChild()});
+						auto bucket = (idx_t)payload[i];
+						if (hash_map_agg[bucket] == nullptr) {
+							hash_map_agg[bucket] = std::make_shared<vector<SourceAndMaybeData>>();
+						}
+
+						auto child = this_data.data->GetChild();
+						// We capture global value, so we convert to child local value here
+						auto val = i + count_so_far - child->this_offset;
+						hash_map_agg[bucket]->push_back({val, child});
 					}
 				} else {
 					auto payload = (uint64_t*)this_data.data->Process(0);
 					for (idx_t i=0; i < res_count; ++i) {
-//							if (hash_map_agg[(idx_t)payload[i]] == nullptr) {
-//								hash_map_agg[(idx_t)payload[i]] = make_shared<vector<SourceAndMaybeData>>();
-//							}
-						hash_map_agg[(idx_t)payload[i]].push_back({i + count_so_far, this_data.data->GetChild()});
+						auto bucket = (idx_t)payload[i];
+						if (hash_map_agg[bucket] == nullptr) {
+							hash_map_agg[bucket] = std::make_shared<vector<SourceAndMaybeData>>();
+						}
+
+						auto child = this_data.data->GetChild();
+						// We capture global value, so we convert to child local value here
+						auto val = i + count_so_far - child->this_offset;
+						hash_map_agg[bucket]->push_back({val, child});
 					}
 				}
-//				}
 				count_so_far += res_count;
 			} else if (finished_idx == LINEAGE_COMBINE) {
 			} else {
@@ -538,7 +527,7 @@ SimpleAggQueryStruct OperatorLineage::RecurseForSimpleAgg(const shared_ptr<Opera
 }
 
 void OperatorLineage::AccessIndex(LineageIndexStruct key) {
-//	std::cout << PhysicalOperatorToString(this->type) << this->opid << std::endl;
+	std::cout << PhysicalOperatorToString(this->type) << this->opid << std::endl;
 //	for (idx_t i = 0; i < key.chunk.size(); i++) {
 //		std::cout << key.chunk.GetValue(0,i) << std::endl;
 //	}
@@ -554,18 +543,43 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 		break;
 	}
 	case PhysicalOperatorType::TABLE_SCAN: {
-		if (data[LINEAGE_UNARY].empty() && key.child_ptrs[0] == nullptr) {
+		if (key.chunk.lineage_agg_data.empty() && data[LINEAGE_UNARY].empty() && key.child_ptrs[0] == nullptr) {
 			// Nothing to do! Lineage correct as-is
+			std::cout << "Foo1" << std::endl;
 		} else {
-			if (key.child_ptrs[0] == nullptr) {
-				key.child_ptrs = LookupChunksFromGlobalIndex(key.chunk, data[LINEAGE_UNARY], index);
-			}
-			for (idx_t i = 0; i < key.chunk.size(); i++) {
-				key.chunk.SetValue(
-				    0,
-				    i,
-				    Value::UBIGINT(key.child_ptrs[i]->data->Backward(key.chunk.GetValue(0, i).GetValue<uint64_t>()) + key.child_ptrs[i]->child_offset)
-				);
+			if (!key.chunk.lineage_agg_data.empty()) {
+				std::cout << "Foo2" << std::endl;
+				// Hash Agg Optimization
+				idx_t out_idx = 0;
+				while(out_idx < STANDARD_VECTOR_SIZE && key.chunk.outer_agg_idx < key.chunk.lineage_agg_data.size()) {
+					auto agg_vec_ptr = key.chunk.lineage_agg_data[key.chunk.outer_agg_idx];
+					while(out_idx < STANDARD_VECTOR_SIZE && key.chunk.inner_agg_idx < agg_vec_ptr->size()) {
+						auto this_data = agg_vec_ptr->at(key.chunk.inner_agg_idx);
+						key.chunk.SetValue(
+						    0,
+						    out_idx++,
+						    Value::UBIGINT(this_data.data->data->Backward(this_data.source) + this_data.data->child_offset)
+						);
+						key.chunk.inner_agg_idx++;
+					}
+					if (key.chunk.inner_agg_idx < agg_vec_ptr->size()) {
+						break;
+					}
+					key.chunk.inner_agg_idx = 0;
+					key.chunk.outer_agg_idx++;
+				}
+			} else {
+				std::cout << "Foo3" << std::endl;
+				if (key.child_ptrs[0] == nullptr) {
+					key.child_ptrs = LookupChunksFromGlobalIndex(key.chunk, data[LINEAGE_UNARY], index);
+				}
+				for (idx_t i = 0; i < key.chunk.size(); i++) {
+					key.chunk.SetValue(
+					    0,
+					    i,
+					    Value::UBIGINT(key.child_ptrs[i]->data->Backward(key.chunk.GetValue(0, i).GetValue<uint64_t>()) + key.child_ptrs[i]->child_offset)
+					);
+				}
 			}
 		}
 		break;
@@ -651,43 +665,13 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 			key.child_ptrs = LookupChunksFromGlobalIndex(key.chunk, data[LINEAGE_SOURCE], index);
 		}
 
-		DataChunk orig_chunk;
-		orig_chunk.Initialize({LogicalType::UBIGINT});
-		key.chunk.Copy(orig_chunk);
-		key.chunk.Reset();
-		vector<shared_ptr<LineageDataWithOffset>> new_child_ptrs;
-		new_child_ptrs.reserve(STANDARD_VECTOR_SIZE);
-		idx_t out_idx = 0;
-		for (idx_t i = 0; i < orig_chunk.size(); i++) {
+		key.chunk.lineage_agg_data.reserve(key.chunk.size());
+		for (idx_t i = 0; i < key.chunk.size(); i++) {
 			auto payload = (uint64_t*)key.child_ptrs[i]->data->Process(0);
-			auto res_list = hash_map_agg[payload[orig_chunk.GetValue(0, i).GetValue<uint64_t>()]];
-			auto res_list_size = res_list.size();
-			for (const auto& res : res_list) {
-				// We capture global value, so we convert to child local value here
-				auto val = res.source - res.data->this_offset;
-				if (out_idx < STANDARD_VECTOR_SIZE) {
-					key.chunk.SetValue(0, out_idx++, Value::UBIGINT(val));
-					new_child_ptrs.push_back(res.data);
-				} else {
-					if (key.overflow_count % STANDARD_VECTOR_SIZE == 0) {
-						key.cached_values_arr.emplace_back(LogicalType::UBIGINT);
-						key.cached_child_ptrs_arr.emplace_back();
-						key.cached_child_ptrs_arr[key.overflow_count / STANDARD_VECTOR_SIZE].reserve(
-							res_list_size - key.overflow_count - STANDARD_VECTOR_SIZE >
-									STANDARD_VECTOR_SIZE ? STANDARD_VECTOR_SIZE : res_list_size - key.overflow_count
-						);
-					}
-					key.cached_values_arr[key.overflow_count / STANDARD_VECTOR_SIZE].SetValue(
-						key.overflow_count % STANDARD_VECTOR_SIZE,
-						Value::UBIGINT(val)
-					);
-					key.cached_child_ptrs_arr[key.overflow_count / STANDARD_VECTOR_SIZE].push_back(res.data);
-					key.overflow_count++;
-				}
-			}
+			key.chunk.lineage_agg_data.push_back(
+			    hash_map_agg[payload[key.chunk.GetValue(0, i).GetValue<uint64_t>()]]
+			);
 		}
-		key.chunk.SetCardinality(out_idx);
-		key.child_ptrs = move(new_child_ptrs);
 		break;
 	}
 	case PhysicalOperatorType::PERFECT_HASH_GROUP_BY: {
@@ -695,43 +679,13 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 			key.child_ptrs = LookupChunksFromGlobalIndex(key.chunk, data[LINEAGE_SOURCE], index);
 		}
 
-		DataChunk orig_chunk;
-		orig_chunk.Initialize({LogicalType::UBIGINT});
-		key.chunk.Copy(orig_chunk);
-		key.chunk.Reset();
-		vector<shared_ptr<LineageDataWithOffset>> new_child_ptrs;
-		new_child_ptrs.reserve(STANDARD_VECTOR_SIZE);
-		idx_t out_idx = 0;
-		for (idx_t i = 0; i < orig_chunk.size(); i++) {
+		key.chunk.lineage_agg_data.reserve(key.chunk.size());
+		for (idx_t i = 0; i < key.chunk.size(); i++) {
 			auto payload = (sel_t*)key.child_ptrs[i]->data->Process(0);
-			auto res_list = hash_map_agg[payload[orig_chunk.GetValue(0, i).GetValue<uint64_t>()]];
-			auto res_list_size = res_list.size();
-			for (const auto& res : res_list) {
-				// We capture global value, so we convert to child local value here
-				auto val = res.source - res.data->this_offset;
-				if (out_idx < STANDARD_VECTOR_SIZE) {
-					key.chunk.SetValue(0, out_idx++, Value::UBIGINT(val));
-					new_child_ptrs.push_back(res.data);
-				} else {
-					if (key.overflow_count % STANDARD_VECTOR_SIZE == 0) {
-						key.cached_values_arr.emplace_back(LogicalType::UBIGINT);
-						key.cached_child_ptrs_arr.emplace_back();
-						key.cached_child_ptrs_arr[key.overflow_count / STANDARD_VECTOR_SIZE].reserve(
-							res_list_size - key.overflow_count - STANDARD_VECTOR_SIZE >
-									STANDARD_VECTOR_SIZE ? STANDARD_VECTOR_SIZE : res_list_size - key.overflow_count
-						);
-					}
-					key.cached_values_arr[key.overflow_count / STANDARD_VECTOR_SIZE].SetValue(
-						key.overflow_count % STANDARD_VECTOR_SIZE,
-						Value::UBIGINT(val)
-					);
-					key.cached_child_ptrs_arr[key.overflow_count / STANDARD_VECTOR_SIZE].push_back(res.data);
-					key.overflow_count++;
-				}
-			}
+			key.chunk.lineage_agg_data.push_back(
+			    hash_map_agg[payload[key.chunk.GetValue(0, i).GetValue<uint64_t>()]]
+			);
 		}
-		key.chunk.SetCardinality(out_idx);
-		key.child_ptrs = move(new_child_ptrs);
 		break;
 	}
 	case PhysicalOperatorType::PROJECTION: {

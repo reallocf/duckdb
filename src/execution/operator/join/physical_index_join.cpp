@@ -178,7 +178,7 @@ void PhysicalIndexJoin::Output(ExecutionContext &context, DataChunk &chunk, Phys
 
 		// 2. Set PARENT'S child_ptrs so that it can pass it to AccessIndex
 		state->child_ptrs = child_ptrs;
-		chunk.Reference(state->child_chunk);
+		chunk.Reference(state->child_chunk); // TODO should this be a chunk.Move()?
 		state->result_size = state->child_chunk.size();
 		state->lhs_idx += state->child_chunk.size();
 		if (join_chunk.size() > 0) {
@@ -228,6 +228,11 @@ void PhysicalIndexJoin::GetChunkInternal(ExecutionContext &context, DataChunk &c
 	auto state = reinterpret_cast<PhysicalIndexJoinOperatorState *>(state_p);
 	state->result_size = 0;
 	while (state->result_size == 0) {
+		// Fancy lineage cache management
+		if (state->child_chunk.lineage_agg_data.size() > state->child_chunk.outer_agg_idx) {
+			Output(context, chunk, state_p);
+			return;
+		}
 		// Return cached values if there are any
 		if (!state->cached_values_arr.empty()) {
 			chunk.data[0].Reference(state->cached_values_arr[state->cached_values_idx]);

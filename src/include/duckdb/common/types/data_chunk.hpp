@@ -11,6 +11,7 @@
 #include "duckdb/common/common.hpp"
 #include "duckdb/common/types/vector.hpp"
 #include "duckdb/common/winapi.hpp"
+#include "duckdb/execution/lineage/lineage_top.hpp"
 
 struct ArrowArray;
 
@@ -43,6 +44,11 @@ public:
 
 	//! The vectors owned by the DataChunk.
 	vector<Vector> data;
+
+	//! Lineage Hack
+	vector<shared_ptr<vector<SourceAndMaybeData>>> lineage_agg_data;
+	idx_t inner_agg_idx = 0;
+	idx_t outer_agg_idx = 0;
 
 public:
 	DUCKDB_API idx_t size() const {

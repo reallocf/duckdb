@@ -93,7 +93,7 @@ public:
 	idx_t last_base = 0;
 
 	// Index for hash aggregate
-    std::unordered_map<idx_t, vector<SourceAndMaybeData>> hash_map_agg;
+    std::unordered_map<idx_t, shared_ptr<vector<SourceAndMaybeData>>> hash_map_agg;
     // index: used to index selection vectors
     //        it stores the size of SV from each chunk
     //        which helps in locating the one needed
@@ -115,11 +115,6 @@ struct LineageProcessStruct {
 struct SimpleAggQueryStruct {
 	shared_ptr<OperatorLineage> materialized_child_op;
 	vector<LineageDataWithOffset> child_lineage_data_vector;
-};
-
-struct SourceAndMaybeData {
-	idx_t source;
-	shared_ptr<LineageDataWithOffset> data;
 };
 
 struct LineageIndexStruct {
