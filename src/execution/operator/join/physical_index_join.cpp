@@ -181,7 +181,9 @@ void PhysicalIndexJoin::Output(ExecutionContext &context, DataChunk &chunk, Phys
 		// 2. Set PARENT'S child_ptrs so that it can pass it to AccessIndex
 		state->child_ptrs = child_ptrs;
 		chunk.Reference(state->child_chunk); // TODO should this be a chunk.Move()?
+		std::cout << "Bar1 " << was_set << " " << is_set << std::endl;
 		if (!was_set && is_set) {
+			std::cout << "Bar2" << std::endl;
 			chunk.lineage_agg_data = move(state->child_chunk.lineage_agg_data);
 			chunk.outer_agg_idx = state->child_chunk.outer_agg_idx;
 			chunk.inner_agg_idx = state->child_chunk.inner_agg_idx;
