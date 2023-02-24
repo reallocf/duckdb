@@ -77,12 +77,6 @@ void DataChunk::Reference(DataChunk &chunk) {
 	for (idx_t i = 0; i < chunk.ColumnCount(); i++) {
 		data[i].Reference(chunk.data[i]);
 	}
-	lineage_agg_data = move(chunk.lineage_agg_data); // TODO: is moving right?
-	outer_agg_idx = chunk.outer_agg_idx;
-	inner_agg_idx = chunk.inner_agg_idx;
-	chunk.lineage_agg_data = vector<shared_ptr<vector<SourceAndMaybeData>>>();
-	chunk.outer_agg_idx = 0;
-	chunk.inner_agg_idx = 0;
 }
 
 void DataChunk::Move(DataChunk &chunk) {

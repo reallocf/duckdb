@@ -174,11 +174,21 @@ void PhysicalIndexJoin::Output(ExecutionContext &context, DataChunk &chunk, Phys
 			}
 		}
 
+		bool was_set = state->child_chunk.lineage_agg_data.empty();
 		opLineage->AccessIndex({state->child_chunk, child_ptrs, join_chunk, state->cached_values_arr, state->cached_child_ptrs_arr, state->overflow_count});
+		bool is_set = state->child_chunk.lineage_agg_data.empty();
 
 		// 2. Set PARENT'S child_ptrs so that it can pass it to AccessIndex
 		state->child_ptrs = child_ptrs;
 		chunk.Reference(state->child_chunk); // TODO should this be a chunk.Move()?
+		if (!was_set && is_set) {
+			chunk.lineage_agg_data = move(state->child_chunk.lineage_agg_data); // TODO: is moving right?
+			chunk.outer_agg_idx = state->child_chunk.outer_agg_idx;
+			chunk.inner_agg_idx = state->child_chunk.inner_agg_idx;
+			state->child_chunk.lineage_agg_data = vector<shared_ptr<vector<SourceAndMaybeData>>>();
+			state->child_chunk.outer_agg_idx = 0;
+			state->child_chunk.inner_agg_idx = 0;
+		}
 		state->result_size = state->child_chunk.size();
 		state->lhs_idx += state->child_chunk.size();
 		if (join_chunk.size() > 0) {
