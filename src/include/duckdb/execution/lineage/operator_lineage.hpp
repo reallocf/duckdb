@@ -68,9 +68,31 @@ public:
 	shared_ptr<LineageDataWithOffset> GetMyLatest();
 	shared_ptr<LineageDataWithOffset> GetChildLatest(idx_t lineage_idx);
 	idx_t GetThisOffset(idx_t lineage_idx);
-	SimpleAggQueryStruct RecurseForSimpleAgg(const shared_ptr<OperatorLineage>& child);
+	shared_ptr<vector<LineageDataWithOffset>> RecurseForSimpleAgg(const shared_ptr<OperatorLineage>& child);
 
 	void AccessIndex(LineageIndexStruct val);
+
+	vector<shared_ptr<LineageDataWithOffset>> LookupChunksFromGlobalIndex(DataChunk &chunk, idx_t lineage_idx);
+	void ScanLineageFunc(idx_t source, const shared_ptr<LineageDataWithOffset> &lineage_data,
+	                     vector<shared_ptr<idx_t>> idxs, LineageIndexStruct key);
+	void FilterLimitLineageFunc(idx_t source, const shared_ptr<LineageDataWithOffset> &lineage_data,
+	                            vector<shared_ptr<idx_t>> idxs, LineageIndexStruct key);
+	void HashJoinLineageFunc(idx_t source, const shared_ptr<LineageDataWithOffset>& lineage_data,
+	                         vector<shared_ptr<idx_t>> idxs, LineageIndexStruct key);
+	void HashAggLineageFunc(idx_t source, const shared_ptr<LineageDataWithOffset> &lineage_data,
+	                        vector<shared_ptr<idx_t>> idxs, LineageIndexStruct key);
+	void PerfectHashAggLineageFunc(idx_t source, const shared_ptr<LineageDataWithOffset> &lineage_data,
+	                               vector<shared_ptr<idx_t>> idxs, LineageIndexStruct key);
+	void BlockwiseIndexNLPiecewiseJoinsLineageFunc(idx_t source, const shared_ptr<LineageDataWithOffset>& lineage_data,
+	                                               vector<shared_ptr<idx_t>> idxs, LineageIndexStruct key);
+	void CrossProductLineageFunc(idx_t source, const shared_ptr<LineageDataWithOffset> &lineage_data,
+	                          vector<shared_ptr<idx_t>> idxs, LineageIndexStruct key);
+	void OrderByLineageFunc(idx_t source, const shared_ptr<LineageDataWithOffset> &lineage_data,
+	                        vector<shared_ptr<idx_t>> idxs, LineageIndexStruct key);
+
+	void AggIterate(LineageIndexStruct key, vector<shared_ptr<idx_t>> idxs);
+	void NormalIterate(LineageIndexStruct key, vector<shared_ptr<idx_t>> idxs, idx_t lineage_idx);
+	void SimpleAggIterate(LineageIndexStruct key, vector<shared_ptr<idx_t>> idxs);
 
 public:
 	idx_t opid;
@@ -78,28 +100,33 @@ public:
 	shared_ptr<PipelineLineage> pipeline_lineage;
 	// data[0] used by all ops; data[1] used by pipeline breakers
 	// Lineage data in here!
-	std::vector<LineageDataWithOffset> data[3];
+	shared_ptr<vector<LineageDataWithOffset>> data[3] = {
+	    make_shared<vector<LineageDataWithOffset>>(),
+	    make_shared<vector<LineageDataWithOffset>>(),
+	    make_shared<vector<LineageDataWithOffset>>()
+	};
 	PhysicalOperatorType type;
 	shared_ptr<LineageNested> cached_internal_lineage = nullptr;
-	std::vector<shared_ptr<OperatorLineage>> children;
+	vector<shared_ptr<OperatorLineage>> children;
 	// final lineage indexing data-structures
 	// hash_chunk_count: maintain count of data that belong to previous ranges
-	vector<idx_t> hash_chunk_count;
+	unique_ptr<vector<idx_t>> hash_chunk_count = make_unique<vector<idx_t>>();
 	// hm_range: maintains the existing ranges in hash join build side
-	std::vector<std::pair<idx_t, idx_t>> hm_range;
+	unique_ptr<vector<std::pair<idx_t, idx_t>>> hm_range = make_unique<vector<std::pair<idx_t, idx_t>>>();
 	// offset: difference between two consecutive values with a range
 	uint64_t offset = 0;
 	idx_t start_base = 0;
 	idx_t last_base = 0;
 
 	// Index for hash aggregate
-    std::unordered_map<idx_t, shared_ptr<vector<SourceAndMaybeData>>> hash_map_agg;
+    unique_ptr<unordered_map<idx_t, shared_ptr<vector<SourceAndMaybeData>>>> hash_map_agg =
+	    make_unique<unordered_map<idx_t, shared_ptr<vector<SourceAndMaybeData>>>>();
     // index: used to index selection vectors
     //        it stores the size of SV from each chunk
     //        which helps in locating the one needed
     //        using binary-search.
     // Index for when we need to identify the chunk from a global offset
-    vector<idx_t> index;
+    unique_ptr<vector<idx_t>> index = make_unique<vector<idx_t>>();
     bool should_index;
 };
 
@@ -110,11 +137,6 @@ struct LineageProcessStruct {
 	idx_t finished_idx = 0;
 	idx_t data_idx = 0;
 	bool still_processing;
-};
-
-struct SimpleAggQueryStruct {
-	shared_ptr<OperatorLineage> materialized_child_op;
-	vector<LineageDataWithOffset> child_lineage_data_vector;
 };
 
 struct LineageIndexStruct {

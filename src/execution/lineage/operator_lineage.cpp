@@ -8,7 +8,9 @@
 namespace duckdb {
 
 void OperatorLineage::Capture(const shared_ptr<LineageData>& datum, idx_t lineage_idx, int thread_id) {
-	if (!trace_lineage || datum->Count() == 0) return;
+	if (!trace_lineage || datum->Count() == 0) {
+		return;
+	}
 	// Prepare this vector's chunk to be passed on to future operators
 	pipeline_lineage->AdjustChunkOffsets(datum->Count(), lineage_idx);
 
@@ -19,9 +21,9 @@ void OperatorLineage::Capture(const shared_ptr<LineageData>& datum, idx_t lineag
 	idx_t child_offset = pipeline_lineage->GetChildChunkOffset(lineage_idx);
 	idx_t this_offset = GetThisOffset(lineage_idx);
 	if (lineage_idx == LINEAGE_COMBINE) {
-		data[lineage_idx].push_back(LineageDataWithOffset{datum, thread_id, this_offset});
+		data[lineage_idx]->push_back(LineageDataWithOffset{datum, thread_id, this_offset});
 	} else {
-		data[lineage_idx].push_back(LineageDataWithOffset{datum, (int)child_offset, this_offset});
+		data[lineage_idx]->push_back(LineageDataWithOffset{datum, (int)child_offset, this_offset});
 	}
 
 	// Add to index
@@ -32,8 +34,8 @@ void OperatorLineage::Capture(const shared_ptr<LineageData>& datum, idx_t lineag
 		case PhysicalOperatorType::LIMIT:
 		case PhysicalOperatorType::TABLE_SCAN: {
 			// Binary Search index
-			idx_t index_last = index.empty() ? 0 : index[index.size() - 1];
-			index.push_back(index_last + datum->Count());
+			idx_t index_last = index->empty() ? 0 : (*index)[index->size() - 1];
+			index->push_back(index_last + datum->Count());
 			break;
 		}
 		case PhysicalOperatorType::BLOCKWISE_NL_JOIN:
@@ -43,8 +45,8 @@ void OperatorLineage::Capture(const shared_ptr<LineageData>& datum, idx_t lineag
 		case PhysicalOperatorType::NESTED_LOOP_JOIN: {
 			if (lineage_idx == LINEAGE_PROBE) {
 				// Binary Search index
-				idx_t index_last = index.empty() ? 0 : index[index.size() - 1];
-				index.push_back(index_last + datum->Count());
+				idx_t index_last = index->empty() ? 0 : (*index)[index->size() - 1];
+				index->push_back(index_last + datum->Count());
 			}
 			break;
 		}
@@ -52,8 +54,8 @@ void OperatorLineage::Capture(const shared_ptr<LineageData>& datum, idx_t lineag
 		case PhysicalOperatorType::PERFECT_HASH_GROUP_BY: {
 			if (lineage_idx == LINEAGE_SOURCE) {
 				// Binary Search index
-				idx_t index_last = index.empty() ? 0 : index[index.size() - 1];
-				index.push_back(index_last + datum->Count());
+				idx_t index_last = index->empty() ? 0 : (*index)[index->size() - 1];
+				index->push_back(index_last + datum->Count());
 			}
 			break;
 		}
@@ -67,7 +69,7 @@ void OperatorLineage::Capture(const shared_ptr<LineageData>& datum, idx_t lineag
 	if (type == PhysicalOperatorType::HASH_JOIN && lineage_idx == LINEAGE_BUILD) {
 		// build hash table with range -> acc
 		// if x in range -> then use range.start and adjust the value using acc
-		LineageDataWithOffset this_data = data[LINEAGE_BUILD][data[LINEAGE_BUILD].size() - 1];
+		LineageDataWithOffset this_data = (*data[LINEAGE_BUILD])[data[LINEAGE_BUILD]->size() - 1];
 		auto payload = (uint64_t*)this_data.data->Process(0);
 		idx_t count_so_far = this_data.this_offset;
 		idx_t res_count = this_data.data->Count();
@@ -79,33 +81,33 @@ void OperatorLineage::Capture(const shared_ptr<LineageData>& datum, idx_t lineag
 		if (start_base == 0) {
 			start_base = payload[0];
 			last_base = payload[res_count - 1];
-			hm_range.emplace_back(start_base, last_base);
-			hash_chunk_count.push_back(0);
+			hm_range->emplace_back(start_base, last_base);
+			hash_chunk_count->push_back(0);
 		} else {
 			if (offset == 0) {
 				offset = payload[res_count - 1] - start_base;
 			}
 			auto diff = (payload[res_count - 1] - start_base) / offset;
-			if (diff + 1 !=  count_so_far + res_count - hash_chunk_count.back()) {
+			if (diff + 1 !=  count_so_far + res_count - hash_chunk_count->back()) {
 				// update the range and log the old one
 				// range -> count
 				// if value fall in this range, then remove the start / offset
 				for (idx_t j = 0; j < res_count; ++j) {
 					auto f = ((payload[j] - start_base) / offset);
-					auto s = count_so_far + j - hash_chunk_count.back();
+					auto s = count_so_far + j - hash_chunk_count->back();
 					if ( f !=  s) {
 						if (j > 1) {
-							hm_range.back().second = payload[j - 1]; // the previous one
+							hm_range->back().second = payload[j - 1]; // the previous one
 						}
-						hash_chunk_count.push_back(count_so_far + j);
+						hash_chunk_count->push_back(count_so_far + j);
 						start_base = payload[j];
 						last_base = payload[res_count - 1];
-						hm_range.emplace_back(start_base, last_base);
+						hm_range->emplace_back(start_base, last_base);
 						break;
 					}
 				}
 			} else {
-				hm_range.back().second = payload[res_count - 1];
+				hm_range->back().second = payload[res_count - 1];
 			}
 		}
 	}
@@ -126,7 +128,7 @@ void OperatorLineage::MarkChunkReturned() {
 
 LineageProcessStruct OperatorLineage::Process(const vector<column_t> column_ids, const vector<LogicalType>& types, idx_t count_so_far,
                                               DataChunk &insert_chunk, idx_t size_so_far, int thread_id, idx_t data_idx, idx_t finished_idx) {
-	if (data[finished_idx].size() > data_idx) {
+	if (data[finished_idx]->size() > data_idx) {
 		Vector thread_id_vec(Value::INTEGER(thread_id));
 		switch (this->type) {
 		case PhysicalOperatorType::PIECEWISE_MERGE_JOIN:
@@ -134,7 +136,7 @@ LineageProcessStruct OperatorLineage::Process(const vector<column_t> column_ids,
 			// Index Join
 			// schema: [INTEGER lhs_index, BIGINT rhs_index, INTEGER out_index]
 
-			LineageDataWithOffset this_data = data[LINEAGE_PROBE][data_idx];
+			LineageDataWithOffset this_data = (*data[LINEAGE_PROBE])[data_idx];
 			idx_t res_count = this_data.data->Count();
 
 
@@ -160,7 +162,7 @@ LineageProcessStruct OperatorLineage::Process(const vector<column_t> column_ids,
 			// Index Join
 			// schema: [INTEGER lhs_index, BIGINT rhs_index, INTEGER out_index]
 
-			LineageDataWithOffset this_data = data[0][data_idx];
+			LineageDataWithOffset this_data = (*data[LINEAGE_UNARY])[data_idx];
 			idx_t res_count = this_data.data->Count();
 
 			Vector lhs_payload(types[0], this_data.data->Process(0)); // TODO is this right?
@@ -176,7 +178,7 @@ LineageProcessStruct OperatorLineage::Process(const vector<column_t> column_ids,
 			break;
 		}
 		case PhysicalOperatorType::CROSS_PRODUCT: {
-			LineageDataWithOffset this_data = data[LINEAGE_PROBE][data_idx];
+			LineageDataWithOffset this_data = (*data[LINEAGE_PROBE])[data_idx];
 			idx_t res_count = this_data.data->Count();
 			// constant value
 			Vector rhs_payload(Value::Value::INTEGER(((int*)this_data.data->Process(0))[0]));
@@ -204,7 +206,7 @@ LineageProcessStruct OperatorLineage::Process(const vector<column_t> column_ids,
 			break;
 		}
 		case PhysicalOperatorType::BLOCKWISE_NL_JOIN: {
-			LineageDataWithOffset this_data = data[LINEAGE_PROBE][data_idx];
+			LineageDataWithOffset this_data = (*data[LINEAGE_PROBE])[data_idx];
 			idx_t res_count = this_data.data->Count();
 
 			// constant value
@@ -226,7 +228,7 @@ LineageProcessStruct OperatorLineage::Process(const vector<column_t> column_ids,
 			// Seq Scan, Filter, Limit, etc...
 			// schema: [INTEGER in_index, INTEGER out_index]
 
-			LineageDataWithOffset this_data = data[LINEAGE_UNARY][data_idx];
+			LineageDataWithOffset this_data = (*data[LINEAGE_UNARY])[data_idx];
 			idx_t res_count = this_data.data->Count();
 
 			Vector in_index(types[1], this_data.data->Process(this_data.child_offset));
@@ -258,8 +260,8 @@ LineageProcessStruct OperatorLineage::Process(const vector<column_t> column_ids,
 			if (finished_idx == LINEAGE_BUILD) {
 				// schema1: [INTEGER in_index, INTEGER out_address] TODO remove this one now that no chunking?
 
-				LineageDataWithOffset this_data = data[LINEAGE_BUILD][data_idx];
-				idx_t res_count = data[0][data_idx].data->Count();
+				LineageDataWithOffset this_data = (*data[LINEAGE_BUILD])[data_idx];
+				idx_t res_count = (*data[LINEAGE_BUILD])[data_idx].data->Count();
 
 				Vector payload(types[1], this_data.data->Process(0));
 				insert_chunk.SetCardinality(res_count);
@@ -286,7 +288,7 @@ LineageProcessStruct OperatorLineage::Process(const vector<column_t> column_ids,
 				// when introducing LineageNested
 				if (cached_internal_lineage == nullptr) {
 					cached_internal_lineage = make_shared<LineageNested>(
-					    dynamic_cast<LineageNested &>(*data[LINEAGE_PROBE][data_idx].data)
+					    dynamic_cast<LineageNested &>(*(*data[LINEAGE_PROBE])[data_idx].data)
 					);
 				}
 
@@ -345,13 +347,13 @@ LineageProcessStruct OperatorLineage::Process(const vector<column_t> column_ids,
 		}
 		case PhysicalOperatorType::ORDER_BY: {
 			// schema: [INTEGER in_index, INTEGER out_index]
-			LineageDataWithOffset this_data = data[LINEAGE_UNARY][data_idx];
+			LineageDataWithOffset this_data = (*data[LINEAGE_UNARY])[data_idx];
 			idx_t res_count = this_data.data->Count();
 
 			if (res_count > STANDARD_VECTOR_SIZE) {
 				D_ASSERT(data_idx == 0);
-				data[LINEAGE_UNARY] = dynamic_cast<LineageSelVec *>(this_data.data.get())->Divide();
-				this_data = data[LINEAGE_UNARY][0];
+				*data[LINEAGE_UNARY] = dynamic_cast<LineageSelVec *>(this_data.data.get())->Divide();
+				this_data = (*data[LINEAGE_UNARY])[0];
 				res_count = this_data.data->Count();
 			}
 
@@ -382,7 +384,7 @@ LineageProcessStruct OperatorLineage::Process(const vector<column_t> column_ids,
 			// Hash Aggregate / Perfect Hash Aggregate
 			// schema for both: [INTEGER in_index, INTEGER out_index]
 			if (finished_idx == LINEAGE_SINK) {
-				LineageDataWithOffset this_data = data[LINEAGE_SINK][data_idx];
+				LineageDataWithOffset this_data = (*data[LINEAGE_SINK])[data_idx];
 				idx_t res_count = this_data.data->Count();
 
 				Vector payload(types[1], this_data.data->Process(0));
@@ -404,7 +406,7 @@ LineageProcessStruct OperatorLineage::Process(const vector<column_t> column_ids,
 				count_so_far += res_count;
 				size_so_far += this_data.data->Size();
 			} else if (finished_idx == LINEAGE_COMBINE) {
-				LineageDataWithOffset this_data = data[LINEAGE_COMBINE][data_idx];
+				LineageDataWithOffset this_data = (*data[LINEAGE_COMBINE])[data_idx];
 				idx_t res_count = this_data.data->Count();
 
 				Vector source_payload(types[0], this_data.data->Process(0));
@@ -431,7 +433,7 @@ LineageProcessStruct OperatorLineage::Process(const vector<column_t> column_ids,
 				size_so_far += this_data.data->Size();
 			} else {
 				// TODO: can we remove this one for Hash Aggregate?
-				LineageDataWithOffset this_data = data[LINEAGE_SOURCE][data_idx];
+				LineageDataWithOffset this_data = (*data[LINEAGE_SOURCE])[data_idx];
 				idx_t res_count = this_data.data->Count();
 
 				Vector payload(types[0], this_data.data->Process(0));
@@ -460,7 +462,7 @@ LineageProcessStruct OperatorLineage::Process(const vector<column_t> column_ids,
 		}
 	}
 	data_idx++;
-	return LineageProcessStruct{ count_so_far, size_so_far, data_idx, finished_idx, data[finished_idx].size() > data_idx };
+	return LineageProcessStruct{ count_so_far, size_so_far, data_idx, finished_idx, data[finished_idx]->size() > data_idx };
 }
 
 void OperatorLineage::SetChunkId(idx_t idx) {
@@ -469,10 +471,10 @@ void OperatorLineage::SetChunkId(idx_t idx) {
 
 idx_t OperatorLineage::Size() {
 	idx_t size = 0;
-	for (const auto& lineage_data : data[0]) {
+	for (const auto& lineage_data : *data[0]) {
 		size += lineage_data.data->Size();
 	}
-	for (const auto& lineage_data : data[1]) {
+	for (const auto& lineage_data : *data[1]) {
 		size += lineage_data.data->Size();
 	}
 	return size;
@@ -484,8 +486,8 @@ shared_ptr<LineageDataWithOffset> OperatorLineage::GetMyLatest() {
 	case PhysicalOperatorType::DELIM_SCAN:
 	case PhysicalOperatorType::DUMMY_SCAN:
 	case PhysicalOperatorType::TABLE_SCAN: {
-		if (!data[0].empty()) {
-			return make_shared<LineageDataWithOffset>(data[0][data[0].size() - 1]);
+		if (!data[LINEAGE_UNARY]->empty()) {
+			return make_shared<LineageDataWithOffset>((*data[LINEAGE_UNARY])[data[LINEAGE_UNARY]->size() - 1]);
 		} else {
 			return nullptr;
 		}
@@ -497,23 +499,23 @@ shared_ptr<LineageDataWithOffset> OperatorLineage::GetMyLatest() {
 	case PhysicalOperatorType::FILTER:
 	case PhysicalOperatorType::LIMIT:
 	case PhysicalOperatorType::ORDER_BY: {
-		if (!data[LINEAGE_UNARY].empty()) {
-			return make_shared<LineageDataWithOffset>(data[LINEAGE_UNARY][data[LINEAGE_UNARY].size() - 1]);
+		if (!data[LINEAGE_UNARY]->empty()) {
+			return make_shared<LineageDataWithOffset>((*data[LINEAGE_UNARY])[data[LINEAGE_UNARY]->size() - 1]);
 		}
 		return nullptr;
 	}
 	case PhysicalOperatorType::HASH_GROUP_BY:
 	case PhysicalOperatorType::PERFECT_HASH_GROUP_BY:
 	case PhysicalOperatorType::WINDOW: {
-		if (!data[LINEAGE_SOURCE].empty()) {
-			return make_shared<LineageDataWithOffset>(data[LINEAGE_SOURCE][data[LINEAGE_SOURCE].size() - 1]);
+		if (!data[LINEAGE_SOURCE]->empty()) {
+			return make_shared<LineageDataWithOffset>((*data[LINEAGE_SOURCE])[data[LINEAGE_SOURCE]->size() - 1]);
 		}
 		return nullptr;
 	}
 	case PhysicalOperatorType::CROSS_PRODUCT: {
 		// Only the right lineage is ever captured TODO is this what we should do?
-		if (!data[LINEAGE_PROBE].empty()) {
-			return make_shared<LineageDataWithOffset>(data[LINEAGE_PROBE][data[LINEAGE_PROBE].size() - 1]);
+		if (!data[LINEAGE_PROBE]->empty()) {
+			return make_shared<LineageDataWithOffset>((*data[LINEAGE_PROBE])[data[LINEAGE_PROBE]->size() - 1]);
 		}
 		return nullptr;
 	}
@@ -521,20 +523,20 @@ shared_ptr<LineageDataWithOffset> OperatorLineage::GetMyLatest() {
 	case PhysicalOperatorType::BLOCKWISE_NL_JOIN:
 	case PhysicalOperatorType::INDEX_JOIN: {
 		// 0 is the probe side for these joins
-		if (!data[0].empty()) {
-			return make_shared<LineageDataWithOffset>(data[0][data[0].size() - 1]);
+		if (!data[0]->empty()) {
+			return make_shared<LineageDataWithOffset>((*data[0])[data[0]->size() - 1]);
 		} else {
 			return nullptr;
 		}
 	}
 	case PhysicalOperatorType::PIECEWISE_MERGE_JOIN: {
 		// 1 is the probe side for this join
-		return make_shared<LineageDataWithOffset>(data[1][data[1].size() - 1]);
+		return make_shared<LineageDataWithOffset>((*data[1])[data[1]->size() - 1]);
 	}
 	case PhysicalOperatorType::HASH_JOIN: {
 		// When being asked for latest, we'll always want to refer to the probe data
-		if (!data[LINEAGE_PROBE].empty()) {
-			return make_shared<LineageDataWithOffset>(data[LINEAGE_PROBE][data[LINEAGE_PROBE].size() - 1]);
+		if (!data[LINEAGE_PROBE]->empty()) {
+			return make_shared<LineageDataWithOffset>((*data[LINEAGE_PROBE])[data[LINEAGE_PROBE]->size() - 1]);
 		} else {
 			// Pass through child for Mark Hash Join TODO is this right?
 			return children[LINEAGE_PROBE]->GetMyLatest();
@@ -613,8 +615,8 @@ shared_ptr<LineageDataWithOffset> OperatorLineage::GetChildLatest(idx_t lineage_
 }
 
 idx_t OperatorLineage::GetThisOffset(idx_t lineage_idx) {
-	idx_t last_data_idx = data[lineage_idx].size() - 1;
-	return data[lineage_idx].empty() ? 0 : data[lineage_idx][last_data_idx].this_offset + data[lineage_idx][last_data_idx].data->Count();
+	idx_t last_data_idx = data[lineage_idx]->size() - 1;
+	return data[lineage_idx]->empty() ? 0 : (*data[lineage_idx])[last_data_idx].this_offset + (*data[lineage_idx])[last_data_idx].data->Count();
 }
 
 LineageProcessStruct::LineageProcessStruct(idx_t i, idx_t i1, idx_t i2, idx_t i3, bool b) {

@@ -30,7 +30,7 @@ shared_ptr<PipelineLineage> LineageManager::GetPipelineLineageNodeForOp(Physical
 	}
 	case PhysicalOperatorType::LIMIT:
 	case PhysicalOperatorType::FILTER: {
-		return make_shared<PipelineSingleLineage>(op->children[0]->lineage_op[thd_id]->GetPipelineLineage());
+		return make_shared<PipelineSingleLineage>(op->children[0]->lineage_op->at(thd_id)->GetPipelineLineage());
 	}
 	case PhysicalOperatorType::SIMPLE_AGGREGATE:
 	case PhysicalOperatorType::PERFECT_HASH_GROUP_BY:
@@ -45,14 +45,14 @@ shared_ptr<PipelineLineage> LineageManager::GetPipelineLineageNodeForOp(Physical
 	case PhysicalOperatorType::PIECEWISE_MERGE_JOIN:
 	case PhysicalOperatorType::INDEX_JOIN:
 	case PhysicalOperatorType::HASH_JOIN: {
-		return make_shared<PipelineJoinLineage>(op->children[0]->lineage_op[thd_id]->GetPipelineLineage());
+		return make_shared<PipelineJoinLineage>(op->children[0]->lineage_op->at(thd_id)->GetPipelineLineage());
 	}
 	case PhysicalOperatorType::DELIM_JOIN: {
-		return make_shared<PipelineJoinLineage>(op->children[0]->lineage_op[thd_id]->GetPipelineLineage());
+		return make_shared<PipelineJoinLineage>(op->children[0]->lineage_op->at(thd_id)->GetPipelineLineage());
 	}
 	case PhysicalOperatorType::PROJECTION: {
 		// Pass through to last operator
-		return op->children[0]->lineage_op[thd_id]->GetPipelineLineage();
+		return op->children[0]->lineage_op->at(thd_id)->GetPipelineLineage();
 	}
 	default:
 		// Lineage unimplemented! TODO these :)
@@ -80,7 +80,7 @@ shared_ptr<OperatorLineage> GetThisLineageOp(PhysicalOperator *op, int thd_id) {
 	case PhysicalOperatorType::PIECEWISE_MERGE_JOIN:
 	case PhysicalOperatorType::INDEX_JOIN:
 	case PhysicalOperatorType::DELIM_JOIN: {
-		return op->lineage_op[thd_id];
+		return op->lineage_op->at(thd_id);
 	}
 	case PhysicalOperatorType::HASH_JOIN: {
 		JoinType join_type = dynamic_cast<PhysicalJoin *>(op)->join_type;
@@ -88,7 +88,7 @@ shared_ptr<OperatorLineage> GetThisLineageOp(PhysicalOperator *op, int thd_id) {
 			// Pass through Mark Joins
 			return GetThisLineageOp(op->children[0].get(), thd_id);
 		} else {
-			return op->lineage_op[thd_id];
+			return op->lineage_op->at(thd_id);
 		}
 	}
 	case PhysicalOperatorType::PROJECTION: {
@@ -168,7 +168,7 @@ void LineageManager::CreateOperatorLineage(PhysicalOperator *op, int thd_id, boo
 		auto distinct = (PhysicalOperator *)dynamic_cast<PhysicalDelimJoin *>(op)->distinct.get();
 		CreateOperatorLineage( distinct, thd_id, trace_lineage, true);
 		for (idx_t i = 0; i < dynamic_cast<PhysicalDelimJoin *>(op)->delim_scans.size(); ++i) {
-			dynamic_cast<PhysicalDelimJoin *>(op)->delim_scans[i]->lineage_op  = distinct->lineage_op;
+			dynamic_cast<PhysicalDelimJoin *>(op)->delim_scans[i]->lineage_op = distinct->lineage_op;
 		}
 		CreateOperatorLineage( dynamic_cast<PhysicalDelimJoin *>(op)->join.get(), thd_id, trace_lineage, true);
 	}
@@ -186,14 +186,14 @@ void LineageManager::CreateOperatorLineage(PhysicalOperator *op, int thd_id, boo
 		    || (op->type == PhysicalOperatorType::PROJECTION && should_index); // Pass through should_index on projection
 		CreateOperatorLineage(op->children[i].get(), thd_id, trace_lineage, child_should_index);
 	}
-	op->lineage_op[thd_id] = make_shared<OperatorLineage>(
+	op->lineage_op->at(thd_id) = make_shared<OperatorLineage>(
 	    GetPipelineLineageNodeForOp(op, thd_id),
 	    GetChildrenForOp(op, thd_id),
 	    op->type,
 	    op->id,
 	    should_index
 	);
-	op->lineage_op[thd_id]->trace_lineage = trace_lineage;
+	op->lineage_op->at(thd_id)->trace_lineage = trace_lineage;
 }
 
 // Iterate through in Postorder to ensure that children have PipelineLineageNodes set before parents
@@ -395,7 +395,7 @@ idx_t LineageManager::CreateLineageTables(PhysicalOperator *op) {
 
 
 
-		table->opLineage = op->lineage_op.at(-1);
+		table->opLineage = op->lineage_op->at(-1);
 
 		/*// Persist Data
 		DataChunk insert_chunk;

@@ -48,7 +48,7 @@ void PhysicalFilter::GetChunkInternal(ExecutionContext &context, DataChunk &chun
 
 #ifdef LINEAGE
 	// Capture lineage regardless of if anything was filtered out or not - TODO optimize by removing if nothing filtered?
-	lineage_op.at(context.task.thread_id)->Capture(make_shared<LineageSelVec>(sel, result_count), LINEAGE_UNARY);
+	lineage_op->at(context.task.thread_id)->Capture(make_shared<LineageSelVec>(sel, result_count), LINEAGE_UNARY);
 #endif
 
 	if (result_count == initial_count) {

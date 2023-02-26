@@ -31,7 +31,7 @@ public:
 
 #ifdef LINEAGE
   void SetCurrentLineageOp(shared_ptr<OperatorLineage> lop) {
-    current_lop = lop;
+    current_lop = move(lop);
   }
 
   shared_ptr<OperatorLineage> GetCurrentLineageOp() {

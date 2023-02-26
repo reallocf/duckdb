@@ -199,7 +199,7 @@ void PhysicalHashAggregate::Sink(ExecutionContext &context, GlobalOperatorState 
 		gstate.total_groups += gstate.finalized_hts[0]->AddChunk(group_chunk, aggregate_input_chunk);
 #ifdef LINEAGE
 		// TODO: don't use gstate
-		lineage_op.at(context.task.thread_id)->Capture(move(gstate.finalized_hts[0]->lineage_data), LINEAGE_SINK);
+		lineage_op->at(context.task.thread_id)->Capture(move(gstate.finalized_hts[0]->lineage_data), LINEAGE_SINK);
 #endif
 		return;
 	}
@@ -223,7 +223,7 @@ void PhysicalHashAggregate::Sink(ExecutionContext &context, GlobalOperatorState 
 	                         gstate.total_groups > radix_limit && gstate.partition_info.n_partitions > 1);
 #ifdef LINEAGE
 	if (!llstate.ht->IsPartitioned()) {
-		lineage_op.at(context.task.thread_id)->Capture(move(llstate.ht->unpartitioned_hts.back()->lineage_data), LINEAGE_SINK);
+		lineage_op->at(context.task.thread_id)->Capture(move(llstate.ht->unpartitioned_hts.back()->lineage_data), LINEAGE_SINK);
 	} else {
 		// handle radix_partitioned_hts case
 		// persist: sel_vectors[partition]  radix_partitioned_hts[partition]->lineage_data
@@ -399,7 +399,7 @@ bool PhysicalHashAggregate::FinalizeInternal(ClientContext &context, unique_ptr<
 				gstate.finalized_hts[0]->Combine(*unpartitioned_ht);
 #ifdef LINEAGE
 				for (idx_t i=0; gstate.finalized_hts[0]->combine_lineage_data.size(); ++i) {
-				  lineage_op.begin()->second->Capture(move(gstate.finalized_hts[0]->combine_lineage_data[i]), LINEAGE_COMBINE, pht->thread_id);
+				  lineage_op->begin()->second->Capture(move(gstate.finalized_hts[0]->combine_lineage_data[i]), LINEAGE_COMBINE, pht->thread_id);
 				  gstate.finalized_hts[0]->combine_lineage_data.clear();
 				}
 #endif
@@ -420,7 +420,7 @@ void PhysicalHashAggregate::GetChunkInternal(ExecutionContext &context, DataChun
 	state.scan_chunk.Reset();
 
 #ifdef LINEAGE
-	context.SetCurrentLineageOp(lineage_op.at(context.task.thread_id));
+	context.SetCurrentLineageOp(lineage_op->at(context.task.thread_id));
 #endif
 
 	// special case hack to sort out aggregating from empty intermediates

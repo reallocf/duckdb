@@ -46,9 +46,13 @@ public:
 	vector<Vector> data;
 
 	//! Lineage Hack
-	vector<shared_ptr<vector<SourceAndMaybeData>>> lineage_agg_data;
+	unique_ptr<vector<shared_ptr<vector<SourceAndMaybeData>>>> lineage_agg_data;
 	idx_t inner_agg_idx = 0;
 	idx_t outer_agg_idx = 0;
+	unique_ptr<vector<shared_ptr<vector<SourceAndMaybeData>>>> next_lineage_agg_data;
+	shared_ptr<vector<LineageDataWithOffset>> lineage_simple_agg_data;
+	idx_t simple_agg_idx = 0;
+	shared_ptr<vector<LineageDataWithOffset>> next_lineage_simple_agg_data;
 
 public:
 	DUCKDB_API idx_t size() const {

@@ -34,7 +34,7 @@ class LineageManager {
 public:
 	explicit LineageManager(ClientContext &context) : context(context) {};
 	vector<vector<ColumnDefinition>> GetTableColumnTypes(PhysicalOperator *op);
-	void PostProcess(PhysicalOperator *op, bool should_index);
+	void PostProcess(PhysicalOperator *op);
 	void InitOperatorPlan(PhysicalOperator *op, bool trace_lineage);
 	idx_t CreateLineageTables(PhysicalOperator *op);
 	void CreateQueryTable();

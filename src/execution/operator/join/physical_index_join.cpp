@@ -149,7 +149,7 @@ void PhysicalIndexJoin::Output(ExecutionContext &context, DataChunk &chunk, Phys
 #ifdef LINEAGE
 		auto lhs_lineage = make_unique<LineageSelVec>(move(sel), output_sel_idx);
 		auto rhs_lineage = make_unique<LineageDataRowVector>(fetch_rows, output_sel_idx);
-		lineage_op.at(context.task.thread_id)
+		lineage_op->at(context.task.thread_id)
 		    ->Capture(make_shared<LineageBinary>(move(lhs_lineage), move(rhs_lineage)), LINEAGE_UNARY);
 #endif
 
@@ -174,22 +174,20 @@ void PhysicalIndexJoin::Output(ExecutionContext &context, DataChunk &chunk, Phys
 			}
 		}
 
-		bool was_set = !state->child_chunk.lineage_agg_data.empty();
 		opLineage->AccessIndex({state->child_chunk, child_ptrs, join_chunk, state->cached_values_arr, state->cached_child_ptrs_arr, state->overflow_count});
-		bool is_set = !state->child_chunk.lineage_agg_data.empty();
 
 		// 2. Set PARENT'S child_ptrs so that it can pass it to AccessIndex
 		state->child_ptrs = child_ptrs;
 		chunk.Reference(state->child_chunk); // TODO should this be a chunk.Move()?
 //		std::cout << "Bar1 " << was_set << " " << is_set << std::endl;
-		if (!was_set && is_set) {
+		if (!state->child_chunk.next_lineage_agg_data->empty()) {
 //			std::cout << "Bar2" << std::endl;
-			chunk.lineage_agg_data = move(state->child_chunk.lineage_agg_data);
-			chunk.outer_agg_idx = state->child_chunk.outer_agg_idx;
-			chunk.inner_agg_idx = state->child_chunk.inner_agg_idx;
-			state->child_chunk.lineage_agg_data = vector<shared_ptr<vector<SourceAndMaybeData>>>();
-			state->child_chunk.outer_agg_idx = 0;
-			state->child_chunk.inner_agg_idx = 0;
+			chunk.lineage_agg_data = move(state->child_chunk.next_lineage_agg_data);
+			state->child_chunk.next_lineage_agg_data = make_unique<vector<shared_ptr<vector<SourceAndMaybeData>>>>();
+		}
+		if (!state->child_chunk.next_lineage_simple_agg_data->empty()) {
+			chunk.lineage_simple_agg_data = move(state->child_chunk.next_lineage_simple_agg_data);
+			state->child_chunk.next_lineage_simple_agg_data = make_unique<vector<LineageDataWithOffset>>();
 		}
 		state->result_size = state->child_chunk.size();
 		state->lhs_idx += state->child_chunk.size();
@@ -241,12 +239,17 @@ void PhysicalIndexJoin::GetChunkInternal(ExecutionContext &context, DataChunk &c
 	state->result_size = 0;
 	while (state->result_size == 0) {
 		// Fancy lineage cache management
-		if (state->child_chunk.lineage_agg_data.size() > state->child_chunk.outer_agg_idx) {
+		if (state->child_chunk.lineage_agg_data->size() > state->child_chunk.outer_agg_idx) {
+			Output(context, chunk, state_p);
+			return;
+		}
+		if (state->child_chunk.lineage_simple_agg_data->size() > state->child_chunk.simple_agg_idx) {
 			Output(context, chunk, state_p);
 			return;
 		}
 		// Return cached values if there are any
 		if (!state->cached_values_arr.empty()) {
+			throw std::logic_error("Shouldn't use this code path any more");
 			chunk.data[0].Reference(state->cached_values_arr[state->cached_values_idx]);
 			if (!state->cached_child_ptrs_arr.empty()) {
 				state->child_ptrs = state->cached_child_ptrs_arr[state->cached_values_idx];

@@ -70,7 +70,7 @@ public:
 	// ID of this operator within the physical plan
 	idx_t id;
 	//! Lineage captured for this operator
-	std::unordered_map<int, shared_ptr<OperatorLineage>> lineage_op;
+	shared_ptr<unordered_map<int, shared_ptr<OperatorLineage>>> lineage_op = make_shared<unordered_map<int, shared_ptr<OperatorLineage>>>();
 	bool trace_lineage;
 	bool delim_handled = false;
 #endif
