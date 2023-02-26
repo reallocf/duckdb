@@ -243,7 +243,7 @@ void PhysicalIndexJoin::GetChunkInternal(ExecutionContext &context, DataChunk &c
 			Output(context, chunk, state_p);
 			return;
 		}
-		if (state->child_chunk.lineage_simple_agg_data->size() > state->child_chunk.simple_agg_idx) {
+		if (state->child_chunk.lineage_simple_agg_data->size() > state->child_chunk.outer_simple_agg_idx) {
 			Output(context, chunk, state_p);
 			return;
 		}
