@@ -640,46 +640,47 @@ void OperatorLineage::NormalIterate(LineageIndexStruct key, vector<shared_ptr<id
 }
 
 void OperatorLineage::SimpleAggIterate(LineageIndexStruct key, vector<shared_ptr<idx_t>> idxs) {
-	std::cout << "Foo" << std::endl;
 	shared_ptr<idx_t> out_idx = idxs[0];
-	while (*out_idx < STANDARD_VECTOR_SIZE && key.chunk.simple_agg_idx < key.chunk.lineage_simple_agg_data->size()) {
-		std::cout << "Bar" << std::endl;
-		auto this_data = key.chunk.lineage_simple_agg_data->at(key.chunk.inner_agg_idx);
-		switch (this->type) {
-		case PhysicalOperatorType::TABLE_SCAN: {
-			std::cout << "Been" << std::endl;
-			ScanLineageFunc(*out_idx, make_shared<LineageDataWithOffset>(this_data), idxs, key);
-			std::cout << "Bop" << std::endl;
+	while (*out_idx < STANDARD_VECTOR_SIZE && key.chunk.outer_simple_agg_idx < key.chunk.lineage_simple_agg_data->size()) {
+		LineageDataWithOffset this_data = key.chunk.lineage_simple_agg_data->at(key.chunk.outer_simple_agg_idx);
+		while(*out_idx < STANDARD_VECTOR_SIZE && key.chunk.inner_simple_agg_idx < this_data.data->Count()) {
+			switch (this->type) {
+			case PhysicalOperatorType::TABLE_SCAN: {
+				ScanLineageFunc(key.chunk.inner_simple_agg_idx, make_shared<LineageDataWithOffset>(this_data), idxs, key);
+				break;
+			}
+			case PhysicalOperatorType::FILTER:
+			case PhysicalOperatorType::LIMIT: {
+				FilterLimitLineageFunc(key.chunk.inner_simple_agg_idx, make_shared<LineageDataWithOffset>(this_data), idxs, key);
+				break;
+			}
+			case PhysicalOperatorType::HASH_JOIN: {
+				HashJoinLineageFunc(key.chunk.inner_simple_agg_idx, make_shared<LineageDataWithOffset>(this_data), idxs, key);
+				break;
+			}
+			case PhysicalOperatorType::BLOCKWISE_NL_JOIN:
+			case PhysicalOperatorType::INDEX_JOIN:
+			case PhysicalOperatorType::NESTED_LOOP_JOIN:
+			case PhysicalOperatorType::PIECEWISE_MERGE_JOIN: {
+				BlockwiseIndexNLPiecewiseJoinsLineageFunc(key.chunk.inner_simple_agg_idx, make_shared<LineageDataWithOffset>(this_data), idxs, key);
+				break;
+			}
+			case PhysicalOperatorType::CROSS_PRODUCT: {
+				CrossProductLineageFunc(key.chunk.inner_simple_agg_idx, make_shared<LineageDataWithOffset>(this_data), idxs, key);
+				break;
+			}
+			default: {
+				throw std::logic_error("Unexpected op passed to SimpleAggIterate " + PhysicalOperatorToString(this->type));
+			}
+			}
+			key.chunk.inner_simple_agg_idx++;
+		}
+		if (key.chunk.inner_agg_idx < this_data.data->Count()) {
 			break;
 		}
-		case PhysicalOperatorType::FILTER:
-		case PhysicalOperatorType::LIMIT: {
-			FilterLimitLineageFunc(*out_idx, make_shared<LineageDataWithOffset>(this_data), idxs, key);
-			break;
-		}
-		case PhysicalOperatorType::HASH_JOIN: {
-			HashJoinLineageFunc(*out_idx, make_shared<LineageDataWithOffset>(this_data), idxs, key);
-			break;
-		}
-		case PhysicalOperatorType::BLOCKWISE_NL_JOIN:
-		case PhysicalOperatorType::INDEX_JOIN:
-		case PhysicalOperatorType::NESTED_LOOP_JOIN:
-		case PhysicalOperatorType::PIECEWISE_MERGE_JOIN: {
-			BlockwiseIndexNLPiecewiseJoinsLineageFunc(*out_idx, make_shared<LineageDataWithOffset>(this_data), idxs, key);
-			break;
-		}
-		case PhysicalOperatorType::CROSS_PRODUCT: {
-			CrossProductLineageFunc(*out_idx, make_shared<LineageDataWithOffset>(this_data), idxs, key);
-			break;
-		}
-		default: {
-			throw std::logic_error("Unexpected op passed to SimpleAggIterate " + PhysicalOperatorToString(this->type));
-		}
-		}
-		key.chunk.simple_agg_idx++;
-		std::cout << "Bep" << std::endl;
+		key.chunk.inner_agg_idx = 0;
+		key.chunk.outer_simple_agg_idx++;
 	}
-	std::cout << "Baz" << std::endl;
 }
 
 void OperatorLineage::AccessIndex(LineageIndexStruct key) {
