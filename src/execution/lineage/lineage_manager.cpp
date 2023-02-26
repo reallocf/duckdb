@@ -186,7 +186,7 @@ void LineageManager::CreateOperatorLineage(PhysicalOperator *op, int thd_id, boo
 		    || (op->type == PhysicalOperatorType::PROJECTION && should_index); // Pass through should_index on projection
 		CreateOperatorLineage(op->children[i].get(), thd_id, trace_lineage, child_should_index);
 	}
-	op->lineage_op->at(thd_id) = make_shared<OperatorLineage>(
+	(*op->lineage_op)[thd_id] = make_shared<OperatorLineage>(
 	    GetPipelineLineageNodeForOp(op, thd_id),
 	    GetChildrenForOp(op, thd_id),
 	    op->type,
