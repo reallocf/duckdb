@@ -742,10 +742,13 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 		shared_ptr<idx_t> left_idx = make_shared<idx_t>(0);
 
 		if (!key.chunk.lineage_agg_data->empty()) {
+			std::cout << "Agg" << std::endl;
 			AggIterate(key, {out_idx, right_idx, left_idx});
 		} else if (!key.chunk.lineage_simple_agg_data->empty()) {
+			std::cout << "Simple" << std::endl;
 			SimpleAggIterate(key, {out_idx, right_idx, left_idx});
 		} else {
+			std::cout << "Normal" << std::endl;
 			NormalIterate(key, {out_idx, right_idx, left_idx}, LINEAGE_PROBE);
 		}
 
@@ -757,6 +760,7 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 		for (; *right_idx < key.chunk.size(); (*right_idx)++) {
 			key.child_ptrs[*right_idx] = nullptr;
 		}
+		std::cout << "Finished" << std::endl;
 		break;
 	}
 	case PhysicalOperatorType::HASH_GROUP_BY: {
