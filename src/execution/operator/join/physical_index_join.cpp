@@ -239,11 +239,11 @@ void PhysicalIndexJoin::GetChunkInternal(ExecutionContext &context, DataChunk &c
 	state->result_size = 0;
 	while (state->result_size == 0) {
 		// Fancy lineage cache management
-		if (state->child_chunk.lineage_agg_data->size() > state->child_chunk.outer_agg_idx) {
+		if (state->child_chunk.lineage_agg_data != nullptr && state->child_chunk.lineage_agg_data->size() > state->child_chunk.outer_agg_idx) {
 			Output(context, chunk, state_p);
 			return;
 		}
-		if (state->child_chunk.lineage_simple_agg_data->size() > state->child_chunk.simple_agg_idx) {
+		if (state->child_chunk.lineage_simple_agg_data != nullptr && state->child_chunk.lineage_simple_agg_data->size() > state->child_chunk.simple_agg_idx) {
 			Output(context, chunk, state_p);
 			return;
 		}
