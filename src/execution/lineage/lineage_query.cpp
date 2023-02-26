@@ -710,7 +710,6 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 		} else {
 			shared_ptr<idx_t> out_idx = make_shared<idx_t>(0);
 			if (!key.chunk.lineage_agg_data->empty()) {
-				// Hash Agg Optimization
 				AggIterate(key, {out_idx});
 			} else if (!key.chunk.lineage_simple_agg_data->empty()) {
 				SimpleAggIterate(key, {out_idx});
@@ -725,7 +724,6 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 	case PhysicalOperatorType::LIMIT: {
 		shared_ptr<idx_t> out_idx = make_shared<idx_t>(0);
 		if (!key.chunk.lineage_agg_data->empty()) {
-			// Hash Agg Optimization
 			AggIterate(key, {out_idx});
 		} else if (!key.chunk.lineage_simple_agg_data->empty()) {
 			SimpleAggIterate(key, {out_idx});
@@ -744,7 +742,6 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 		shared_ptr<idx_t> left_idx = make_shared<idx_t>(0);
 
 		if (!key.chunk.lineage_agg_data->empty()) {
-			// Hash Agg Optimization
 			AggIterate(key, {out_idx, right_idx, left_idx});
 		} else if (!key.chunk.lineage_simple_agg_data->empty()) {
 			SimpleAggIterate(key, {out_idx, right_idx, left_idx});
@@ -768,7 +765,6 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 		shared_ptr<idx_t> out_idx = make_shared<idx_t>(0);
 
 		if (!key.chunk.lineage_agg_data->empty()) {
-			// Hash Agg Optimization
 			AggIterate(key, {out_idx});
 		} else if (!key.chunk.lineage_simple_agg_data->empty()) {
 			SimpleAggIterate(key, {out_idx});
@@ -784,7 +780,6 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 		shared_ptr<idx_t> out_idx = make_shared<idx_t>(0);
 
 		if (!key.chunk.lineage_agg_data->empty()) {
-			// Hash Agg Optimization
 			AggIterate(key, {out_idx});
 		} else if (!key.chunk.lineage_simple_agg_data->empty()) {
 			SimpleAggIterate(key, {out_idx});
@@ -805,7 +800,6 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 		shared_ptr<idx_t> left_idx = make_shared<idx_t>(0);
 
 		if (!key.chunk.lineage_agg_data->empty()) {
-			// Hash Agg Optimization
 			AggIterate(key, {out_idx, right_idx, left_idx});
 		} else if (!key.chunk.lineage_simple_agg_data->empty()) {
 			SimpleAggIterate(key, {out_idx, right_idx, left_idx});
@@ -830,7 +824,6 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 		shared_ptr<idx_t> out_idx = make_shared<idx_t>(0);
 
 		if (!key.chunk.lineage_agg_data->empty()) {
-			// Hash Agg Optimization
 			AggIterate(key, {out_idx});
 		} else if (!key.chunk.lineage_simple_agg_data->empty()) {
 			SimpleAggIterate(key, {out_idx});
@@ -848,7 +841,6 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 		shared_ptr<idx_t> left_idx = make_shared<idx_t>(0);
 
 		if (!key.chunk.lineage_agg_data->empty()) {
-			// Hash Agg Optimization
 			AggIterate(key, {out_idx, right_idx, left_idx});
 		} else if (!key.chunk.lineage_simple_agg_data->empty()) {
 			SimpleAggIterate(key, {out_idx, right_idx, left_idx});
@@ -872,7 +864,6 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 		shared_ptr<idx_t> out_idx = make_shared<idx_t>(0);
 
 		if (!key.chunk.lineage_agg_data->empty()) {
-			// Hash Agg Optimization
 			AggIterate(key, {out_idx});
 		} else if (!key.chunk.lineage_simple_agg_data->empty()) {
 			SimpleAggIterate(key, {out_idx});

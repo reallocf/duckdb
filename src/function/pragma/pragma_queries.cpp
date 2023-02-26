@@ -53,6 +53,15 @@ string PragmaBackwardLineageDuckDBExecEngine(ClientContext &context, const Funct
 		str_results = "list_value(" + str_results + ")";
 	}
 	clock_t end = clock();
+	// Reset chunk
+	chunk->lineage_agg_data = make_unique<vector<shared_ptr<vector<SourceAndMaybeData>>>>();
+	chunk->inner_agg_idx = 0;
+	chunk->outer_agg_idx = 0;
+	chunk->next_lineage_agg_data = make_unique<vector<shared_ptr<vector<SourceAndMaybeData>>>>();
+	chunk->lineage_simple_agg_data = make_shared<vector<LineageDataWithOffset>>();
+	chunk->inner_simple_agg_idx = 0;
+	chunk->outer_simple_agg_idx = 0;
+	chunk->next_lineage_simple_agg_data = make_shared<vector<LineageDataWithOffset>>();
 	std::cout << "Execute time: " << ((float) execute - start) / CLOCKS_PER_SEC << std::endl;
 	std::cout << "List build time: " << ((float) end - execute) / CLOCKS_PER_SEC << std::endl;
 	std::cout << "Total time: " << ((float) end - start) / CLOCKS_PER_SEC << std::endl;
