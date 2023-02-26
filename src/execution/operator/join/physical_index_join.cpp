@@ -174,22 +174,18 @@ void PhysicalIndexJoin::Output(ExecutionContext &context, DataChunk &chunk, Phys
 			}
 		}
 
-		std::cout << "Accessing Index" << std::endl;
 		opLineage->AccessIndex({state->child_chunk, child_ptrs, join_chunk, state->cached_values_arr, state->cached_child_ptrs_arr, state->overflow_count});
-		std::cout << "Finished accessing Index" << std::endl;
 
 		// 2. Set PARENT'S child_ptrs so that it can pass it to AccessIndex
 		state->child_ptrs = child_ptrs;
 		chunk.Reference(state->child_chunk); // TODO should this be a chunk.Move()?
 //		std::cout << "Bar1 " << was_set << " " << is_set << std::endl;
 		if (!state->child_chunk.next_lineage_agg_data->empty()) {
-			std::cout << "Setting next agg state" << std::endl;
 //			std::cout << "Bar2" << std::endl;
 			chunk.lineage_agg_data = move(state->child_chunk.next_lineage_agg_data);
 			state->child_chunk.next_lineage_agg_data = make_unique<vector<shared_ptr<vector<SourceAndMaybeData>>>>();
 		}
 		if (!state->child_chunk.next_lineage_simple_agg_data->empty()) {
-			std::cout << "Setting next simple agg state" << std::endl;
 			chunk.lineage_simple_agg_data = move(state->child_chunk.next_lineage_simple_agg_data);
 			state->child_chunk.next_lineage_simple_agg_data = make_unique<vector<LineageDataWithOffset>>();
 		}
@@ -198,7 +194,6 @@ void PhysicalIndexJoin::Output(ExecutionContext &context, DataChunk &chunk, Phys
 		if (join_chunk.size() > 0) {
 			chunk_collection->Append(join_chunk);
 		}
-		std::cout << "Finished lineage index lookup" << std::endl;
 	}
 }
 
@@ -244,18 +239,14 @@ void PhysicalIndexJoin::GetChunkInternal(ExecutionContext &context, DataChunk &c
 	state->result_size = 0;
 	while (state->result_size == 0) {
 		// Fancy lineage cache management
-		std::cout << "Checking fancy lineage mgmt" << std::endl;
 		if (state->child_chunk.lineage_agg_data->size() > state->child_chunk.outer_agg_idx) {
-			std::cout << "Agg fancy lineage mgmt" << std::endl;
 			Output(context, chunk, state_p);
 			return;
 		}
 		if (state->child_chunk.lineage_simple_agg_data->size() > state->child_chunk.simple_agg_idx) {
-			std::cout << "Simple agg fancy lineage mgmt" << std::endl;
 			Output(context, chunk, state_p);
 			return;
 		}
-		std::cout << "No fancy lineage mgmt" << std::endl;
 		// Return cached values if there are any
 		if (!state->cached_values_arr.empty()) {
 			throw std::logic_error("Shouldn't use this code path any more");

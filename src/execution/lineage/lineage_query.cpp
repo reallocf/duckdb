@@ -640,12 +640,16 @@ void OperatorLineage::NormalIterate(LineageIndexStruct key, vector<shared_ptr<id
 }
 
 void OperatorLineage::SimpleAggIterate(LineageIndexStruct key, vector<shared_ptr<idx_t>> idxs) {
+	std::cout << "Foo" << std::endl;
 	shared_ptr<idx_t> out_idx = idxs[0];
 	while (*out_idx < STANDARD_VECTOR_SIZE && key.chunk.simple_agg_idx < key.chunk.lineage_simple_agg_data->size()) {
+		std::cout << "Bar" << std::endl;
 		auto this_data = key.chunk.lineage_simple_agg_data->at(key.chunk.inner_agg_idx);
 		switch (this->type) {
 		case PhysicalOperatorType::TABLE_SCAN: {
+			std::cout << "Been" << std::endl;
 			ScanLineageFunc(*out_idx, make_shared<LineageDataWithOffset>(this_data), idxs, key);
+			std::cout << "Bop" << std::endl;
 			break;
 		}
 		case PhysicalOperatorType::FILTER:
@@ -655,14 +659,6 @@ void OperatorLineage::SimpleAggIterate(LineageIndexStruct key, vector<shared_ptr
 		}
 		case PhysicalOperatorType::HASH_JOIN: {
 			HashJoinLineageFunc(*out_idx, make_shared<LineageDataWithOffset>(this_data), idxs, key);
-			break;
-		}
-		case PhysicalOperatorType::HASH_GROUP_BY: {
-			HashAggLineageFunc(*out_idx, make_shared<LineageDataWithOffset>(this_data), idxs, key);
-			break;
-		}
-		case PhysicalOperatorType::PERFECT_HASH_GROUP_BY: {
-			PerfectHashAggLineageFunc(*out_idx, make_shared<LineageDataWithOffset>(this_data), idxs, key);
 			break;
 		}
 		case PhysicalOperatorType::BLOCKWISE_NL_JOIN:
@@ -676,20 +672,18 @@ void OperatorLineage::SimpleAggIterate(LineageIndexStruct key, vector<shared_ptr
 			CrossProductLineageFunc(*out_idx, make_shared<LineageDataWithOffset>(this_data), idxs, key);
 			break;
 		}
-		case PhysicalOperatorType::ORDER_BY: {
-			OrderByLineageFunc(*out_idx, make_shared<LineageDataWithOffset>(this_data), idxs, key);
-			break;
-		}
 		default: {
 			throw std::logic_error("Unexpected op passed to SimpleAggIterate " + PhysicalOperatorToString(this->type));
 		}
 		}
 		key.chunk.simple_agg_idx++;
+		std::cout << "Bep" << std::endl;
 	}
+	std::cout << "Baz" << std::endl;
 }
 
 void OperatorLineage::AccessIndex(LineageIndexStruct key) {
-	std::cout << PhysicalOperatorToString(this->type) << this->opid << std::endl;
+//	std::cout << PhysicalOperatorToString(this->type) << this->opid << std::endl;
 //	for (idx_t i = 0; i < key.chunk.size(); i++) {
 //		std::cout << key.chunk.GetValue(0,i) << std::endl;
 //	}
