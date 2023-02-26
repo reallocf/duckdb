@@ -438,12 +438,14 @@ void OperatorLineage::HashJoinLineageFunc(
     vector<shared_ptr<idx_t>> idxs,
     LineageIndexStruct key
 ) {
+	std::cout << "Flip" << std::endl;
 	LineageNested &nested_lineage = dynamic_cast<LineageNested &>(*lineage_data->data);
 	shared_ptr<idx_t> left_i = idxs[1];
 	shared_ptr<idx_t> right_i = idxs[2];
 	int data_index = nested_lineage.LocateChunkIndex(source);
 	LineageBinary& binary_data = dynamic_cast<LineageBinary &>(*(nested_lineage.GetChunkAt(data_index))->data);
 	idx_t adjust_offset = 0;
+	std::cout << "Flop" << std::endl;
 	if (data_index > 0) {
 		// adjust the source
 		adjust_offset = nested_lineage.GetAccCount(data_index - 1);
@@ -454,6 +456,7 @@ void OperatorLineage::HashJoinLineageFunc(
 		(*right_i)++;
 	}
 
+	std::cout << "Flap" << std::endl;
 	if (binary_data.left != nullptr) {
 		auto left = binary_data.left->Backward(source - adjust_offset);
 		if (left == 0) {
@@ -476,6 +479,7 @@ void OperatorLineage::HashJoinLineageFunc(
 		(*left_i)++;
 	}
 	(*idxs[0])++;
+	std::cout << "Floop" << std::endl;
 }
 
 void OperatorLineage::HashAggLineageFunc(
@@ -537,10 +541,15 @@ void OperatorLineage::OrderByLineageFunc(idx_t source, const shared_ptr<LineageD
 
 void OperatorLineage::AggIterate(LineageIndexStruct key, vector<shared_ptr<idx_t>> idxs) {
 	shared_ptr<idx_t> out_idx = idxs[0];
+	std::cout << "Foo" << std::endl;
 	while(*out_idx < STANDARD_VECTOR_SIZE && key.chunk.outer_agg_idx < key.chunk.lineage_agg_data->size()) {
+		std::cout << "Bar" << std::endl;
 		auto agg_vec_ptr = key.chunk.lineage_agg_data->at(key.chunk.outer_agg_idx);
+		std::cout << "Baz" << std::endl;
 		while(*out_idx < STANDARD_VECTOR_SIZE && key.chunk.inner_agg_idx < agg_vec_ptr->size()) {
+			std::cout << "Boo" << std::endl;
 			auto this_data = agg_vec_ptr->at(key.chunk.inner_agg_idx);
+			std::cout << "Beep" << std::endl;
 			switch (this->type) {
 			case PhysicalOperatorType::TABLE_SCAN: {
 				ScanLineageFunc(this_data.source, this_data.data, idxs, key);
@@ -583,13 +592,17 @@ void OperatorLineage::AggIterate(LineageIndexStruct key, vector<shared_ptr<idx_t
 			}
 			}
 			key.chunk.inner_agg_idx++;
+			std::cout << "Bop" << std::endl;
 		}
+		std::cout << "Burp" << std::endl;
 		if (key.chunk.inner_agg_idx < agg_vec_ptr->size()) {
 			break;
 		}
+		std::cout << "Blip" << std::endl;
 		key.chunk.inner_agg_idx = 0;
 		key.chunk.outer_agg_idx++;
 	}
+	std::cout << "Bong" << std::endl;
 }
 
 void OperatorLineage::NormalIterate(LineageIndexStruct key, vector<shared_ptr<idx_t>> idxs, idx_t lineage_idx) {
