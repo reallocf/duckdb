@@ -7,6 +7,7 @@ namespace duckdb {
 
 #ifdef LINEAGE
 string PragmaBackwardLineageDuckDBExecEngine(ClientContext &context, const FunctionParameters &parameters) {
+	std::cout << "Starting lineage querying" << std::endl;
 	// query the lineage data, create a view on top of it, and then query that
 	string query = parameters.values[0].ToString();
 	int lineage_id = parameters.values[1].GetValue<int>();

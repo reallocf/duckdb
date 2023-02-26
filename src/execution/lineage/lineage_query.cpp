@@ -684,7 +684,7 @@ void OperatorLineage::SimpleAggIterate(LineageIndexStruct key, vector<shared_ptr
 }
 
 void OperatorLineage::AccessIndex(LineageIndexStruct key) {
-//	std::cout << PhysicalOperatorToString(this->type) << this->opid << std::endl;
+	std::cout << PhysicalOperatorToString(this->type) << this->opid << std::endl;
 //	for (idx_t i = 0; i < key.chunk.size(); i++) {
 //		std::cout << key.chunk.GetValue(0,i) << std::endl;
 //	}
