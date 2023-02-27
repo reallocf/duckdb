@@ -174,26 +174,32 @@ void PhysicalIndexJoin::Output(ExecutionContext &context, DataChunk &chunk, Phys
 			}
 		}
 
+		std::cout << "Foo" << std::endl;
 		opLineage->AccessIndex({state->child_chunk, child_ptrs, join_chunk, state->cached_values_arr, state->cached_child_ptrs_arr, state->overflow_count});
+		std::cout << "Foo2" << std::endl;
 
 		// 2. Set PARENT'S child_ptrs so that it can pass it to AccessIndex
 		state->child_ptrs = child_ptrs;
 		chunk.Reference(state->child_chunk); // TODO should this be a chunk.Move()?
-//		std::cout << "Bar1 " << was_set << " " << is_set << std::endl;
+		std::cout << "Foo3" << std::endl;
 		if (!state->child_chunk.next_lineage_agg_data->empty()) {
-//			std::cout << "Bar2" << std::endl;
+			std::cout << "Foo4" << std::endl;
 			chunk.lineage_agg_data = move(state->child_chunk.next_lineage_agg_data);
 			state->child_chunk.next_lineage_agg_data = make_unique<vector<shared_ptr<vector<SourceAndMaybeData>>>>();
 		}
+		std::cout << "Foo5" << std::endl;
 		if (!state->child_chunk.next_lineage_simple_agg_data->empty()) {
+			std::cout << "Foo6" << std::endl;
 			chunk.lineage_simple_agg_data = move(state->child_chunk.next_lineage_simple_agg_data);
 			state->child_chunk.next_lineage_simple_agg_data = make_unique<vector<LineageDataWithOffset>>();
 		}
+		std::cout << "Foo7" << std::endl;
 		state->result_size = state->child_chunk.size();
 		state->lhs_idx += state->child_chunk.size();
 		if (join_chunk.size() > 0) {
 			chunk_collection->Append(join_chunk);
 		}
+		std::cout << "Foo8" << std::endl;
 	}
 }
 
@@ -239,14 +245,18 @@ void PhysicalIndexJoin::GetChunkInternal(ExecutionContext &context, DataChunk &c
 	state->result_size = 0;
 	while (state->result_size == 0) {
 		// Fancy lineage cache management
+		std::cout << "Maybe fancy" << std::endl;
 		if (state->child_chunk.lineage_agg_data->size() > state->child_chunk.outer_agg_idx) {
+			std::cout << "Fancy Agg" << std::endl;
 			Output(context, chunk, state_p);
 			return;
 		}
 		if (state->child_chunk.lineage_simple_agg_data->size() > state->child_chunk.outer_simple_agg_idx) {
+			std::cout << "Fancy Simple Agg" << std::endl;
 			Output(context, chunk, state_p);
 			return;
 		}
+		std::cout << "Not fancy" << std::endl;
 		// Return cached values if there are any
 		if (!state->cached_values_arr.empty()) {
 			throw std::logic_error("Shouldn't use this code path any more");
