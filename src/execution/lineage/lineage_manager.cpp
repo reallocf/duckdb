@@ -162,17 +162,26 @@ std::vector<shared_ptr<OperatorLineage>> GetChildrenForOp(PhysicalOperator *op, 
 }
 
 void LineageManager::CreateOperatorLineage(PhysicalOperator *op, int thd_id, bool trace_lineage, bool should_index) {
+	std::cout << "Foo" << std::endl;
 	should_index = should_index
 	               && op->type != PhysicalOperatorType::ORDER_BY; // Order by is one chunk, so no need to index
+	std::cout << "Foo1" << std::endl;
 	if (op->type == PhysicalOperatorType::DELIM_JOIN) {
+		std::cout << "Foo2" << std::endl;
 		auto distinct = (PhysicalOperator *)dynamic_cast<PhysicalDelimJoin *>(op)->distinct.get();
+		std::cout << "Foo3" << std::endl;
 		CreateOperatorLineage( distinct, thd_id, trace_lineage, true);
+		std::cout << "Foo4" << std::endl;
 		for (idx_t i = 0; i < dynamic_cast<PhysicalDelimJoin *>(op)->delim_scans.size(); ++i) {
 			dynamic_cast<PhysicalDelimJoin *>(op)->delim_scans[i]->lineage_op = distinct->lineage_op;
 		}
+		std::cout << "Foo5" << std::endl;
 		CreateOperatorLineage( dynamic_cast<PhysicalDelimJoin *>(op)->join.get(), thd_id, trace_lineage, true);
+		std::cout << "Foo6" << std::endl;
 	}
+	std::cout << "Foo7" << std::endl;
 	for (idx_t i = 0; i < op->children.size(); i++) {
+		std::cout << "Foo8" << std::endl;
 		bool child_should_index =
 		    op->type == PhysicalOperatorType::HASH_GROUP_BY
 		    || op->type == PhysicalOperatorType::PERFECT_HASH_GROUP_BY
@@ -185,7 +194,9 @@ void LineageManager::CreateOperatorLineage(PhysicalOperator *op, int thd_id, boo
 		    || (op->type == PhysicalOperatorType::DELIM_JOIN && i == 0) // Child zero needs an index
 		    || (op->type == PhysicalOperatorType::PROJECTION && should_index); // Pass through should_index on projection
 		CreateOperatorLineage(op->children[i].get(), thd_id, trace_lineage, child_should_index);
+		std::cout << "Foo9" << std::endl;
 	}
+	std::cout << "Foo10" << std::endl;
 	(*op->lineage_op)[thd_id] = make_shared<OperatorLineage>(
 	    GetPipelineLineageNodeForOp(op, thd_id),
 	    GetChildrenForOp(op, thd_id),
@@ -193,7 +204,9 @@ void LineageManager::CreateOperatorLineage(PhysicalOperator *op, int thd_id, boo
 	    op->id,
 	    should_index
 	);
+	std::cout << "Foo11" << std::endl;
 	op->lineage_op->at(thd_id)->trace_lineage = trace_lineage;
+	std::cout << "Foo12" << std::endl;
 }
 
 // Iterate through in Postorder to ensure that children have PipelineLineageNodes set before parents
