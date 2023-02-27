@@ -200,7 +200,7 @@ void LineageManager::CreateOperatorLineage(PhysicalOperator *op, int thd_id, boo
 		op->lineage_op->at(thd_id)->children[2]->children.push_back(op->lineage_op->at(thd_id)->children[0]);
 
 		// chunk scan input is delim join input
-		op->lineage_op->at(thd_id)->children[1]->children[1] = op->lineage_op->at(thd_id)->children[0];
+//		op->lineage_op->at(thd_id)->children[1]->children[1] = op->lineage_op->at(thd_id)->children[0];
 	}
 }
 

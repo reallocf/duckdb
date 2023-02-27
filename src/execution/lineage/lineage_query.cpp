@@ -226,9 +226,9 @@ unique_ptr<PhysicalOperator> GenerateCustomPlan(
 //			// distinct input is delim join input
 //			// distinct should be the input to delim scan
 //			op->lineage_op->at(thread_id)->children[2]->children.push_back(op->lineage_op->at(thread_id)->children[0]);
-//
-//			// chunk scan input is delim join input
-//			op->lineage_op->at(thread_id)->children[1]->children[1] = op->lineage_op->at(thread_id)->children[0];
+
+			// chunk scan input is delim join input
+			op->lineage_op->at(thread_id)->children[1]->children[1] = op->lineage_op->at(thread_id)->children[0];
 
 			// we only want to do the child reordering once
 			op->delim_handled = true;
