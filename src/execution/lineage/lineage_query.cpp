@@ -246,7 +246,7 @@ unique_ptr<PhysicalOperator> GenerateCustomPlan(
 		chunk_scan->collection->Append(lineage_chunk);
 		if (
 			op->children.size() == 2 &&
-			(op->type == PhysicalOperatorType::INDEX_JOIN || op->type == PhysicalOperatorType::CROSS_PRODUCT || dynamic_cast<PhysicalJoin *>(op)->join_type != JoinType::ANTI)
+			(op->type == PhysicalOperatorType::INDEX_JOIN || op->type == PhysicalOperatorType::CROSS_PRODUCT)// || dynamic_cast<PhysicalJoin *>(op)->join_type != JoinType::ANTI)
 			) {
 			// Chunk scan that refers to build side of join
 			unique_ptr<PhysicalChunkScan> build_chunk_scan = make_unique<PhysicalChunkScan>(types, op_type, estimated_cardinality, true);
@@ -273,7 +273,8 @@ unique_ptr<PhysicalOperator> GenerateCustomPlan(
 			pipelines
 		);
 	} else {
-		if (op->children.size() == 2 && dynamic_cast<PhysicalJoin *>(op)->join_type != JoinType::ANTI) {
+		if (op->children.size() == 2)// && dynamic_cast<PhysicalJoin *>(op)->join_type != JoinType::ANTI)
+		{
 			// Chunk scan that refers to build side of join
 			unique_ptr<PhysicalChunkScan> build_chunk_scan = make_unique<PhysicalChunkScan>(types, op_type, estimated_cardinality, true);
 			build_chunk_scan->collection = new ChunkCollection();
