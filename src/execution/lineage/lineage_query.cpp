@@ -81,11 +81,8 @@ void OperatorLineage::PostProcess() {
 				}
 
 				auto child = this_data.data->GetChild();
-				auto val = j + count_so_far;
-				if (child != nullptr) {
-					// We capture global value, so we convert to child local value here
-					val -= child->this_offset;
-				}
+				// We capture global value, so we convert to child local value here
+				auto val = j + count_so_far - child->this_offset;
 				(*hash_map_agg)[bucket]->push_back({val, child});
 			}
 		} else if (type == PhysicalOperatorType::HASH_GROUP_BY) {
@@ -97,11 +94,8 @@ void OperatorLineage::PostProcess() {
 				}
 
 				auto child = this_data.data->GetChild();
-				auto val = j + count_so_far;
-				if (child != nullptr) {
-					// We capture global value, so we convert to child local value here
-					 val -= child->this_offset;
-				}
+				// We capture global value, so we convert to child local value here
+				auto val = j + count_so_far - child->this_offset;
 				(*hash_map_agg)[bucket]->push_back({val, child});
 			}
 		} else {
@@ -229,12 +223,12 @@ unique_ptr<PhysicalOperator> GenerateCustomPlan(
 			// set this child to join's child to appropriately line up chunk scan lineage
 			dynamic_cast<PhysicalDelimJoin *>(op)->join->children[0] = move(op->children[0]);
 
-			// distinct input is delim join input
-			// distinct should be the input to delim scan
-			op->lineage_op->at(thread_id)->children[2]->children.push_back(op->lineage_op->at(thread_id)->children[0]);
-
-			// chunk scan input is delim join input
-			op->lineage_op->at(thread_id)->children[1]->children[1] = op->lineage_op->at(thread_id)->children[0];
+//			// distinct input is delim join input
+//			// distinct should be the input to delim scan
+//			op->lineage_op->at(thread_id)->children[2]->children.push_back(op->lineage_op->at(thread_id)->children[0]);
+//
+//			// chunk scan input is delim join input
+//			op->lineage_op->at(thread_id)->children[1]->children[1] = op->lineage_op->at(thread_id)->children[0];
 
 			// we only want to do the child reordering once
 			op->delim_handled = true;

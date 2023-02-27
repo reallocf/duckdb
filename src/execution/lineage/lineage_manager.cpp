@@ -171,6 +171,13 @@ void LineageManager::CreateOperatorLineage(PhysicalOperator *op, int thd_id, boo
 			dynamic_cast<PhysicalDelimJoin *>(op)->delim_scans[i]->lineage_op = distinct->lineage_op;
 		}
 		CreateOperatorLineage( dynamic_cast<PhysicalDelimJoin *>(op)->join.get(), thd_id, trace_lineage, true);
+
+		// distinct input is delim join input
+		// distinct should be the input to delim scan
+		op->lineage_op->at(thd_id)->children[2]->children.push_back(op->lineage_op->at(thd_id)->children[0]);
+
+		// chunk scan input is delim join input
+		op->lineage_op->at(thd_id)->children[1]->children[1] = op->lineage_op->at(thd_id)->children[0];
 	}
 	for (idx_t i = 0; i < op->children.size(); i++) {
 		bool child_should_index =

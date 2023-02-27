@@ -565,10 +565,7 @@ shared_ptr<LineageDataWithOffset> OperatorLineage::GetChildLatest(idx_t lineage_
 	case PhysicalOperatorType::HASH_GROUP_BY:
 	case PhysicalOperatorType::PERFECT_HASH_GROUP_BY: {
 		// Only SINK has children
-		if (children.empty()) {
-			// The aggregation in DelimJoin TODO figure this out
-			return nullptr;
-		} else if (lineage_idx == LINEAGE_SINK) {
+		if (lineage_idx == LINEAGE_SINK) {
 			return children[0]->GetMyLatest();
 		} else {
 			return nullptr;
