@@ -174,36 +174,24 @@ void PhysicalIndexJoin::Output(ExecutionContext &context, DataChunk &chunk, Phys
 			}
 		}
 
-		std::cout << "Foo" << std::endl;
 		opLineage->AccessIndex({state->child_chunk, child_ptrs, join_chunk, state->cached_values_arr, state->cached_child_ptrs_arr, state->overflow_count});
-		std::cout << "Foo2" << std::endl;
 
 		// 2. Set PARENT'S child_ptrs so that it can pass it to AccessIndex
 		state->child_ptrs = child_ptrs;
 		chunk.Reference(state->child_chunk); // TODO should this be a chunk.Move()?
-		std::cout << "Foo3" << std::endl;
 		if (!state->child_chunk.next_lineage_agg_data->empty()) {
-			std::cout << "Foo4" << std::endl;
 			chunk.lineage_agg_data = move(state->child_chunk.next_lineage_agg_data);
 			state->child_chunk.next_lineage_agg_data = make_unique<vector<shared_ptr<vector<SourceAndMaybeData>>>>();
 		}
-		std::cout << "Foo5" << std::endl;
 		if (!state->child_chunk.next_lineage_simple_agg_data->empty()) {
-			std::cout << "Foo6" << std::endl;
 			chunk.lineage_simple_agg_data = move(state->child_chunk.next_lineage_simple_agg_data);
 			state->child_chunk.next_lineage_simple_agg_data = make_unique<vector<LineageDataWithOffset>>();
 		}
-		std::cout << "Foo7" << std::endl;
 		state->result_size = state->child_chunk.size();
-		std::cout << "Foo7.1" << std::endl;
 		state->lhs_idx += state->child_chunk.size();
-		std::cout << "Foo7.2" << std::endl;
 		if (join_chunk.size() > 0) {
-			std::cout << "Foo7.3" << std::endl;
 			chunk_collection->Append(join_chunk);
-			std::cout << "Foo7.4" << std::endl;
 		}
-		std::cout << "Foo8" << std::endl;
 	}
 }
 

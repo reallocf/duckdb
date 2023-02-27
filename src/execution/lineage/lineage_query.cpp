@@ -246,7 +246,7 @@ unique_ptr<PhysicalOperator> GenerateCustomPlan(
 		chunk_scan->collection->Append(lineage_chunk);
 		if (
 			op->children.size() == 2 &&
-			(op->type == PhysicalOperatorType::INDEX_JOIN || op->type == PhysicalOperatorType::CROSS_PRODUCT)// || dynamic_cast<PhysicalJoin *>(op)->join_type != JoinType::ANTI)
+			(op->type == PhysicalOperatorType::INDEX_JOIN || op->type == PhysicalOperatorType::CROSS_PRODUCT || dynamic_cast<PhysicalJoin *>(op)->join_type != JoinType::ANTI)
 			) {
 			// Chunk scan that refers to build side of join
 			unique_ptr<PhysicalChunkScan> build_chunk_scan = make_unique<PhysicalChunkScan>(types, op_type, estimated_cardinality, true);
@@ -273,7 +273,7 @@ unique_ptr<PhysicalOperator> GenerateCustomPlan(
 			pipelines
 		);
 	} else {
-		if (op->children.size() == 2)// && dynamic_cast<PhysicalJoin *>(op)->join_type != JoinType::ANTI)
+		if (op->children.size() == 2 && dynamic_cast<PhysicalJoin *>(op)->join_type != JoinType::ANTI)
 		{
 			// Chunk scan that refers to build side of join
 			unique_ptr<PhysicalChunkScan> build_chunk_scan = make_unique<PhysicalChunkScan>(types, op_type, estimated_cardinality, true);
@@ -450,7 +450,7 @@ void OperatorLineage::HashJoinLineageFunc(
 		(*right_i)++;
 	}
 
-	if (binary_data.left != nullptr) {
+	if (binary_data.left != nullptr && join_type != JoinType::ANTI) { // Skip anti joins
 		auto left = binary_data.left->Backward(source - adjust_offset);
 		if (left == 0) {
 			return;
@@ -732,7 +732,6 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 		break;
 	}
 	case PhysicalOperatorType::HASH_JOIN: {
-		std::cout << "Bar" << std::endl;
 		// Setup build chunk
 		key.join_chunk.Initialize({LogicalType::UBIGINT});
 
@@ -740,31 +739,22 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 		shared_ptr<idx_t> right_idx = make_shared<idx_t>(0);
 		shared_ptr<idx_t> left_idx = make_shared<idx_t>(0);
 
-		std::cout << "Bar2" << std::endl;
 		if (!key.chunk.lineage_agg_data->empty()) {
-			std::cout << "Bar3" << std::endl;
 			AggIterate(key, {out_idx, right_idx, left_idx});
-			std::cout << "Bar4" << std::endl;
 		} else if (!key.chunk.lineage_simple_agg_data->empty()) {
-			std::cout << "Bar5" << std::endl;
 			SimpleAggIterate(key, {out_idx, right_idx, left_idx});
-			std::cout << "Bar6" << std::endl;
 		} else {
-			std::cout << "Bar7" << std::endl;
 			NormalIterate(key, {out_idx, right_idx, left_idx}, LINEAGE_PROBE);
-			std::cout << "Bar8" << std::endl;
 		}
 
 		// Set cardinality of chunks
 		key.chunk.SetCardinality(*right_idx);
 		key.join_chunk.SetCardinality(*left_idx);
-		std::cout << "Bar9" << std::endl;
 
 		// Clear out child pointers for values that didn't have a right match
 		for (; *right_idx < key.chunk.size(); (*right_idx)++) {
 			key.child_ptrs[*right_idx] = nullptr;
 		}
-		std::cout << "Bar10" << std::endl;
 		break;
 	}
 	case PhysicalOperatorType::HASH_GROUP_BY: {

@@ -194,6 +194,15 @@ void LineageManager::CreateOperatorLineage(PhysicalOperator *op, int thd_id, boo
 	    should_index
 	);
 	op->lineage_op->at(thd_id)->trace_lineage = trace_lineage;
+	if (
+	    op->type == PhysicalOperatorType::HASH_JOIN ||
+	    op->type == PhysicalOperatorType::PIECEWISE_MERGE_JOIN ||
+	    op->type == PhysicalOperatorType::NESTED_LOOP_JOIN ||
+	    op->type == PhysicalOperatorType::BLOCKWISE_NL_JOIN
+	    ) {
+		// Cache join type so we can avoid anti joins
+		op->lineage_op->at(thd_id)->join_type = dynamic_cast<PhysicalJoin *>(op)->join_type;
+	}
 }
 
 // Iterate through in Postorder to ensure that children have PipelineLineageNodes set before parents

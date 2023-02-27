@@ -17,6 +17,7 @@
 #include "duckdb/common/types/chunk_collection.hpp"
 #include "duckdb/execution/lineage/lineage_data.hpp"
 #include "duckdb/execution/lineage/pipeline_lineage.hpp"
+#include "duckdb/common/enums/join_type.hpp"
 
 #include <iostream>
 #include <utility>
@@ -127,6 +128,8 @@ public:
     // Index for when we need to identify the chunk from a global offset
     unique_ptr<vector<idx_t>> index = make_unique<vector<idx_t>>();
     bool should_index;
+
+	JoinType join_type;
 };
 
 struct LineageProcessStruct {
