@@ -195,9 +195,13 @@ void PhysicalIndexJoin::Output(ExecutionContext &context, DataChunk &chunk, Phys
 		}
 		std::cout << "Foo7" << std::endl;
 		state->result_size = state->child_chunk.size();
+		std::cout << "Foo7.1" << std::endl;
 		state->lhs_idx += state->child_chunk.size();
+		std::cout << "Foo7.2" << std::endl;
 		if (join_chunk.size() > 0) {
+			std::cout << "Foo7.3" << std::endl;
 			chunk_collection->Append(join_chunk);
+			std::cout << "Foo7.4" << std::endl;
 		}
 		std::cout << "Foo8" << std::endl;
 	}
