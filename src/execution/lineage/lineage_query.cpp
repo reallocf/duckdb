@@ -448,12 +448,19 @@ void OperatorLineage::HashJoinLineageFunc(
 	std::cout << "Flop" << std::endl;
 	if (data_index > 0) {
 		// adjust the source
+		std::cout << "Flop1" << std::endl;
 		adjust_offset = nested_lineage.GetAccCount(data_index - 1);
+		std::cout << "Flop2" << std::endl;
 	}
+	std::cout << "Flop3" << std::endl;
 	if (binary_data.right != nullptr) {
+		std::cout << "Flop4" << std::endl;
 		key.chunk.SetValue(0,*right_i,Value::UBIGINT(binary_data.right->Backward(source - adjust_offset)));
+		std::cout << "Flop5" << std::endl;
 		key.child_ptrs[*right_i] = binary_data.GetChild();
+		std::cout << "Flop6" << std::endl;
 		(*right_i)++;
+		std::cout << "Flop7" << std::endl;
 	}
 
 	std::cout << "Flap" << std::endl;
