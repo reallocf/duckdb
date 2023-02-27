@@ -194,14 +194,6 @@ void LineageManager::CreateOperatorLineage(PhysicalOperator *op, int thd_id, boo
 	    should_index
 	);
 	op->lineage_op->at(thd_id)->trace_lineage = trace_lineage;
-	if (op->type == PhysicalOperatorType::DELIM_JOIN) {
-		// distinct input is delim join input
-		// distinct should be the input to delim scan
-		op->lineage_op->at(thd_id)->children[2]->children.push_back(op->lineage_op->at(thd_id)->children[0]);
-
-		// chunk scan input is delim join input
-//		op->lineage_op->at(thd_id)->children[1]->children[1] = op->lineage_op->at(thd_id)->children[0];
-	}
 }
 
 // Iterate through in Postorder to ensure that children have PipelineLineageNodes set before parents

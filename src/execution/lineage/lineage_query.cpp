@@ -67,13 +67,11 @@ void LineageManager::PostProcess(PhysicalOperator *op) {
 }
 
 void OperatorLineage::PostProcess() {
-	std::cout << "Beep" << std::endl;
 	// build hash table
 	idx_t count_so_far = 0;
 	for (idx_t i = 0; i < data[LINEAGE_SINK]->size(); i++) {
 		LineageDataWithOffset this_data = (*data[LINEAGE_SINK])[i];
 		idx_t res_count = this_data.data->Count();
-		std::cout << "Boop" << std::endl;
 		if (type == PhysicalOperatorType::PERFECT_HASH_GROUP_BY) {
 			auto payload = (sel_t *)this_data.data->Process(0);
 			for (idx_t j = 0; j < res_count; ++j) {
@@ -88,35 +86,24 @@ void OperatorLineage::PostProcess() {
 				(*hash_map_agg)[bucket]->push_back({val, child});
 			}
 		} else if (type == PhysicalOperatorType::HASH_GROUP_BY) {
-			std::cout << "Boop2" << std::endl;
 			auto payload = (uint64_t *)this_data.data->Process(0);
-			std::cout << "Boop3" << std::endl;
 			for (idx_t j = 0; j < res_count; ++j) {
-				std::cout << "Boop4" << std::endl;
 				auto bucket = (idx_t)payload[j];
-				std::cout << "Boop5" << std::endl;
 				if ((*hash_map_agg)[bucket] == nullptr) {
 					(*hash_map_agg)[bucket] = make_shared<vector<SourceAndMaybeData>>();
 				}
-				std::cout << "Boop6" << std::endl;
 
-				std::cout << "Boop7" << std::endl;
 				auto child = this_data.data->GetChild();
-				std::cout << "Boop8" << std::endl;
 				// We capture global value, so we convert to child local value here
 				auto val = j + count_so_far - child->this_offset;
-				std::cout << "Boop9" << std::endl;
 				(*hash_map_agg)[bucket]->push_back({val, child});
-				std::cout << "Boop10" << std::endl;
 			}
 		} else {
 			// Invalid post process - should only be aggregations
 			throw std::logic_error("Only should be called for group by");
 		}
-		std::cout << "Boop11" << std::endl;
 		count_so_far += res_count;
 	}
-	std::cout << "Boop12" << std::endl;
 }
 
 template <typename T>
@@ -236,9 +223,9 @@ unique_ptr<PhysicalOperator> GenerateCustomPlan(
 			// set this child to join's child to appropriately line up chunk scan lineage
 			dynamic_cast<PhysicalDelimJoin *>(op)->join->children[0] = move(op->children[0]);
 
-//			// distinct input is delim join input
-//			// distinct should be the input to delim scan
-//			op->lineage_op->at(thread_id)->children[2]->children.push_back(op->lineage_op->at(thread_id)->children[0]);
+			// distinct input is delim join input
+			// distinct should be the input to delim scan
+			op->lineage_op->at(thread_id)->children[2]->children.push_back(op->lineage_op->at(thread_id)->children[0]);
 
 			// chunk scan input is delim join input
 			op->lineage_op->at(thread_id)->children[1]->children[1] = op->lineage_op->at(thread_id)->children[0];
@@ -694,7 +681,7 @@ void OperatorLineage::SimpleAggIterate(LineageIndexStruct key, vector<shared_ptr
 }
 
 void OperatorLineage::AccessIndex(LineageIndexStruct key) {
-	std::cout << PhysicalOperatorToString(this->type) << this->opid << std::endl;
+//	std::cout << PhysicalOperatorToString(this->type) << this->opid << std::endl;
 //	for (idx_t i = 0; i < key.chunk.size(); i++) {
 //		std::cout << key.chunk.GetValue(0,i) << std::endl;
 //	}
