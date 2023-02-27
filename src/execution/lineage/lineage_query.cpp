@@ -67,16 +67,14 @@ void LineageManager::PostProcess(PhysicalOperator *op) {
 }
 
 void OperatorLineage::PostProcess() {
-	// std::cout << "Postprocess: " << PhysicalOperatorToString(this->type) << this->opid << std::endl;
+	 std::cout << "Postprocess: " << PhysicalOperatorToString(this->type) << this->opid << std::endl;
 	// build hash table
 	idx_t count_so_far = 0;
 	for (idx_t i = 0; i < data[LINEAGE_SINK]->size(); i++) {
 		LineageDataWithOffset this_data = (*data[LINEAGE_SINK])[i];
 		idx_t res_count = this_data.data->Count();
 		if (type == PhysicalOperatorType::PERFECT_HASH_GROUP_BY) {
-//			std::cout << "Foo1" << std::endl;
 			auto payload = (sel_t *)this_data.data->Process(0);
-//			std::cout << "Foo1.5" << std::endl;
 			for (idx_t j = 0; j < res_count; ++j) {
 				auto bucket = (idx_t)payload[j];
 				if ((*hash_map_agg)[bucket] == nullptr) {
@@ -89,9 +87,7 @@ void OperatorLineage::PostProcess() {
 				(*hash_map_agg)[bucket]->push_back({val, child});
 			}
 		} else if (type == PhysicalOperatorType::HASH_GROUP_BY) {
-//			std::cout << "Foo2" << std::endl;
 			auto payload = (uint64_t *)this_data.data->Process(0);
-//			std::cout << "Foo2.5" << std::endl;
 			for (idx_t j = 0; j < res_count; ++j) {
 				auto bucket = (idx_t)payload[j];
 				if ((*hash_map_agg)[bucket] == nullptr) {
@@ -484,9 +480,7 @@ void OperatorLineage::HashAggLineageFunc(
     vector<shared_ptr<idx_t>> idxs,
     LineageIndexStruct key
 ) {
-//	std::cout << "Foo3" << std::endl;
 	auto payload = (uint64_t *)lineage_data->data->Process(0);
-//	std::cout << "Foo3.5" << std::endl;
 	key.chunk.next_lineage_agg_data->push_back((*hash_map_agg)[payload[source]]);
 	(*idxs[0])++;
 	key.child_ptrs = {};
@@ -498,9 +492,7 @@ void OperatorLineage::PerfectHashAggLineageFunc(
     vector<shared_ptr<idx_t>> idxs,
     LineageIndexStruct key
 ) {
-//	std::cout << "Foo4" << std::endl;
 	auto payload = (sel_t *)lineage_data->data->Process(0);
-//	std::cout << "Foo4.5" << std::endl;
 	key.chunk.next_lineage_agg_data->push_back((*hash_map_agg)[payload[source]]);
 	(*idxs[0])++;
 	key.child_ptrs = {};
@@ -690,7 +682,7 @@ void OperatorLineage::SimpleAggIterate(LineageIndexStruct key, vector<shared_ptr
 }
 
 void OperatorLineage::AccessIndex(LineageIndexStruct key) {
-//	std::cout << PhysicalOperatorToString(this->type) << this->opid << std::endl;
+	std::cout << PhysicalOperatorToString(this->type) << this->opid << std::endl;
 //	for (idx_t i = 0; i < key.chunk.size(); i++) {
 //		std::cout << key.chunk.GetValue(0,i) << std::endl;
 //	}

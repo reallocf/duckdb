@@ -7,6 +7,7 @@ namespace duckdb {
 
 #ifdef LINEAGE
 string PragmaBackwardLineageDuckDBExecEngine(ClientContext &context, const FunctionParameters &parameters) {
+	std::cout << "Starting lineage querying" << std::endl;
 	// query the lineage data, create a view on top of it, and then query that
 	string query = parameters.values[0].ToString();
 	int lineage_id = parameters.values[1].GetValue<int>();
@@ -18,11 +19,14 @@ string PragmaBackwardLineageDuckDBExecEngine(ClientContext &context, const Funct
 	}
 	LineageQuery lineage_query = LineageQuery();
 	clock_t start = clock();
+	std::cout << "Running lineage querying" << std::endl;
 	unique_ptr<QueryResult> result = lineage_query.Run(op, context, mode, lineage_id, should_count);
+	std::cout << "Finished lineage querying" << std::endl;
 	clock_t execute = clock();
 
 	string str_results;
 	idx_t count = 0;
+	std::cout << "Pulling chunk" << std::endl;
 	unique_ptr<DataChunk> chunk = result->Fetch();
 	while (chunk != nullptr) {
 		for (idx_t row_idx = 0; row_idx < chunk->size(); row_idx++) {
@@ -46,6 +50,7 @@ string PragmaBackwardLineageDuckDBExecEngine(ClientContext &context, const Funct
 				str_results += row;
 			}
 		}
+		std::cout << "Pulling next chunk" << std::endl;
 		chunk = result->Fetch();
 	}
 	if (count > 1) {
