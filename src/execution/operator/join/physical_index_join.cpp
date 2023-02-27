@@ -189,7 +189,7 @@ void PhysicalIndexJoin::Output(ExecutionContext &context, DataChunk &chunk, Phys
 		}
 		state->result_size = state->child_chunk.size();
 		state->lhs_idx += state->child_chunk.size();
-		if (join_chunk.size() > 0) {
+		if (join_chunk.size() > 0 && opLineage->join_type != JoinType::ANTI) {
 			chunk_collection->Append(join_chunk);
 		}
 	}
@@ -237,18 +237,14 @@ void PhysicalIndexJoin::GetChunkInternal(ExecutionContext &context, DataChunk &c
 	state->result_size = 0;
 	while (state->result_size == 0) {
 		// Fancy lineage cache management
-		std::cout << "Maybe fancy" << std::endl;
 		if (state->child_chunk.lineage_agg_data->size() > state->child_chunk.outer_agg_idx) {
-			std::cout << "Fancy Agg" << std::endl;
 			Output(context, chunk, state_p);
 			return;
 		}
 		if (state->child_chunk.lineage_simple_agg_data->size() > state->child_chunk.outer_simple_agg_idx) {
-			std::cout << "Fancy Simple Agg" << std::endl;
 			Output(context, chunk, state_p);
 			return;
 		}
-		std::cout << "Not fancy" << std::endl;
 		// Return cached values if there are any
 		if (!state->cached_values_arr.empty()) {
 			throw std::logic_error("Shouldn't use this code path any more");
