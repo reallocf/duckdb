@@ -105,6 +105,7 @@ void OperatorLineage::PostProcess() {
 		}
 		count_so_far += res_count;
 	}
+	std::cout << "Finished Postprocessing!" << std::endl;
 }
 
 template <typename T>
