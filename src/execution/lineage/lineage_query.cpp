@@ -50,11 +50,8 @@ void LineageManager::PostProcess(PhysicalOperator *op) {
 			if (lineage_op.second->type != PhysicalOperatorType::HASH_GROUP_BY && lineage_op.second->type != PhysicalOperatorType::PERFECT_HASH_GROUP_BY) {
 				continue;
 			}
-			LineageProcessStruct lps = lineage_op.second->PostProcess(0, lineage_op.first);
-			while (lps.still_processing) {
-				lps = lineage_op.second->PostProcess(lps.count_so_far, lps.data_idx, lps.finished_idx);
-			}
-			lineage_op.second->FinishedProcessing(lps.data_idx, lps.finished_idx);
+
+			lineage_op.second->PostProcess();
 		}
 	}
 
@@ -69,50 +66,49 @@ void LineageManager::PostProcess(PhysicalOperator *op) {
 	}
 }
 
-LineageProcessStruct OperatorLineage::PostProcess(idx_t count_so_far, idx_t data_idx, idx_t finished_idx) {
-//	std::cout << "Postprocess: " << PhysicalOperatorToString(this->type) << this->opid << std::endl;
-	if (data[finished_idx]->size() > data_idx) {
-		// Hash Aggregate / Perfect Hash Aggregate
-		// schema for both: [INTEGER in_index, INTEGER out_index]
-		if (finished_idx == LINEAGE_SINK) {
-			// build hash table
-			LineageDataWithOffset this_data = (*data[LINEAGE_SINK])[data_idx];
-			idx_t res_count = this_data.data->Count();
-			if (type == PhysicalOperatorType::PERFECT_HASH_GROUP_BY) {
-				auto payload = (sel_t *)this_data.data->Process(0);
-				for (idx_t i = 0; i < res_count; ++i) {
-					auto bucket = (idx_t)payload[i];
-					if ((*hash_map_agg)[bucket] == nullptr) {
-						(*hash_map_agg)[bucket] = make_shared<vector<SourceAndMaybeData>>();
-					}
-
-					auto child = this_data.data->GetChild();
-					// We capture global value, so we convert to child local value here
-					auto val = i + count_so_far - child->this_offset;
-					(*hash_map_agg)[bucket]->push_back({val, child});
+void OperatorLineage::PostProcess() {
+	// std::cout << "Postprocess: " << PhysicalOperatorToString(this->type) << this->opid << std::endl;
+	// build hash table
+	idx_t count_so_far = 0;
+	for (idx_t i = 0; i < data[LINEAGE_SINK]->size(); i++) {
+		LineageDataWithOffset this_data = (*data[LINEAGE_SINK])[i];
+		idx_t res_count = this_data.data->Count();
+		if (type == PhysicalOperatorType::PERFECT_HASH_GROUP_BY) {
+//			std::cout << "Foo1" << std::endl;
+			auto payload = (sel_t *)this_data.data->Process(0);
+//			std::cout << "Foo1.5" << std::endl;
+			for (idx_t j = 0; j < res_count; ++j) {
+				auto bucket = (idx_t)payload[j];
+				if ((*hash_map_agg)[bucket] == nullptr) {
+					(*hash_map_agg)[bucket] = make_shared<vector<SourceAndMaybeData>>();
 				}
-			} else if (type == PhysicalOperatorType::HASH_GROUP_BY) {
-				auto payload = (uint64_t *)this_data.data->Process(0);
-				for (idx_t i = 0; i < res_count; ++i) {
-					auto bucket = (idx_t)payload[i];
-					if ((*hash_map_agg)[bucket] == nullptr) {
-						(*hash_map_agg)[bucket] = make_shared<vector<SourceAndMaybeData>>();
-					}
 
-					auto child = this_data.data->GetChild();
-					// We capture global value, so we convert to child local value here
-					auto val = i + count_so_far - child->this_offset;
-					(*hash_map_agg)[bucket]->push_back({val, child});
-				}
-			} else {
-				// Invalid post process - should only be aggregations
-				throw std::logic_error("Only should be called for group by");
+				auto child = this_data.data->GetChild();
+				// We capture global value, so we convert to child local value here
+				auto val = j + count_so_far - child->this_offset;
+				(*hash_map_agg)[bucket]->push_back({val, child});
 			}
-			count_so_far += res_count;
+		} else if (type == PhysicalOperatorType::HASH_GROUP_BY) {
+//			std::cout << "Foo2" << std::endl;
+			auto payload = (uint64_t *)this_data.data->Process(0);
+//			std::cout << "Foo2.5" << std::endl;
+			for (idx_t j = 0; j < res_count; ++j) {
+				auto bucket = (idx_t)payload[j];
+				if ((*hash_map_agg)[bucket] == nullptr) {
+					(*hash_map_agg)[bucket] = make_shared<vector<SourceAndMaybeData>>();
+				}
+
+				auto child = this_data.data->GetChild();
+				// We capture global value, so we convert to child local value here
+				auto val = j + count_so_far - child->this_offset;
+				(*hash_map_agg)[bucket]->push_back({val, child});
+			}
+		} else {
+			// Invalid post process - should only be aggregations
+			throw std::logic_error("Only should be called for group by");
 		}
+		count_so_far++;
 	}
-	data_idx++;
-	return LineageProcessStruct{ count_so_far, 0, data_idx, finished_idx, data[finished_idx]->size() > data_idx};
 }
 
 template <typename T>
@@ -488,7 +484,9 @@ void OperatorLineage::HashAggLineageFunc(
     vector<shared_ptr<idx_t>> idxs,
     LineageIndexStruct key
 ) {
+//	std::cout << "Foo3" << std::endl;
 	auto payload = (uint64_t *)lineage_data->data->Process(0);
+//	std::cout << "Foo3.5" << std::endl;
 	key.chunk.next_lineage_agg_data->push_back((*hash_map_agg)[payload[source]]);
 	(*idxs[0])++;
 	key.child_ptrs = {};
@@ -500,7 +498,9 @@ void OperatorLineage::PerfectHashAggLineageFunc(
     vector<shared_ptr<idx_t>> idxs,
     LineageIndexStruct key
 ) {
+//	std::cout << "Foo4" << std::endl;
 	auto payload = (sel_t *)lineage_data->data->Process(0);
+//	std::cout << "Foo4.5" << std::endl;
 	key.chunk.next_lineage_agg_data->push_back((*hash_map_agg)[payload[source]]);
 	(*idxs[0])++;
 	key.child_ptrs = {};

@@ -55,13 +55,12 @@ public:
 
 	void FetchResultChunk(Value equal_value, DataChunk& result_chunk);
 
-	void FinishedProcessing(idx_t data_idx, idx_t finished_idx);
 	shared_ptr<PipelineLineage> GetPipelineLineage();
 	// Leaky... should refactor this so we don't need a pure pass-through function like this
 	void MarkChunkReturned();
 	LineageProcessStruct Process(const vector<column_t> column_ids, const vector<LogicalType>& types, idx_t count_so_far, DataChunk &insert_chunk, idx_t size=0, int thread_id=-1, idx_t data_idx = 0, idx_t finished_idx = 0);
 
-	LineageProcessStruct PostProcess(idx_t count_so_far, idx_t data_idx = 0, idx_t finished_idx = 0);
+	void PostProcess();
 	// Leaky... should refactor this so we don't need a pure pass-through function like this
 	void SetChunkId(idx_t idx);
 	idx_t Size();
