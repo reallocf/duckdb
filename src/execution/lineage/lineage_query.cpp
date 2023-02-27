@@ -533,7 +533,6 @@ void OperatorLineage::OrderByLineageFunc(idx_t source, const shared_ptr<LineageD
 }
 
 void OperatorLineage::AggIterate(LineageIndexStruct key, vector<shared_ptr<idx_t>> idxs) {
-	std::cout << "Foo" << std::endl;
 	shared_ptr<idx_t> out_idx = idxs[0];
 	while(*out_idx < STANDARD_VECTOR_SIZE && key.chunk.outer_agg_idx < key.chunk.lineage_agg_data->size()) {
 		auto agg_vec_ptr = key.chunk.lineage_agg_data->at(key.chunk.outer_agg_idx);
@@ -588,7 +587,6 @@ void OperatorLineage::AggIterate(LineageIndexStruct key, vector<shared_ptr<idx_t
 		key.chunk.inner_agg_idx = 0;
 		key.chunk.outer_agg_idx++;
 	}
-	std::cout << "Bar" << std::endl;
 }
 
 void OperatorLineage::NormalIterate(LineageIndexStruct key, vector<shared_ptr<idx_t>> idxs, idx_t lineage_idx) {
@@ -733,6 +731,7 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 		break;
 	}
 	case PhysicalOperatorType::HASH_JOIN: {
+		std::cout << "Beep" << std::endl;
 		// Setup build chunk
 		key.join_chunk.Initialize({LogicalType::UBIGINT});
 
@@ -741,11 +740,17 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 		shared_ptr<idx_t> left_idx = make_shared<idx_t>(0);
 
 		if (!key.chunk.lineage_agg_data->empty()) {
+			std::cout << "Foo" << std::endl;
 			AggIterate(key, {out_idx, right_idx, left_idx});
+			std::cout << "Foo2" << std::endl;
 		} else if (!key.chunk.lineage_simple_agg_data->empty()) {
+			std::cout << "Bar" << std::endl;
 			SimpleAggIterate(key, {out_idx, right_idx, left_idx});
+			std::cout << "Bar2" << std::endl;
 		} else {
+			std::cout << "Baz" << std::endl;
 			NormalIterate(key, {out_idx, right_idx, left_idx}, LINEAGE_PROBE);
+			std::cout << "Baz2" << std::endl;
 		}
 
 		// Set cardinality of chunks
@@ -756,6 +761,7 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 		for (; *right_idx < key.chunk.size(); (*right_idx)++) {
 			key.child_ptrs[*right_idx] = nullptr;
 		}
+		std::cout << "Boop" << std::endl;
 		break;
 	}
 	case PhysicalOperatorType::HASH_GROUP_BY: {
