@@ -249,9 +249,7 @@ unique_ptr<QueryResult> ClientContext::ExecutePreparedStatement(ClientContextLoc
 
 #ifdef LINEAGE
 	// Always annotate plan with lineage - lineage is always captured even if it isn't persisted TODO is this right?
-	std::cout << "Start" << std::endl;
 	lineage_manager->InitOperatorPlan(statement.plan.get(), trace_lineage);
-	std::cout << "Finished Init" << std::endl;
 #endif
 
 	// store the physical plan in the context for calls to Fetch()
@@ -287,14 +285,11 @@ unique_ptr<QueryResult> ClientContext::ExecutePreparedStatement(ClientContextLoc
 		result->collection.Append(*chunk);
 	}
 #ifdef LINEAGE
-	std::cout << "Finished Querying" << std::endl;
 	if (trace_lineage) {
-		std::cout << "Finished Querying with Lineage Capture on" << std::endl;
 		idx_t lineage_size = lineage_manager->CreateLineageTables(statement.plan.get());
 		if (LINEAGE_INDEXES_ON) {
 			clock_t start = clock();
 			lineage_manager->PostProcess(statement.plan.get());
-			std::cout << "Finished Postprocessing" << std::endl;
 			clock_t end = clock();
 			std::cout << "Client PostProcess time: " << ((float) end - start) / CLOCKS_PER_SEC << " sec" << std::endl;
 		}
