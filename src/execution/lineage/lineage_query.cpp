@@ -533,6 +533,7 @@ void OperatorLineage::OrderByLineageFunc(idx_t source, const shared_ptr<LineageD
 }
 
 void OperatorLineage::AggIterate(LineageIndexStruct key, vector<shared_ptr<idx_t>> idxs) {
+	std::cout << "Foo" << std::endl;
 	shared_ptr<idx_t> out_idx = idxs[0];
 	while(*out_idx < STANDARD_VECTOR_SIZE && key.chunk.outer_agg_idx < key.chunk.lineage_agg_data->size()) {
 		auto agg_vec_ptr = key.chunk.lineage_agg_data->at(key.chunk.outer_agg_idx);
@@ -587,6 +588,7 @@ void OperatorLineage::AggIterate(LineageIndexStruct key, vector<shared_ptr<idx_t
 		key.chunk.inner_agg_idx = 0;
 		key.chunk.outer_agg_idx++;
 	}
+	std::cout << "Bar" << std::endl;
 }
 
 void OperatorLineage::NormalIterate(LineageIndexStruct key, vector<shared_ptr<idx_t>> idxs, idx_t lineage_idx) {
@@ -681,7 +683,7 @@ void OperatorLineage::SimpleAggIterate(LineageIndexStruct key, vector<shared_ptr
 }
 
 void OperatorLineage::AccessIndex(LineageIndexStruct key) {
-//	std::cout << PhysicalOperatorToString(this->type) << this->opid << std::endl;
+	std::cout << PhysicalOperatorToString(this->type) << this->opid << std::endl;
 //	for (idx_t i = 0; i < key.chunk.size(); i++) {
 //		std::cout << key.chunk.GetValue(0,i) << std::endl;
 //	}
