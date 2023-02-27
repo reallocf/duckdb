@@ -157,7 +157,6 @@ void PhysicalIndexJoin::Output(ExecutionContext &context, DataChunk &chunk, Phys
 		chunk.SetCardinality(state->result_size);
 	}
 	else {
-		std::cout << "Foo" << std::endl;
 		DataChunk join_chunk;
 		vector<shared_ptr<LineageDataWithOffset>> child_ptrs;
 
@@ -168,7 +167,6 @@ void PhysicalIndexJoin::Output(ExecutionContext &context, DataChunk &chunk, Phys
 				child_ptrs = child_state->child_ptrs;
 			}
 		}
-		std::cout << "Foo2" << std::endl;
 		if (child_ptrs.empty()) {
 			child_ptrs.reserve(STANDARD_VECTOR_SIZE);
 			for (idx_t i = 0; i < STANDARD_VECTOR_SIZE; i++) {
@@ -176,7 +174,6 @@ void PhysicalIndexJoin::Output(ExecutionContext &context, DataChunk &chunk, Phys
 			}
 		}
 
-		std::cout << "Foo3" << std::endl;
 		opLineage->AccessIndex({state->child_chunk, child_ptrs, join_chunk, state->cached_values_arr, state->cached_child_ptrs_arr, state->overflow_count});
 
 		// 2. Set PARENT'S child_ptrs so that it can pass it to AccessIndex
@@ -198,7 +195,6 @@ void PhysicalIndexJoin::Output(ExecutionContext &context, DataChunk &chunk, Phys
 		if (join_chunk.size() > 0) {
 			chunk_collection->Append(join_chunk);
 		}
-		std::cout << "Foo5" << std::endl;
 	}
 }
 
@@ -244,19 +240,14 @@ void PhysicalIndexJoin::GetChunkInternal(ExecutionContext &context, DataChunk &c
 	state->result_size = 0;
 	while (state->result_size == 0) {
 		// Fancy lineage cache management
-		std::cout << "Foo12" << std::endl;
 		if (state->child_chunk.lineage_agg_data->size() > state->child_chunk.outer_agg_idx) {
 			Output(context, chunk, state_p);
 			return;
-			std::cout << "Foo12.5" << std::endl;
 		}
-		std::cout << "Foo13" << std::endl;
 		if (state->child_chunk.lineage_simple_agg_data->size() > state->child_chunk.outer_simple_agg_idx) {
 			Output(context, chunk, state_p);
-			std::cout << "Foo13.5" << std::endl;
 			return;
 		}
-		std::cout << "Foo14" << std::endl;
 		// Return cached values if there are any
 		if (!state->cached_values_arr.empty()) {
 			throw std::logic_error("Shouldn't use this code path any more");
