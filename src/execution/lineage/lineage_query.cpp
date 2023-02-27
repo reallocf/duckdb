@@ -107,7 +107,7 @@ void OperatorLineage::PostProcess() {
 			// Invalid post process - should only be aggregations
 			throw std::logic_error("Only should be called for group by");
 		}
-		count_so_far++;
+		count_so_far += res_count;
 	}
 }
 
