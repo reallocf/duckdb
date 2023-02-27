@@ -70,7 +70,7 @@ void LineageManager::PostProcess(PhysicalOperator *op) {
 }
 
 LineageProcessStruct OperatorLineage::PostProcess(idx_t count_so_far, idx_t data_idx, idx_t finished_idx) {
-	std::cout << "Postprocess: " << PhysicalOperatorToString(this->type) << this->opid << std::endl;
+//	std::cout << "Postprocess: " << PhysicalOperatorToString(this->type) << this->opid << std::endl;
 	if (data[finished_idx]->size() > data_idx) {
 		// Hash Aggregate / Perfect Hash Aggregate
 		// schema for both: [INTEGER in_index, INTEGER out_index]
@@ -690,7 +690,7 @@ void OperatorLineage::SimpleAggIterate(LineageIndexStruct key, vector<shared_ptr
 }
 
 void OperatorLineage::AccessIndex(LineageIndexStruct key) {
-	std::cout << PhysicalOperatorToString(this->type) << this->opid << std::endl;
+//	std::cout << PhysicalOperatorToString(this->type) << this->opid << std::endl;
 //	for (idx_t i = 0; i < key.chunk.size(); i++) {
 //		std::cout << key.chunk.GetValue(0,i) << std::endl;
 //	}
