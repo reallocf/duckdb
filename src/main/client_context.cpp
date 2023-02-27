@@ -255,36 +255,28 @@ unique_ptr<QueryResult> ClientContext::ExecutePreparedStatement(ClientContextLoc
 #endif
 
 	// store the physical plan in the context for calls to Fetch()
-	std::cout << "Foo" << std::endl;
 	executor.Initialize(statement.plan.get());
-	std::cout << "Foo2" << std::endl;
 
 	auto types = executor.GetTypes();
 
 	D_ASSERT(types == statement.types);
 
-	std::cout << "Foo3" << std::endl;
 	if (create_stream_result) {
 		if (enable_progress_bar) {
 			progress_bar->Stop();
 		}
 		// successfully compiled SELECT clause and it is the last statement
 		// return a StreamQueryResult so the client can call Fetch() on it and stream the result
-		std::cout << "Foo4" << std::endl;
 		return make_unique<StreamQueryResult>(statement.statement_type, shared_from_this(), statement.types,
 		                                      statement.names, move(statement_p));
 	}
 	// create a materialized result by continuously fetching
-	std::cout << "Foo5" << std::endl;
 	auto result = make_unique<MaterializedQueryResult>(statement.statement_type, statement.types, statement.names);
-	std::cout << "Foo6" << std::endl;
 	while (true) {
-		std::cout << "Foo7" << std::endl;
 		auto chunk = FetchInternal(lock);
 		if (chunk->size() == 0) {
 			break;
 		}
-		std::cout << "Foo8" << std::endl;
 #ifdef DEBUG
 		for (idx_t i = 0; i < chunk->ColumnCount(); i++) {
 			if (statement.types[i].id() == LogicalTypeId::VARCHAR) {
@@ -293,7 +285,6 @@ unique_ptr<QueryResult> ClientContext::ExecutePreparedStatement(ClientContextLoc
 		}
 #endif
 		result->collection.Append(*chunk);
-		std::cout << "Foo9" << std::endl;
 	}
 #ifdef LINEAGE
 	std::cout << "Finished Querying" << std::endl;
