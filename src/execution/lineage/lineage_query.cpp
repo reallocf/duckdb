@@ -43,15 +43,19 @@ unique_ptr<PhysicalOperator> CombineByMode(
 // Post Processing to prepare for querying
 
 void LineageManager::PostProcess(PhysicalOperator *op) {
+	std::cout << "Foo1" << std::endl;
 	// massage the data to make it easier to query
 	bool should_post_process =
 		op->type == PhysicalOperatorType::HASH_GROUP_BY || op->type == PhysicalOperatorType::PERFECT_HASH_GROUP_BY;
 	if (should_post_process) {
+		std::cout << "Foo2" << std::endl;
 		// for group by, build hash table on the unique groups
 		for (auto const& lineage_op : *op->lineage_op) {
+			std::cout << "Foo3" << std::endl;
 			idx_t chunk_count = 0;
 			LineageProcessStruct lps = lineage_op.second->PostProcess(chunk_count, 0, lineage_op.first);
 			while (lps.still_processing) {
+				std::cout << "Foo4" << std::endl;
 				lps = lineage_op.second->PostProcess(++chunk_count,  lps.count_so_far, lps.data_idx, lps.finished_idx);
 			}
 			lineage_op.second->FinishedProcessing(lps.data_idx, lps.finished_idx);
@@ -59,14 +63,21 @@ void LineageManager::PostProcess(PhysicalOperator *op) {
 	}
 
 	if (op->type == PhysicalOperatorType::DELIM_JOIN) {
+		std::cout << "Foo5" << std::endl;
 		PostProcess( dynamic_cast<PhysicalDelimJoin *>(op)->children[0].get());
+		std::cout << "Foo6" << std::endl;
 		PostProcess( dynamic_cast<PhysicalDelimJoin *>(op)->join.get());
+		std::cout << "Foo7" << std::endl;
 		PostProcess( (PhysicalOperator *)dynamic_cast<PhysicalDelimJoin *>(op)->distinct.get());
+		std::cout << "Foo8" << std::endl;
 		return;
 	}
 	for (idx_t i = 0; i < op->children.size(); i++) {
+		std::cout << "Foo9" << std::endl;
 		PostProcess(op->children[i].get());
+		std::cout << "Foo10" << std::endl;
 	}
+	std::cout << "Foo11" << std::endl;
 }
 
 LineageProcessStruct OperatorLineage::PostProcess(idx_t chunk_count, idx_t count_so_far, idx_t data_idx, idx_t finished_idx) {

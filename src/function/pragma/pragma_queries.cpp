@@ -7,7 +7,6 @@ namespace duckdb {
 
 #ifdef LINEAGE
 string PragmaBackwardLineageDuckDBExecEngine(ClientContext &context, const FunctionParameters &parameters) {
-	std::cout << "Starting lineage querying" << std::endl;
 	// query the lineage data, create a view on top of it, and then query that
 	string query = parameters.values[0].ToString();
 	int lineage_id = parameters.values[1].GetValue<int>();
@@ -19,14 +18,11 @@ string PragmaBackwardLineageDuckDBExecEngine(ClientContext &context, const Funct
 	}
 	LineageQuery lineage_query = LineageQuery();
 	clock_t start = clock();
-	std::cout << "Running lineage querying" << std::endl;
 	unique_ptr<QueryResult> result = lineage_query.Run(op, context, mode, lineage_id, should_count);
-	std::cout << "Finished lineage querying" << std::endl;
 	clock_t execute = clock();
 
 	string str_results;
 	idx_t count = 0;
-	std::cout << "Pulling chunk" << std::endl;
 	unique_ptr<DataChunk> chunk = result->Fetch();
 	while (chunk != nullptr) {
 		for (idx_t row_idx = 0; row_idx < chunk->size(); row_idx++) {
@@ -50,22 +46,12 @@ string PragmaBackwardLineageDuckDBExecEngine(ClientContext &context, const Funct
 				str_results += row;
 			}
 		}
-		std::cout << "Pulling next chunk" << std::endl;
 		chunk = result->Fetch();
 	}
 	if (count > 1) {
 		str_results = "list_value(" + str_results + ")";
 	}
 	clock_t end = clock();
-	// Reset chunk
-//	chunk->lineage_agg_data = make_unique<vector<shared_ptr<vector<SourceAndMaybeData>>>>();
-//	chunk->inner_agg_idx = 0;
-//	chunk->outer_agg_idx = 0;
-//	chunk->next_lineage_agg_data = make_unique<vector<shared_ptr<vector<SourceAndMaybeData>>>>();
-//	chunk->lineage_simple_agg_data = make_shared<vector<LineageDataWithOffset>>();
-//	chunk->inner_simple_agg_idx = 0;
-//	chunk->outer_simple_agg_idx = 0;
-//	chunk->next_lineage_simple_agg_data = make_shared<vector<LineageDataWithOffset>>();
 	std::cout << "Execute time: " << ((float) execute - start) / CLOCKS_PER_SEC << std::endl;
 	std::cout << "List build time: " << ((float) end - execute) / CLOCKS_PER_SEC << std::endl;
 	std::cout << "Total time: " << ((float) end - start) / CLOCKS_PER_SEC << std::endl;
