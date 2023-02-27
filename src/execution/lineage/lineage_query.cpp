@@ -71,8 +71,11 @@ void OperatorLineage::PostProcess() {
 	// build hash table
 	idx_t count_so_far = 0;
 	for (idx_t i = 0; i < data[LINEAGE_SINK]->size(); i++) {
+		std::cout << "Bar" << std::endl;
 		LineageDataWithOffset this_data = (*data[LINEAGE_SINK])[i];
+		std::cout << "Bar2" << std::endl;
 		idx_t res_count = this_data.data->Count();
+		std::cout << "Bar3" << std::endl;
 		if (type == PhysicalOperatorType::PERFECT_HASH_GROUP_BY) {
 			auto payload = (sel_t *)this_data.data->Process(0);
 			for (idx_t j = 0; j < res_count; ++j) {
@@ -87,22 +90,32 @@ void OperatorLineage::PostProcess() {
 				(*hash_map_agg)[bucket]->push_back({val, child});
 			}
 		} else if (type == PhysicalOperatorType::HASH_GROUP_BY) {
+			std::cout << "Foo" << std::endl;
 			auto payload = (uint64_t *)this_data.data->Process(0);
+			std::cout << "Foo2" << std::endl;
 			for (idx_t j = 0; j < res_count; ++j) {
+				std::cout << "Foo3" << std::endl;
 				auto bucket = (idx_t)payload[j];
+				std::cout << "Foo4" << std::endl;
 				if ((*hash_map_agg)[bucket] == nullptr) {
+					std::cout << "Foo5" << std::endl;
 					(*hash_map_agg)[bucket] = make_shared<vector<SourceAndMaybeData>>();
+					std::cout << "Foo6" << std::endl;
 				}
 
 				auto child = this_data.data->GetChild();
+				std::cout << "Foo7" << std::endl;
 				// We capture global value, so we convert to child local value here
 				auto val = j + count_so_far - child->this_offset;
+				std::cout << "Foo8" << std::endl;
 				(*hash_map_agg)[bucket]->push_back({val, child});
+				std::cout << "Foo9" << std::endl;
 			}
 		} else {
 			// Invalid post process - should only be aggregations
 			throw std::logic_error("Only should be called for group by");
 		}
+		std::cout << "Bar4" << std::endl;
 		count_so_far += res_count;
 	}
 	std::cout << "Finished Postprocessing!" << std::endl;
