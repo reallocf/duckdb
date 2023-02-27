@@ -498,6 +498,7 @@ void OperatorLineage::HashAggLineageFunc(
 	auto payload = (uint64_t *)lineage_data->data->Process(0);
 	key.chunk.next_lineage_agg_data->push_back((*hash_map_agg)[payload[source]]);
 	(*idxs[0])++;
+	key.child_ptrs = {};
 }
 
 void OperatorLineage::PerfectHashAggLineageFunc(
@@ -509,6 +510,7 @@ void OperatorLineage::PerfectHashAggLineageFunc(
 	auto payload = (sel_t *)lineage_data->data->Process(0);
 	key.chunk.next_lineage_agg_data->push_back((*hash_map_agg)[payload[source]]);
 	(*idxs[0])++;
+	key.child_ptrs = {};
 }
 
 void OperatorLineage::BlockwiseIndexNLPiecewiseJoinsLineageFunc(
@@ -906,6 +908,7 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 		// Recurse until we find a filter-like child, then use all of its lineage
 		// This optimizations allows us to skip aggregations and order bys - especially helping for query 15
 		key.chunk.next_lineage_simple_agg_data = RecurseForSimpleAgg(children[0]);
+		key.child_ptrs = {};
 		break;
 	}
 	default: {
