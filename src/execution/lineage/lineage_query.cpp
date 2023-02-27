@@ -81,10 +81,13 @@ void LineageManager::PostProcess(PhysicalOperator *op) {
 }
 
 LineageProcessStruct OperatorLineage::PostProcess(idx_t chunk_count, idx_t count_so_far, idx_t data_idx, idx_t finished_idx) {
+	std::cout << "Postprocess: " << PhysicalOperatorToString(this->type) << this->opid << std::endl;
+	std::cout << "Bar" << std::endl;
 	if (data[finished_idx]->size() > data_idx) {
 		// Hash Aggregate / Perfect Hash Aggregate
 		// schema for both: [INTEGER in_index, INTEGER out_index]
 		if (finished_idx == LINEAGE_SINK) {
+			std::cout << "Bar2" << std::endl;
 			// build hash table
 			LineageDataWithOffset this_data = (*data[LINEAGE_SINK])[data_idx];
 			idx_t res_count = this_data.data->Count();
@@ -102,6 +105,7 @@ LineageProcessStruct OperatorLineage::PostProcess(idx_t chunk_count, idx_t count
 					(*hash_map_agg)[bucket]->push_back({val, child});
 				}
 			} else {
+				std::cout << "Bar2" << std::endl;
 				auto payload = (uint64_t *)this_data.data->Process(0);
 				for (idx_t i = 0; i < res_count; ++i) {
 					auto bucket = (idx_t)payload[i];
@@ -118,6 +122,7 @@ LineageProcessStruct OperatorLineage::PostProcess(idx_t chunk_count, idx_t count
 			count_so_far += res_count;
 		}
 	}
+	std::cout << "Bar3" << std::endl;
 	data_idx++;
 	return LineageProcessStruct{ count_so_far, 0, data_idx, finished_idx, data[finished_idx]->size() > data_idx};
 }
