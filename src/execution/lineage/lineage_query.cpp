@@ -67,11 +67,13 @@ void LineageManager::PostProcess(PhysicalOperator *op) {
 }
 
 void OperatorLineage::PostProcess() {
+	std::cout << "Beep" << std::endl;
 	// build hash table
 	idx_t count_so_far = 0;
 	for (idx_t i = 0; i < data[LINEAGE_SINK]->size(); i++) {
 		LineageDataWithOffset this_data = (*data[LINEAGE_SINK])[i];
 		idx_t res_count = this_data.data->Count();
+		std::cout << "Boop" << std::endl;
 		if (type == PhysicalOperatorType::PERFECT_HASH_GROUP_BY) {
 			auto payload = (sel_t *)this_data.data->Process(0);
 			for (idx_t j = 0; j < res_count; ++j) {
@@ -86,24 +88,35 @@ void OperatorLineage::PostProcess() {
 				(*hash_map_agg)[bucket]->push_back({val, child});
 			}
 		} else if (type == PhysicalOperatorType::HASH_GROUP_BY) {
+			std::cout << "Boop2" << std::endl;
 			auto payload = (uint64_t *)this_data.data->Process(0);
+			std::cout << "Boop3" << std::endl;
 			for (idx_t j = 0; j < res_count; ++j) {
+				std::cout << "Boop4" << std::endl;
 				auto bucket = (idx_t)payload[j];
+				std::cout << "Boop5" << std::endl;
 				if ((*hash_map_agg)[bucket] == nullptr) {
 					(*hash_map_agg)[bucket] = make_shared<vector<SourceAndMaybeData>>();
 				}
+				std::cout << "Boop6" << std::endl;
 
+				std::cout << "Boop7" << std::endl;
 				auto child = this_data.data->GetChild();
+				std::cout << "Boop8" << std::endl;
 				// We capture global value, so we convert to child local value here
 				auto val = j + count_so_far - child->this_offset;
+				std::cout << "Boop9" << std::endl;
 				(*hash_map_agg)[bucket]->push_back({val, child});
+				std::cout << "Boop10" << std::endl;
 			}
 		} else {
 			// Invalid post process - should only be aggregations
 			throw std::logic_error("Only should be called for group by");
 		}
+		std::cout << "Boop11" << std::endl;
 		count_so_far += res_count;
 	}
+	std::cout << "Boop12" << std::endl;
 }
 
 template <typename T>
@@ -731,7 +744,6 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 		break;
 	}
 	case PhysicalOperatorType::HASH_JOIN: {
-		std::cout << "Beep" << std::endl;
 		// Setup build chunk
 		key.join_chunk.Initialize({LogicalType::UBIGINT});
 
@@ -740,17 +752,11 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 		shared_ptr<idx_t> left_idx = make_shared<idx_t>(0);
 
 		if (!key.chunk.lineage_agg_data->empty()) {
-			std::cout << "Foo" << std::endl;
 			AggIterate(key, {out_idx, right_idx, left_idx});
-			std::cout << "Foo2" << std::endl;
 		} else if (!key.chunk.lineage_simple_agg_data->empty()) {
-			std::cout << "Bar" << std::endl;
 			SimpleAggIterate(key, {out_idx, right_idx, left_idx});
-			std::cout << "Bar2" << std::endl;
 		} else {
-			std::cout << "Baz" << std::endl;
 			NormalIterate(key, {out_idx, right_idx, left_idx}, LINEAGE_PROBE);
-			std::cout << "Baz2" << std::endl;
 		}
 
 		// Set cardinality of chunks
@@ -761,7 +767,6 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 		for (; *right_idx < key.chunk.size(); (*right_idx)++) {
 			key.child_ptrs[*right_idx] = nullptr;
 		}
-		std::cout << "Boop" << std::endl;
 		break;
 	}
 	case PhysicalOperatorType::HASH_GROUP_BY: {
