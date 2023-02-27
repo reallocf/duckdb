@@ -681,7 +681,7 @@ void OperatorLineage::SimpleAggIterate(LineageIndexStruct key, vector<shared_ptr
 }
 
 void OperatorLineage::AccessIndex(LineageIndexStruct key) {
-//	std::cout << PhysicalOperatorToString(this->type) << this->opid << std::endl;
+	std::cout << PhysicalOperatorToString(this->type) << this->opid << std::endl;
 //	for (idx_t i = 0; i < key.chunk.size(); i++) {
 //		std::cout << key.chunk.GetValue(0,i) << std::endl;
 //	}
@@ -731,6 +731,7 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 		break;
 	}
 	case PhysicalOperatorType::HASH_JOIN: {
+		std::cout << "Bar" << std::endl;
 		// Setup build chunk
 		key.join_chunk.Initialize({LogicalType::UBIGINT});
 
@@ -738,22 +739,31 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 		shared_ptr<idx_t> right_idx = make_shared<idx_t>(0);
 		shared_ptr<idx_t> left_idx = make_shared<idx_t>(0);
 
+		std::cout << "Bar2" << std::endl;
 		if (!key.chunk.lineage_agg_data->empty()) {
+			std::cout << "Bar3" << std::endl;
 			AggIterate(key, {out_idx, right_idx, left_idx});
+			std::cout << "Bar4" << std::endl;
 		} else if (!key.chunk.lineage_simple_agg_data->empty()) {
+			std::cout << "Bar5" << std::endl;
 			SimpleAggIterate(key, {out_idx, right_idx, left_idx});
+			std::cout << "Bar6" << std::endl;
 		} else {
+			std::cout << "Bar7" << std::endl;
 			NormalIterate(key, {out_idx, right_idx, left_idx}, LINEAGE_PROBE);
+			std::cout << "Bar8" << std::endl;
 		}
 
 		// Set cardinality of chunks
 		key.chunk.SetCardinality(*right_idx);
 		key.join_chunk.SetCardinality(*left_idx);
+		std::cout << "Bar9" << std::endl;
 
 		// Clear out child pointers for values that didn't have a right match
 		for (; *right_idx < key.chunk.size(); (*right_idx)++) {
 			key.child_ptrs[*right_idx] = nullptr;
 		}
+		std::cout << "Bar10" << std::endl;
 		break;
 	}
 	case PhysicalOperatorType::HASH_GROUP_BY: {
