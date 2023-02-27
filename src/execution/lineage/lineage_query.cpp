@@ -44,12 +44,12 @@ unique_ptr<PhysicalOperator> CombineByMode(
 
 void LineageManager::PostProcess(PhysicalOperator *op) {
 	// massage the data to make it easier to query
-	bool should_post_process =
-		op->type == PhysicalOperatorType::HASH_GROUP_BY || op->type == PhysicalOperatorType::PERFECT_HASH_GROUP_BY;
-	std::cout << "Should Post Process: " << PhysicalOperatorToString(op->type) << " " << should_post_process << std::endl;
-	if (should_post_process) {
+	if (op->type == PhysicalOperatorType::HASH_GROUP_BY || op->type == PhysicalOperatorType::PERFECT_HASH_GROUP_BY) {
 		// for group by, build hash table on the unique groups
 		for (auto const& lineage_op : *op->lineage_op) {
+			if (lineage_op.second->type != PhysicalOperatorType::HASH_GROUP_BY && lineage_op.second->type != PhysicalOperatorType::PERFECT_HASH_GROUP_BY) {
+				continue;
+			}
 			LineageProcessStruct lps = lineage_op.second->PostProcess(0, lineage_op.first);
 			while (lps.still_processing) {
 				lps = lineage_op.second->PostProcess(lps.count_so_far, lps.data_idx, lps.finished_idx);
@@ -105,7 +105,7 @@ LineageProcessStruct OperatorLineage::PostProcess(idx_t count_so_far, idx_t data
 					(*hash_map_agg)[bucket]->push_back({val, child});
 				}
 			} else {
-				// Invalid mode
+				// Invalid post process - should only be aggregations
 				throw std::logic_error("Only should be called for group by");
 			}
 			count_so_far += res_count;
@@ -442,32 +442,22 @@ void OperatorLineage::HashJoinLineageFunc(
     vector<shared_ptr<idx_t>> idxs,
     LineageIndexStruct key
 ) {
-	std::cout << "Flip" << std::endl;
 	LineageNested &nested_lineage = dynamic_cast<LineageNested &>(*lineage_data->data);
 	shared_ptr<idx_t> left_i = idxs[1];
 	shared_ptr<idx_t> right_i = idxs[2];
 	int data_index = nested_lineage.LocateChunkIndex(source);
 	LineageBinary& binary_data = dynamic_cast<LineageBinary &>(*(nested_lineage.GetChunkAt(data_index))->data);
 	idx_t adjust_offset = 0;
-	std::cout << "Flop" << std::endl;
 	if (data_index > 0) {
 		// adjust the source
-		std::cout << "Flop1" << std::endl;
 		adjust_offset = nested_lineage.GetAccCount(data_index - 1);
-		std::cout << "Flop2" << std::endl;
 	}
-	std::cout << "Flop3" << std::endl;
 	if (binary_data.right != nullptr) {
-		std::cout << "Flop4" << std::endl;
 		key.chunk.SetValue(0,*right_i,Value::UBIGINT(binary_data.right->Backward(source - adjust_offset)));
-		std::cout << "Flop5" << std::endl;
 		key.child_ptrs[*right_i] = binary_data.GetChild();
-		std::cout << "Flop6" << std::endl;
 		(*right_i)++;
-		std::cout << "Flop7" << std::endl;
 	}
 
-	std::cout << "Flap" << std::endl;
 	if (binary_data.left != nullptr) {
 		auto left = binary_data.left->Backward(source - adjust_offset);
 		if (left == 0) {
@@ -490,7 +480,6 @@ void OperatorLineage::HashJoinLineageFunc(
 		(*left_i)++;
 	}
 	(*idxs[0])++;
-	std::cout << "Floop" << std::endl;
 }
 
 void OperatorLineage::HashAggLineageFunc(
