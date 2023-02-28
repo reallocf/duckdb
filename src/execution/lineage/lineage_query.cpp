@@ -43,55 +43,55 @@ unique_ptr<PhysicalOperator> CombineByMode(
 
 void LineageManager::PostProcess(PhysicalOperator *op, bool should_index) {
 	// massage the data to make it easier to query
-	bool always_post_process =
-		op->type == PhysicalOperatorType::HASH_GROUP_BY || op->type == PhysicalOperatorType::PERFECT_HASH_GROUP_BY;
-	bool never_post_process =
-		op->type == PhysicalOperatorType::ORDER_BY; // 1 large chunk, so index is useless
-	if ((always_post_process) && !never_post_process) {
-		vector<vector<ColumnDefinition>> table_column_types = GetTableColumnTypes(op);
-		for (idx_t i = 0; i < table_column_types.size(); i++) {
-			bool skip_this_sel_vec =
-				(op->type == PhysicalOperatorType::HASH_GROUP_BY && i == LINEAGE_COMBINE)
-				|| (op->type == PhysicalOperatorType::HASH_JOIN && i == LINEAGE_BUILD)
-				|| (op->type == PhysicalOperatorType::HASH_JOIN && dynamic_cast<PhysicalJoin *>(op)->join_type != JoinType::MARK)
-				|| (op->type == PhysicalOperatorType::PERFECT_HASH_GROUP_BY && i == LINEAGE_COMBINE)
-				|| (op->type == PhysicalOperatorType::HASH_GROUP_BY && i == LINEAGE_SOURCE)
-				|| (op->type == PhysicalOperatorType::PERFECT_HASH_GROUP_BY && i == LINEAGE_SOURCE);
-			if (skip_this_sel_vec) {
-				continue;
-			}
-			// for hash join, build hash table on the build side that map the address to id
-			// for group by, build hash table on the unique groups
-			for (auto const& lineage_op : op->lineage_op) {
-				idx_t chunk_count = 0;
-				LineageProcessStruct lps = lineage_op.second->PostProcess(chunk_count, 0, lineage_op.first);
-				while (lps.still_processing) {
-					lps = lineage_op.second->PostProcess(++chunk_count,  lps.count_so_far, lps.data_idx, lps.finished_idx);
-				}
-				lineage_op.second->FinishedProcessing(lps.data_idx, lps.finished_idx);
-			}
-		}
-	}
-
-	if (op->type == PhysicalOperatorType::DELIM_JOIN) {
-		PostProcess( dynamic_cast<PhysicalDelimJoin *>(op)->children[0].get(), true);
-		PostProcess( dynamic_cast<PhysicalDelimJoin *>(op)->join.get(), true);
-		PostProcess( (PhysicalOperator *)dynamic_cast<PhysicalDelimJoin *>(op)->distinct.get(), true);
-		return;
-	}
-	for (idx_t i = 0; i < op->children.size(); i++) {
-		bool child_should_index =
-			op->type == PhysicalOperatorType::HASH_GROUP_BY
-			|| op->type == PhysicalOperatorType::PERFECT_HASH_GROUP_BY
-			|| (op->type == PhysicalOperatorType::HASH_JOIN && i == 1) // Only build side child needs an index
-			|| (op->type == PhysicalOperatorType::BLOCKWISE_NL_JOIN && i == 1) // Right side needs index
-			|| (op->type == PhysicalOperatorType::CROSS_PRODUCT && i == 1) // Right side needs index
-			|| (op->type == PhysicalOperatorType::NESTED_LOOP_JOIN && i == 1) // Right side needs index
-			|| (op->type == PhysicalOperatorType::PIECEWISE_MERGE_JOIN && i == 1) // Right side needs index
-			|| op->type == PhysicalOperatorType::ORDER_BY
-			|| (op->type == PhysicalOperatorType::PROJECTION && should_index); // Pass through should_index on projection
-		PostProcess(op->children[i].get(), child_should_index);
-	}
+//	bool always_post_process =
+//		op->type == PhysicalOperatorType::HASH_GROUP_BY || op->type == PhysicalOperatorType::PERFECT_HASH_GROUP_BY;
+//	bool never_post_process =
+//		op->type == PhysicalOperatorType::ORDER_BY; // 1 large chunk, so index is useless
+//	if ((always_post_process) && !never_post_process) {
+//		vector<vector<ColumnDefinition>> table_column_types = GetTableColumnTypes(op);
+//		for (idx_t i = 0; i < table_column_types.size(); i++) {
+//			bool skip_this_sel_vec =
+//				(op->type == PhysicalOperatorType::HASH_GROUP_BY && i == LINEAGE_COMBINE)
+//				|| (op->type == PhysicalOperatorType::HASH_JOIN && i == LINEAGE_BUILD)
+//				|| (op->type == PhysicalOperatorType::HASH_JOIN && dynamic_cast<PhysicalJoin *>(op)->join_type != JoinType::MARK)
+//				|| (op->type == PhysicalOperatorType::PERFECT_HASH_GROUP_BY && i == LINEAGE_COMBINE)
+//				|| (op->type == PhysicalOperatorType::HASH_GROUP_BY && i == LINEAGE_SOURCE)
+//				|| (op->type == PhysicalOperatorType::PERFECT_HASH_GROUP_BY && i == LINEAGE_SOURCE);
+//			if (skip_this_sel_vec) {
+//				continue;
+//			}
+//			// for hash join, build hash table on the build side that map the address to id
+//			// for group by, build hash table on the unique groups
+//			for (auto const& lineage_op : op->lineage_op) {
+//				idx_t chunk_count = 0;
+//				LineageProcessStruct lps = lineage_op.second->PostProcess(chunk_count, 0, lineage_op.first);
+//				while (lps.still_processing) {
+//					lps = lineage_op.second->PostProcess(++chunk_count,  lps.count_so_far, lps.data_idx, lps.finished_idx);
+//				}
+//				lineage_op.second->FinishedProcessing(lps.data_idx, lps.finished_idx);
+//			}
+//		}
+//	}
+//
+//	if (op->type == PhysicalOperatorType::DELIM_JOIN) {
+//		PostProcess( dynamic_cast<PhysicalDelimJoin *>(op)->children[0].get(), true);
+//		PostProcess( dynamic_cast<PhysicalDelimJoin *>(op)->join.get(), true);
+//		PostProcess( (PhysicalOperator *)dynamic_cast<PhysicalDelimJoin *>(op)->distinct.get(), true);
+//		return;
+//	}
+//	for (idx_t i = 0; i < op->children.size(); i++) {
+//		bool child_should_index =
+//			op->type == PhysicalOperatorType::HASH_GROUP_BY
+//			|| op->type == PhysicalOperatorType::PERFECT_HASH_GROUP_BY
+//			|| (op->type == PhysicalOperatorType::HASH_JOIN && i == 1) // Only build side child needs an index
+//			|| (op->type == PhysicalOperatorType::BLOCKWISE_NL_JOIN && i == 1) // Right side needs index
+//			|| (op->type == PhysicalOperatorType::CROSS_PRODUCT && i == 1) // Right side needs index
+//			|| (op->type == PhysicalOperatorType::NESTED_LOOP_JOIN && i == 1) // Right side needs index
+//			|| (op->type == PhysicalOperatorType::PIECEWISE_MERGE_JOIN && i == 1) // Right side needs index
+//			|| op->type == PhysicalOperatorType::ORDER_BY
+//			|| (op->type == PhysicalOperatorType::PROJECTION && should_index); // Pass through should_index on projection
+//		PostProcess(op->children[i].get(), child_should_index);
+//	}
 }
 
 LineageProcessStruct OperatorLineage::PostProcess(idx_t chunk_count, idx_t count_so_far, idx_t data_idx, idx_t finished_idx) {
@@ -142,40 +142,40 @@ LineageProcessStruct OperatorLineage::PostProcess(idx_t chunk_count, idx_t count
 			// schema for both: [INTEGER in_index, INTEGER out_index]
 			if (finished_idx == LINEAGE_SINK) {
 				// build hash table
-				LineageDataWithOffset this_data = data[LINEAGE_SINK][data_idx];
-				idx_t res_count = this_data.data->Count();
-				if (type == PhysicalOperatorType::PERFECT_HASH_GROUP_BY) {
-					auto payload = (sel_t*)this_data.data->Process(0);
-					for (idx_t i=0; i < res_count; ++i) {
-						idx_t bucket = payload[i];
-						if (hash_map_agg[bucket] == nullptr) {
-							hash_map_agg[bucket] = make_shared<vector<SourceAndMaybeData>>();
-						}
-						auto child = this_data.data->GetChild();
-						auto val = i + count_so_far;
-						if (child != nullptr) {
-							// We capture global value, so we convert to child local value here
-							val -= child->this_offset;
-						}
-						hash_map_agg[bucket]->push_back({val, child});
-					}
-				} else {
-					auto payload = (uint64_t*)this_data.data->Process(0);
-					for (idx_t i=0; i < res_count; ++i) {
-						idx_t bucket = payload[i];
-						if (hash_map_agg[bucket] == nullptr) {
-							hash_map_agg[bucket] = make_shared<vector<SourceAndMaybeData>>();
-						}
-						auto child = this_data.data->GetChild();
-						auto val = i + count_so_far;
-						if (child != nullptr) {
-							// We capture global value, so we convert to child local value here
-							val -= child->this_offset;
-						}
-						hash_map_agg[bucket]->push_back({val, child});
-					}
-				}
-				count_so_far += res_count;
+//				LineageDataWithOffset this_data = data[LINEAGE_SINK][data_idx];
+//				idx_t res_count = this_data.data->Count();
+//				if (type == PhysicalOperatorType::PERFECT_HASH_GROUP_BY) {
+//					auto payload = (sel_t*)this_data.data->Process(0);
+//					for (idx_t i=0; i < res_count; ++i) {
+//						idx_t bucket = payload[i];
+//						if (hash_map_agg[bucket] == nullptr) {
+//							hash_map_agg[bucket] = make_shared<vector<SourceAndMaybeData>>();
+//						}
+//						auto child = this_data.data->GetChild();
+//						auto val = i + count_so_far;
+//						if (child != nullptr) {
+//							// We capture global value, so we convert to child local value here
+//							val -= child->this_offset;
+//						}
+//						hash_map_agg[bucket]->push_back({val, child});
+//					}
+//				} else {
+//					auto payload = (uint64_t*)this_data.data->Process(0);
+//					for (idx_t i=0; i < res_count; ++i) {
+//						idx_t bucket = payload[i];
+//						if (hash_map_agg[bucket] == nullptr) {
+//							hash_map_agg[bucket] = make_shared<vector<SourceAndMaybeData>>();
+//						}
+//						auto child = this_data.data->GetChild();
+//						auto val = i + count_so_far;
+//						if (child != nullptr) {
+//							// We capture global value, so we convert to child local value here
+//							val -= child->this_offset;
+//						}
+//						hash_map_agg[bucket]->push_back({val, child});
+//					}
+//				}
+//				count_so_far += res_count;
 			} else if (finished_idx == LINEAGE_COMBINE) {
 			} else {
 				// Array index
@@ -807,13 +807,14 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 	case PhysicalOperatorType::HASH_GROUP_BY: {
 		key.chunk.next_lineage_agg_data->reserve(key.chunk.size());
 		idx_t out_idx = 0;
+		unordered_set<idx_t> matches;
 		if (!key.chunk.lineage_agg_data->empty()) {
 			while (out_idx < STANDARD_VECTOR_SIZE && key.chunk.outer_agg_idx < key.chunk.lineage_agg_data->size()) {
 				auto agg_vec_ptr = key.chunk.lineage_agg_data->at(key.chunk.outer_agg_idx);
 				while (out_idx < STANDARD_VECTOR_SIZE && key.chunk.inner_agg_idx < agg_vec_ptr->size()) {
 					auto this_data = agg_vec_ptr->at(key.chunk.inner_agg_idx);
 					auto payload = (uint64_t *)this_data.data->data->Process(0);
-					key.chunk.next_lineage_agg_data->push_back(hash_map_agg[payload[this_data.source]]);
+					matches.insert(payload[this_data.source]);
 					out_idx++;
 					key.chunk.inner_agg_idx++;
 				}
@@ -828,7 +829,7 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 				LineageDataWithOffset this_data = key.chunk.lineage_simple_agg_data->at(key.chunk.outer_simple_agg_idx);
 				while(out_idx < STANDARD_VECTOR_SIZE && key.chunk.inner_simple_agg_idx < this_data.data->Count()) {
 					auto payload = (uint64_t *)this_data.data->Process(0);
-					key.chunk.next_lineage_agg_data->push_back(hash_map_agg[payload[key.chunk.inner_simple_agg_idx]]);
+					matches.insert(payload[key.chunk.inner_simple_agg_idx]);
 					out_idx++;
 					key.chunk.inner_simple_agg_idx++;
 				}
@@ -845,23 +846,45 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 
 			for (idx_t i = 0; i < key.chunk.size(); i++) {
 				auto payload = (uint64_t *)key.child_ptrs[i]->data->Process(0);
-				key.chunk.next_lineage_agg_data->push_back(hash_map_agg[payload[key.chunk.GetValue(0, i).GetValue<uint64_t>()]]);
+				matches.insert(payload[key.chunk.GetValue(0, i).GetValue<uint64_t>()]);
 				out_idx++;
 			}
 		}
+
+		auto vec = make_shared<vector<SourceAndMaybeData>>();
+		idx_t count_so_far = 0;
+		for (idx_t i = 0; i < data[LINEAGE_SINK].size(); i++) {
+			auto payload = (uint64_t *)data[LINEAGE_SINK][i].data->Process(0);
+			idx_t res_count = data[LINEAGE_SINK][i].data->Count();
+			for (idx_t j = 0; i < res_count; ++i) {
+				auto val = j + count_so_far;
+				if (matches.find(val) != matches.end()) {
+					idx_t bucket = payload[j];
+					auto child = data[LINEAGE_SINK][i].data->GetChild();
+					if (child != nullptr) {
+						// We capture global value, so we convert to child local value here
+						val -= child->this_offset;
+					}
+					vec->push_back({val, child});
+				}
+			}
+			count_so_far += res_count;
+		}
+
 		key.child_ptrs = {};
 		// TODO: we never set Cardinality on chunk because we're actually returning more than 1024 values - is this okay?
 		break;
 	}
 	case PhysicalOperatorType::PERFECT_HASH_GROUP_BY: {
 		idx_t out_idx = 0;
+		unordered_set<idx_t> matches;
 		if (!key.chunk.lineage_agg_data->empty()) {
 			while (out_idx < STANDARD_VECTOR_SIZE && key.chunk.outer_agg_idx < key.chunk.lineage_agg_data->size()) {
 				auto agg_vec_ptr = key.chunk.lineage_agg_data->at(key.chunk.outer_agg_idx);
 				while (out_idx < STANDARD_VECTOR_SIZE && key.chunk.inner_agg_idx < agg_vec_ptr->size()) {
 					auto this_data = agg_vec_ptr->at(key.chunk.inner_agg_idx);
 					auto payload = (sel_t *)this_data.data->data->Process(0);
-					key.chunk.next_lineage_agg_data->push_back(hash_map_agg[payload[this_data.source]]);
+					matches.insert(payload[this_data.source]);
 					key.chunk.inner_agg_idx++;
 				}
 				if (key.chunk.inner_agg_idx < agg_vec_ptr->size()) {
@@ -875,7 +898,7 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 				LineageDataWithOffset this_data = key.chunk.lineage_simple_agg_data->at(key.chunk.outer_simple_agg_idx);
 				while(out_idx < STANDARD_VECTOR_SIZE && key.chunk.inner_simple_agg_idx < this_data.data->Count()) {
 					auto payload = (sel_t *)this_data.data->Process(0);
-					key.chunk.next_lineage_agg_data->push_back(hash_map_agg[payload[key.chunk.inner_simple_agg_idx]]);
+					matches.insert(payload[key.chunk.inner_simple_agg_idx]);
 					key.chunk.inner_simple_agg_idx++;
 				}
 				if (key.chunk.inner_simple_agg_idx < this_data.data->Count()) {
@@ -891,10 +914,31 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 
 			for (idx_t i = 0; i < key.chunk.size(); i++) {
 				auto payload = (sel_t *)key.child_ptrs[i]->data->Process(0);
-				key.chunk.next_lineage_agg_data->push_back(hash_map_agg[payload[key.chunk.GetValue(0, i).GetValue<uint64_t>()]]);
+				matches.insert(payload[key.chunk.GetValue(0, i).GetValue<uint64_t>()]);
 				out_idx++;
 			}
 		}
+
+		auto vec = make_shared<vector<SourceAndMaybeData>>();
+		idx_t count_so_far = 0;
+		for (idx_t i = 0; i < data[LINEAGE_SINK].size(); i++) {
+			auto payload = (uint64_t *)data[LINEAGE_SINK][i].data->Process(0);
+			idx_t res_count = data[LINEAGE_SINK][i].data->Count();
+			for (idx_t j = 0; i < res_count; ++i) {
+				auto val = j + count_so_far;
+				if (matches.find(val) != matches.end()) {
+					idx_t bucket = payload[j];
+					auto child = data[LINEAGE_SINK][i].data->GetChild();
+					if (child != nullptr) {
+						// We capture global value, so we convert to child local value here
+						val -= child->this_offset;
+					}
+					vec->push_back({val, child});
+				}
+			}
+			count_so_far += res_count;
+		}
+
 		key.child_ptrs = {};
 		// TODO: we never set Cardinality on chunk because we're actually returning more than 1024 values - is this okay?
 		break;
