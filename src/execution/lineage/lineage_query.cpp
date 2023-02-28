@@ -175,7 +175,6 @@ LineageProcessStruct OperatorLineage::PostProcess(idx_t chunk_count, idx_t count
 						// We capture global value, so we convert to child local value here
 						auto val = i + count_so_far - child->this_offset;
 						hash_map_agg[bucket]->push_back({val, child});
-						std::cout << "Agg " << bucket << " " << val << std::endl;
 					}
 				} else {
 					auto payload = (uint64_t*)this_data.data->Process(0);
@@ -188,7 +187,6 @@ LineageProcessStruct OperatorLineage::PostProcess(idx_t chunk_count, idx_t count
 						// We capture global value, so we convert to child local value here
 						auto val = i + count_so_far - child->this_offset;
 						hash_map_agg[bucket]->push_back({val, child});
-						std::cout << "Agg " << bucket << " " << val << std::endl;
 					}
 				}
 //				}
@@ -571,7 +569,6 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 					while (out_idx < STANDARD_VECTOR_SIZE && key.chunk.inner_agg_idx < agg_vec_ptr->size()) {
 						auto this_data = agg_vec_ptr->at(key.chunk.inner_agg_idx);
 						idx_t val = this_data.data->data->Backward(this_data.source) + this_data.data->child_offset;
-						std::cout << "Scan " << val << std::endl;
 						key.chunk.SetValue(0, out_idx++, Value::UBIGINT(val));
 						key.chunk.inner_agg_idx++;
 					}
@@ -581,6 +578,7 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 					key.chunk.inner_agg_idx = 0;
 					key.chunk.outer_agg_idx++;
 				}
+				key.chunk.SetCardinality(out_idx);
 			} else if (!key.chunk.lineage_simple_agg_data->empty()) {
 				while (out_idx < STANDARD_VECTOR_SIZE && key.chunk.outer_simple_agg_idx < key.chunk.lineage_simple_agg_data->size()) {
 					LineageDataWithOffset this_data = key.chunk.lineage_simple_agg_data->at(key.chunk.outer_simple_agg_idx);
@@ -595,6 +593,7 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 					key.chunk.inner_simple_agg_idx = 0;
 					key.chunk.outer_simple_agg_idx++;
 				}
+				key.chunk.SetCardinality(out_idx);
 			} else {
 				if (key.child_ptrs[0] == nullptr) {
 					key.child_ptrs = LookupChunksFromGlobalIndex(key.chunk, data[LINEAGE_UNARY], index);
@@ -629,6 +628,7 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 				key.chunk.inner_agg_idx = 0;
 				key.chunk.outer_agg_idx++;
 			}
+			key.chunk.SetCardinality(out_idx);
 		} else if (!key.chunk.lineage_simple_agg_data->empty()) {
 			while (out_idx < STANDARD_VECTOR_SIZE && key.chunk.outer_simple_agg_idx < key.chunk.lineage_simple_agg_data->size()) {
 				LineageDataWithOffset this_data = key.chunk.lineage_simple_agg_data->at(key.chunk.outer_simple_agg_idx);
@@ -644,6 +644,7 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 				key.chunk.inner_simple_agg_idx = 0;
 				key.chunk.outer_simple_agg_idx++;
 			}
+			key.chunk.SetCardinality(out_idx);
 		} else {
 			if (key.child_ptrs[0] == nullptr) {
 				key.child_ptrs = LookupChunksFromGlobalIndex(key.chunk, data[LINEAGE_UNARY], index);
@@ -1008,7 +1009,11 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 		break;
 	}
 	case PhysicalOperatorType::CROSS_PRODUCT: {
+		// Setup build chunk
+		key.join_chunk.Initialize({LogicalType::UBIGINT});
+
 		idx_t out_idx = 0;
+
 		if (!key.chunk.lineage_agg_data->empty()) {
 			while (out_idx < STANDARD_VECTOR_SIZE && key.chunk.outer_agg_idx < key.chunk.lineage_agg_data->size()) {
 				auto agg_vec_ptr = key.chunk.lineage_agg_data->at(key.chunk.outer_agg_idx);
@@ -1025,6 +1030,8 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 				key.chunk.inner_agg_idx = 0;
 				key.chunk.outer_agg_idx++;
 			}
+			key.chunk.SetCardinality(out_idx);
+			key.join_chunk.SetCardinality(out_idx);
 		} else if (!key.chunk.lineage_simple_agg_data->empty()) {
 			while (out_idx < STANDARD_VECTOR_SIZE && key.chunk.outer_simple_agg_idx < key.chunk.lineage_simple_agg_data->size()) {
 				LineageDataWithOffset this_data = key.chunk.lineage_simple_agg_data->at(key.chunk.outer_simple_agg_idx);
@@ -1040,14 +1047,12 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 				key.chunk.inner_simple_agg_idx = 0;
 				key.chunk.outer_simple_agg_idx++;
 			}
+			key.chunk.SetCardinality(out_idx);
+			key.join_chunk.SetCardinality(out_idx);
 		} else {
 			if (key.child_ptrs[0] == nullptr) {
 				key.child_ptrs = LookupChunksFromGlobalIndex(key.chunk, data[LINEAGE_PROBE], index);
 			}
-
-			// Setup build chunk
-			key.join_chunk.Initialize({LogicalType::UBIGINT});
-			key.join_chunk.SetCardinality(key.chunk.size());
 
 			for (idx_t i = 0; i < key.chunk.size(); i++) {
 				idx_t source = key.chunk.GetValue(0, i).GetValue<uint64_t>();
@@ -1056,6 +1061,8 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 				key.chunk.SetValue(0, i, Value::UBIGINT(source));
 				key.child_ptrs[i] = key.child_ptrs[i]->data->GetChild();
 			}
+
+			key.join_chunk.SetCardinality(key.chunk.size());
 		}
 		break;
 	}
@@ -1162,6 +1169,7 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 				key.chunk.inner_agg_idx = 0;
 				key.chunk.outer_agg_idx++;
 			}
+			key.chunk.SetCardinality(out_idx);
 		} else if (!key.chunk.lineage_simple_agg_data->empty()) {
 			while (out_idx < STANDARD_VECTOR_SIZE && key.chunk.outer_simple_agg_idx < key.chunk.lineage_simple_agg_data->size()) {
 				LineageDataWithOffset this_data = key.chunk.lineage_simple_agg_data->at(key.chunk.outer_simple_agg_idx);
@@ -1175,6 +1183,7 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 				key.chunk.inner_simple_agg_idx = 0;
 				key.chunk.outer_simple_agg_idx++;
 			}
+			key.chunk.SetCardinality(out_idx);
 		} else {
 			auto data_ptr = make_shared<LineageDataWithOffset>(data[LINEAGE_UNARY][0]);
 			for (idx_t i = 0; i < key.chunk.size(); i++) {
