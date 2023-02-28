@@ -43,6 +43,7 @@ unique_ptr<PhysicalOperator> CombineByMode(
 // Post Processing to prepare for querying
 
 void LineageManager::PostProcess(PhysicalOperator *op, bool should_index) {
+	std::cout << "Postprocess start" << std::endl;
 	// massage the data to make it easier to query
 	bool always_post_process =
 		op->type == PhysicalOperatorType::HASH_GROUP_BY || op->type == PhysicalOperatorType::PERFECT_HASH_GROUP_BY;
@@ -93,6 +94,7 @@ void LineageManager::PostProcess(PhysicalOperator *op, bool should_index) {
 			|| (op->type == PhysicalOperatorType::PROJECTION && should_index); // Pass through should_index on projection
 		PostProcess(op->children[i].get(), child_should_index);
 	}
+	std::cout << "Postprocess end" << std::endl;
 }
 
 LineageProcessStruct OperatorLineage::PostProcess(idx_t chunk_count, idx_t count_so_far, idx_t data_idx, idx_t finished_idx) {
