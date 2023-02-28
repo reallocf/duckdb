@@ -175,6 +175,7 @@ LineageProcessStruct OperatorLineage::PostProcess(idx_t chunk_count, idx_t count
 						// We capture global value, so we convert to child local value here
 						auto val = i + count_so_far - child->this_offset;
 						hash_map_agg[bucket]->push_back({val, child});
+						std::cout << "Agg " << bucket << " " << val << std::endl;
 					}
 				} else {
 					auto payload = (uint64_t*)this_data.data->Process(0);
@@ -187,6 +188,7 @@ LineageProcessStruct OperatorLineage::PostProcess(idx_t chunk_count, idx_t count
 						// We capture global value, so we convert to child local value here
 						auto val = i + count_so_far - child->this_offset;
 						hash_map_agg[bucket]->push_back({val, child});
+						std::cout << "Agg " << bucket << " " << val << std::endl;
 					}
 				}
 //				}
@@ -569,6 +571,7 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 					while (out_idx < STANDARD_VECTOR_SIZE && key.chunk.inner_agg_idx < agg_vec_ptr->size()) {
 						auto this_data = agg_vec_ptr->at(key.chunk.inner_agg_idx);
 						idx_t val = this_data.data->data->Backward(this_data.source) + this_data.data->child_offset;
+						std::cout << "Scan " << val << std::endl;
 						key.chunk.SetValue(0, out_idx++, Value::UBIGINT(val));
 						key.chunk.inner_agg_idx++;
 					}
