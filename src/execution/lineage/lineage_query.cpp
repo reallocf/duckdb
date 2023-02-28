@@ -43,7 +43,6 @@ unique_ptr<PhysicalOperator> CombineByMode(
 // Post Processing to prepare for querying
 
 void LineageManager::PostProcess(PhysicalOperator *op, bool should_index) {
-	std::cout << "Postprocess start" << std::endl;
 	// massage the data to make it easier to query
 	bool always_post_process =
 		op->type == PhysicalOperatorType::HASH_GROUP_BY || op->type == PhysicalOperatorType::PERFECT_HASH_GROUP_BY;
@@ -94,11 +93,10 @@ void LineageManager::PostProcess(PhysicalOperator *op, bool should_index) {
 			|| (op->type == PhysicalOperatorType::PROJECTION && should_index); // Pass through should_index on projection
 		PostProcess(op->children[i].get(), child_should_index);
 	}
-	std::cout << "Postprocess end" << std::endl;
 }
 
 LineageProcessStruct OperatorLineage::PostProcess(idx_t chunk_count, idx_t count_so_far, idx_t data_idx, idx_t finished_idx) {
-	std::cout << "Postprocess " << PhysicalOperatorToString(this->type) << this->opid << std::endl;
+//	std::cout << "Postprocess " << PhysicalOperatorToString(this->type) << this->opid << std::endl;
 	if (data[finished_idx].size() > data_idx) {
 		switch (this->type) {
 		case PhysicalOperatorType::FILTER:
@@ -143,14 +141,10 @@ LineageProcessStruct OperatorLineage::PostProcess(idx_t chunk_count, idx_t count
 		case PhysicalOperatorType::PERFECT_HASH_GROUP_BY: {
 			// Hash Aggregate / Perfect Hash Aggregate
 			// schema for both: [INTEGER in_index, INTEGER out_index]
-			std::cout << "Foo" << std::endl;
 			if (finished_idx == LINEAGE_SINK) {
-				std::cout << "Foo2" << std::endl;
 				// build hash table
 				LineageDataWithOffset this_data = data[LINEAGE_SINK][data_idx];
-				std::cout << "Foo3" << std::endl;
 				idx_t res_count = this_data.data->Count();
-				std::cout << "Foo4" << std::endl;
 				if (type == PhysicalOperatorType::PERFECT_HASH_GROUP_BY) {
 					auto payload = (sel_t*)this_data.data->Process(0);
 					for (idx_t i=0; i < res_count; ++i) {
@@ -159,33 +153,29 @@ LineageProcessStruct OperatorLineage::PostProcess(idx_t chunk_count, idx_t count
 							hash_map_agg[bucket] = make_shared<vector<SourceAndMaybeData>>();
 						}
 						auto child = this_data.data->GetChild();
-						// We capture global value, so we convert to child local value here
-						auto val = i + count_so_far - child->this_offset;
+						auto val = i + count_so_far;
+						if (child != nullptr) {
+							// We capture global value, so we convert to child local value here
+							val -= child->this_offset;
+						}
 						hash_map_agg[bucket]->push_back({val, child});
 					}
 				} else {
-					std::cout << "Foo5" << std::endl;
 					auto payload = (uint64_t*)this_data.data->Process(0);
-					std::cout << "Foo6" << std::endl;
 					for (idx_t i=0; i < res_count; ++i) {
-						std::cout << "Foo7" << std::endl;
 						idx_t bucket = payload[i];
-						std::cout << "Foo8" << std::endl;
 						if (hash_map_agg[bucket] == nullptr) {
-							std::cout << "Foo9" << std::endl;
 							hash_map_agg[bucket] = make_shared<vector<SourceAndMaybeData>>();
 						}
-						std::cout << "Foo10" << std::endl;
 						auto child = this_data.data->GetChild();
-						std::cout << "Foo11" << std::endl;
-						// We capture global value, so we convert to child local value here
-						auto val = i + count_so_far - child->this_offset;
-						std::cout << "Foo12" << std::endl;
+						auto val = i + count_so_far;
+						if (child != nullptr) {
+							// We capture global value, so we convert to child local value here
+							val -= child->this_offset;
+						}
 						hash_map_agg[bucket]->push_back({val, child});
-						std::cout << "Foo13" << std::endl;
 					}
 				}
-				std::cout << "Foo14" << std::endl;
 				count_so_far += res_count;
 			} else if (finished_idx == LINEAGE_COMBINE) {
 			} else {
@@ -539,7 +529,7 @@ shared_ptr<vector<LineageDataWithOffset>> OperatorLineage::RecurseForSimpleAgg(c
 }
 
 void OperatorLineage::AccessIndex(LineageIndexStruct key) {
-	std::cout << "AccessIndex" << PhysicalOperatorToString(this->type) << this->opid << std::endl;
+//	std::cout << "AccessIndex" << PhysicalOperatorToString(this->type) << this->opid << std::endl;
 //	for (idx_t i = 0; i < key.chunk.size(); i++) {
 //		std::cout << key.chunk.GetValue(0,i) << std::endl;
 //	}
