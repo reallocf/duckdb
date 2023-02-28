@@ -28,7 +28,6 @@ unique_ptr<PhysicalOperator> GenerateCustomPlan(
 	ClientContext &cxt,
 	int lineage_id,
 	unique_ptr<PhysicalOperator> left,
-	bool simple_agg_flag,
 	vector<unique_ptr<PhysicalOperator>> *pipelines
 );
 
