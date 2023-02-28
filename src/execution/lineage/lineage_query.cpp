@@ -167,18 +167,26 @@ LineageProcessStruct OperatorLineage::PostProcess(idx_t chunk_count, idx_t count
 				if (type == PhysicalOperatorType::PERFECT_HASH_GROUP_BY) {
 					auto payload = (sel_t*)this_data.data->Process(0);
 					for (idx_t i=0; i < res_count; ++i) {
-						if (hash_map_agg[(idx_t)payload[i]] == nullptr) {
-							hash_map_agg[(idx_t)payload[i]] = make_shared<vector<SourceAndMaybeData>>();
+						idx_t bucket = payload[i];
+						if (hash_map_agg[bucket] == nullptr) {
+							hash_map_agg[bucket] = make_shared<vector<SourceAndMaybeData>>();
 						}
-						hash_map_agg[(idx_t)payload[i]]->push_back({i + count_so_far, this_data.data->GetChild()});
+						auto child = this_data.data->GetChild();
+						// We capture global value, so we convert to child local value here
+						auto val = i + count_so_far - child->this_offset;
+						hash_map_agg[bucket]->push_back({val, child});
 					}
 				} else {
 					auto payload = (uint64_t*)this_data.data->Process(0);
 					for (idx_t i=0; i < res_count; ++i) {
-						if (hash_map_agg[(idx_t)payload[i]] == nullptr) {
-							hash_map_agg[(idx_t)payload[i]] = make_shared<vector<SourceAndMaybeData>>();
+						idx_t bucket = payload[i];
+						if (hash_map_agg[bucket] == nullptr) {
+							hash_map_agg[bucket] = make_shared<vector<SourceAndMaybeData>>();
 						}
-						hash_map_agg[(idx_t)payload[i]]->push_back({i + count_so_far, this_data.data->GetChild()});
+						auto child = this_data.data->GetChild();
+						// We capture global value, so we convert to child local value here
+						auto val = i + count_so_far - child->this_offset;
+						hash_map_agg[bucket]->push_back({val, child});
 					}
 				}
 //				}
