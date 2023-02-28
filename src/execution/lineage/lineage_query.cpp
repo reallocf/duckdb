@@ -871,6 +871,7 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 			count_so_far += res_count;
 		}
 
+		key.chunk.next_lineage_agg_data->push_back(vec);
 		key.child_ptrs = {};
 		// TODO: we never set Cardinality on chunk because we're actually returning more than 1024 values - is this okay?
 		break;
@@ -939,6 +940,7 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 			count_so_far += res_count;
 		}
 
+		key.chunk.next_lineage_agg_data->push_back(vec);
 		key.child_ptrs = {};
 		// TODO: we never set Cardinality on chunk because we're actually returning more than 1024 values - is this okay?
 		break;
