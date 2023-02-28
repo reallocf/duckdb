@@ -96,6 +96,7 @@ void LineageManager::PostProcess(PhysicalOperator *op, bool should_index) {
 }
 
 LineageProcessStruct OperatorLineage::PostProcess(idx_t chunk_count, idx_t count_so_far, idx_t data_idx, idx_t finished_idx) {
+	std::cout << "Postprocess " << PhysicalOperatorToString(this->type) << this->opid << std::endl;
 	if (data[finished_idx].size() > data_idx) {
 		switch (this->type) {
 		case PhysicalOperatorType::FILTER:
@@ -543,7 +544,7 @@ shared_ptr<vector<LineageDataWithOffset>> OperatorLineage::RecurseForSimpleAgg(c
 }
 
 void OperatorLineage::AccessIndex(LineageIndexStruct key) {
-	std::cout << PhysicalOperatorToString(this->type) << this->opid << std::endl;
+	std::cout << "AccessIndex" << PhysicalOperatorToString(this->type) << this->opid << std::endl;
 //	for (idx_t i = 0; i < key.chunk.size(); i++) {
 //		std::cout << key.chunk.GetValue(0,i) << std::endl;
 //	}
