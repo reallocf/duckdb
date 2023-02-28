@@ -143,30 +143,14 @@ LineageProcessStruct OperatorLineage::PostProcess(idx_t chunk_count, idx_t count
 		case PhysicalOperatorType::PERFECT_HASH_GROUP_BY: {
 			// Hash Aggregate / Perfect Hash Aggregate
 			// schema for both: [INTEGER in_index, INTEGER out_index]
+			std::cout << "Foo" << std::endl;
 			if (finished_idx == LINEAGE_SINK) {
+				std::cout << "Foo2" << std::endl;
 				// build hash table
 				LineageDataWithOffset this_data = data[LINEAGE_SINK][data_idx];
+				std::cout << "Foo3" << std::endl;
 				idx_t res_count = this_data.data->Count();
-//				if (data[LINEAGE_SOURCE].size() > PROBE_SIZE) {
-//					// get min-max on this payload
-//					auto min_v = std::numeric_limits<idx_t>::max();
-//					auto max_v = std::numeric_limits<idx_t>::min();
-//					if (type == PhysicalOperatorType::PERFECT_HASH_GROUP_BY) {
-//						auto payload = (sel_t*)this_data.data->Process(0);
-//						for (idx_t i=0; i < res_count; ++i) {
-//							if ( (idx_t)payload[i] < min_v) min_v  = (idx_t)payload[i];
-//							if ( (idx_t)payload[i] > max_v) max_v  = (idx_t)payload[i];
-//						}
-//					} else {
-//						auto payload = (uint64_t*)this_data.data->Process(0);
-//						for (idx_t i=0; i < res_count; ++i) {
-//							if ( payload[i] < min_v) min_v  = payload[i];
-//							if ( payload[i] > max_v) max_v  = payload[i];
-//						}
-//					}
-//					hm_range.push_back(std::make_pair(min_v, max_v));
-//					hash_chunk_count.push_back(count_so_far);
-//				} else {
+				std::cout << "Foo4" << std::endl;
 				if (type == PhysicalOperatorType::PERFECT_HASH_GROUP_BY) {
 					auto payload = (sel_t*)this_data.data->Process(0);
 					for (idx_t i=0; i < res_count; ++i) {
@@ -180,19 +164,28 @@ LineageProcessStruct OperatorLineage::PostProcess(idx_t chunk_count, idx_t count
 						hash_map_agg[bucket]->push_back({val, child});
 					}
 				} else {
+					std::cout << "Foo5" << std::endl;
 					auto payload = (uint64_t*)this_data.data->Process(0);
+					std::cout << "Foo6" << std::endl;
 					for (idx_t i=0; i < res_count; ++i) {
+						std::cout << "Foo7" << std::endl;
 						idx_t bucket = payload[i];
+						std::cout << "Foo8" << std::endl;
 						if (hash_map_agg[bucket] == nullptr) {
+							std::cout << "Foo9" << std::endl;
 							hash_map_agg[bucket] = make_shared<vector<SourceAndMaybeData>>();
 						}
+						std::cout << "Foo10" << std::endl;
 						auto child = this_data.data->GetChild();
+						std::cout << "Foo11" << std::endl;
 						// We capture global value, so we convert to child local value here
 						auto val = i + count_so_far - child->this_offset;
+						std::cout << "Foo12" << std::endl;
 						hash_map_agg[bucket]->push_back({val, child});
+						std::cout << "Foo13" << std::endl;
 					}
 				}
-//				}
+				std::cout << "Foo14" << std::endl;
 				count_so_far += res_count;
 			} else if (finished_idx == LINEAGE_COMBINE) {
 			} else {
