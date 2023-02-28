@@ -535,7 +535,7 @@ shared_ptr<vector<LineageDataWithOffset>> OperatorLineage::RecurseForSimpleAgg(c
 }
 
 void OperatorLineage::AccessIndex(LineageIndexStruct key) {
-//	std::cout << PhysicalOperatorToString(this->type) << this->opid << std::endl;
+	std::cout << PhysicalOperatorToString(this->type) << this->opid << std::endl;
 //	for (idx_t i = 0; i < key.chunk.size(); i++) {
 //		std::cout << key.chunk.GetValue(0,i) << std::endl;
 //	}
@@ -577,12 +577,14 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 						idx_t val = this_data.data->Backward(key.chunk.inner_simple_agg_idx) + this_data.child_offset;
 						key.chunk.SetValue(0, out_idx++, Value::UBIGINT(val));
 						key.chunk.inner_simple_agg_idx++;
+						std::cout << "foo" << std::endl;
 					}
 					if (key.chunk.inner_agg_idx < this_data.data->Count()) {
 						break;
 					}
 					key.chunk.inner_agg_idx = 0;
 					key.chunk.outer_simple_agg_idx++;
+					std::cout << "bar" << std::endl;
 				}
 			} else {
 				if (key.child_ptrs[0] == nullptr) {
