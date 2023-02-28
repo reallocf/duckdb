@@ -576,6 +576,7 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 					while(out_idx < STANDARD_VECTOR_SIZE && key.chunk.inner_simple_agg_idx < this_data.data->Count()) {
 						idx_t val = this_data.data->Backward(key.chunk.inner_simple_agg_idx) + this_data.child_offset;
 						key.chunk.SetValue(0, out_idx++, Value::UBIGINT(val));
+						key.chunk.inner_simple_agg_idx++;
 					}
 					if (key.chunk.inner_agg_idx < this_data.data->Count()) {
 						break;
@@ -624,6 +625,7 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 					idx_t new_val = this_data.data->Backward(key.chunk.inner_simple_agg_idx);
 					key.chunk.SetValue(0, out_idx, Value::UBIGINT(new_val));
 					key.child_ptrs[out_idx++] = this_data.data->GetChild();
+					key.chunk.inner_simple_agg_idx++;
 				}
 				if (key.chunk.inner_agg_idx < this_data.data->Count()) {
 					break;
@@ -739,6 +741,7 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 						left_idx++;
 					}
 					out_idx++;
+					key.chunk.inner_simple_agg_idx++;
 				}
 				if (key.chunk.inner_agg_idx < this_data.data->Count()) {
 					break;
@@ -830,6 +833,7 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 					auto payload = (uint64_t *)this_data.data->Process(0);
 					key.chunk.next_lineage_agg_data->push_back(hash_map_agg[payload[key.chunk.inner_simple_agg_idx]]);
 					out_idx++;
+					key.chunk.inner_simple_agg_idx++;
 				}
 				if (key.chunk.inner_agg_idx < this_data.data->Count()) {
 					break;
@@ -859,7 +863,8 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 				auto agg_vec_ptr = key.chunk.lineage_agg_data->at(key.chunk.outer_agg_idx);
 				while (out_idx < STANDARD_VECTOR_SIZE && key.chunk.inner_agg_idx < agg_vec_ptr->size()) {
 					auto this_data = agg_vec_ptr->at(key.chunk.inner_agg_idx);
-					//LineageFunc
+					auto payload = (sel_t *)this_data.data->data->Process(0);
+					key.chunk.next_lineage_agg_data->push_back(hash_map_agg[payload[this_data.source]]);
 					key.chunk.inner_agg_idx++;
 				}
 				if (key.chunk.inner_agg_idx < agg_vec_ptr->size()) {
@@ -872,7 +877,9 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 			while (out_idx < STANDARD_VECTOR_SIZE && key.chunk.outer_simple_agg_idx < key.chunk.lineage_simple_agg_data->size()) {
 				LineageDataWithOffset this_data = key.chunk.lineage_simple_agg_data->at(key.chunk.outer_simple_agg_idx);
 				while(out_idx < STANDARD_VECTOR_SIZE && key.chunk.inner_simple_agg_idx < this_data.data->Count()) {
-					//LineageFunc
+					auto payload = (sel_t *)this_data.data->Process(0);
+					key.chunk.next_lineage_agg_data->push_back(hash_map_agg[payload[key.chunk.inner_simple_agg_idx]]);
+					key.chunk.inner_simple_agg_idx++;
 				}
 				if (key.chunk.inner_agg_idx < this_data.data->Count()) {
 					break;
@@ -951,6 +958,7 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 						key.child_ptrs[left_idx++] = binary_lineage.GetChild();
 					}
 					out_idx++;
+					key.chunk.inner_simple_agg_idx++;
 				}
 				if (key.chunk.inner_agg_idx < this_data.data->Count()) {
 					break;
@@ -1013,6 +1021,7 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 					key.join_chunk.SetValue(0, out_idx, Value::UBIGINT(this_data.data->Backward(key.chunk.inner_simple_agg_idx)));
 					key.chunk.SetValue(0, out_idx, Value::UBIGINT(key.chunk.inner_simple_agg_idx));
 					key.child_ptrs[out_idx++] = this_data.data->GetChild();
+					key.chunk.inner_simple_agg_idx++;
 				}
 				if (key.chunk.inner_agg_idx < this_data.data->Count()) {
 					break;
@@ -1088,6 +1097,7 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 						key.child_ptrs[left_idx++] = binary_lineage.GetChild();
 					}
 					out_idx++;
+					key.chunk.inner_simple_agg_idx++;
 				}
 				if (key.chunk.inner_agg_idx < this_data.data->Count()) {
 					break;
@@ -1146,6 +1156,7 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 				LineageDataWithOffset this_data = key.chunk.lineage_simple_agg_data->at(key.chunk.outer_simple_agg_idx);
 				while(out_idx < STANDARD_VECTOR_SIZE && key.chunk.inner_simple_agg_idx < this_data.data->Count()) {
 					key.chunk.SetValue(0, out_idx++, Value::UBIGINT(this_data.data->Backward(key.chunk.inner_simple_agg_idx)));
+					key.chunk.inner_simple_agg_idx++;
 				}
 				if (key.chunk.inner_agg_idx < this_data.data->Count()) {
 					break;
