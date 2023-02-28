@@ -167,17 +167,17 @@ LineageProcessStruct OperatorLineage::PostProcess(idx_t chunk_count, idx_t count
 				if (type == PhysicalOperatorType::PERFECT_HASH_GROUP_BY) {
 					auto payload = (sel_t*)this_data.data->Process(0);
 					for (idx_t i=0; i < res_count; ++i) {
-//							if (hash_map_agg[(idx_t)payload[i]] == nullptr) {
-//								hash_map_agg[(idx_t)payload[i]] = make_shared<vector<SourceAndMaybeData>>();
-//							}
+						if (hash_map_agg[(idx_t)payload[i]] == nullptr) {
+							hash_map_agg[(idx_t)payload[i]] = make_shared<vector<SourceAndMaybeData>>();
+						}
 						hash_map_agg[(idx_t)payload[i]]->push_back({i + count_so_far, this_data.data->GetChild()});
 					}
 				} else {
 					auto payload = (uint64_t*)this_data.data->Process(0);
 					for (idx_t i=0; i < res_count; ++i) {
-//							if (hash_map_agg[(idx_t)payload[i]] == nullptr) {
-//								hash_map_agg[(idx_t)payload[i]] = make_shared<vector<SourceAndMaybeData>>();
-//							}
+						if (hash_map_agg[(idx_t)payload[i]] == nullptr) {
+							hash_map_agg[(idx_t)payload[i]] = make_shared<vector<SourceAndMaybeData>>();
+						}
 						hash_map_agg[(idx_t)payload[i]]->push_back({i + count_so_far, this_data.data->GetChild()});
 					}
 				}

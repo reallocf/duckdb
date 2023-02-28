@@ -55,6 +55,7 @@ string PragmaBackwardLineageDuckDBExecEngine(ClientContext &context, const Funct
 	std::cout << "Execute time: " << ((float) execute - start) / CLOCKS_PER_SEC << std::endl;
 	std::cout << "List build time: " << ((float) end - execute) / CLOCKS_PER_SEC << std::endl;
 	std::cout << "Total time: " << ((float) end - start) / CLOCKS_PER_SEC << std::endl;
+	std::cout << "Lineage query res: " << str_results << std::endl;
 	return StringUtil::Format("SELECT %s", str_results);
 }
 
