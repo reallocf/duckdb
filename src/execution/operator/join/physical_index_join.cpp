@@ -179,6 +179,14 @@ void PhysicalIndexJoin::Output(ExecutionContext &context, DataChunk &chunk, Phys
 		// 2. Set PARENT'S child_ptrs so that it can pass it to AccessIndex
 		state->child_ptrs = child_ptrs;
 		chunk.Reference(state->child_chunk);
+		if (!state->child_chunk.next_lineage_agg_data->empty()) {
+			chunk.lineage_agg_data = move(state->child_chunk.next_lineage_agg_data);
+			state->child_chunk.next_lineage_agg_data = make_unique<vector<shared_ptr<vector<SourceAndMaybeData>>>>();
+		}
+		if (!state->child_chunk.next_lineage_simple_agg_data->empty()) {
+			chunk.lineage_simple_agg_data = move(state->child_chunk.next_lineage_simple_agg_data);
+			state->child_chunk.next_lineage_simple_agg_data = make_unique<vector<LineageDataWithOffset>>();
+		}
 		state->result_size = state->child_chunk.size();
 		state->lhs_idx += state->child_chunk.size();
 		if (join_chunk.size() > 0) {
@@ -228,8 +236,18 @@ void PhysicalIndexJoin::GetChunkInternal(ExecutionContext &context, DataChunk &c
 	auto state = reinterpret_cast<PhysicalIndexJoinOperatorState *>(state_p);
 	state->result_size = 0;
 	while (state->result_size == 0) {
+		// Fancy lineage cache management
+		if (state->child_chunk.lineage_agg_data->size() > state->child_chunk.outer_agg_idx) {
+			Output(context, chunk, state_p);
+			return;
+		}
+		if (state->child_chunk.lineage_simple_agg_data->size() > state->child_chunk.outer_simple_agg_idx) {
+			Output(context, chunk, state_p);
+			return;
+		}
 		// Return cached values if there are any
 		if (!state->cached_values_arr.empty()) {
+			throw std::logic_error("Shouldn't use this code path any more");
 			chunk.data[0].Reference(state->cached_values_arr[state->cached_values_idx]);
 			if (!state->cached_child_ptrs_arr.empty()) {
 				state->child_ptrs = state->cached_child_ptrs_arr[state->cached_values_idx];
@@ -249,8 +267,7 @@ void PhysicalIndexJoin::GetChunkInternal(ExecutionContext &context, DataChunk &c
 				state->cached_child_ptrs_arr.clear();
 			}
 			return;
-		}
-		//! Check if we need to get a new LHS chunk
+		}		//! Check if we need to get a new LHS chunk
 		if (state->lhs_idx >= state->child_chunk.size()) {
 			children[0]->GetChunk(context, state->child_chunk, state->child_state.get());
 			if (state->child_chunk.size() == 0) {

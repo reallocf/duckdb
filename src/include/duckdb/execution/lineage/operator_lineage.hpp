@@ -8,15 +8,14 @@
 
 #ifdef LINEAGE
 #pragma once
-#include "duckdb/common/types/value.hpp"
-
-#include "duckdb/common/common.hpp"
-#include "duckdb/common/unordered_map.hpp"
-
 #include "duckdb/catalog/catalog.hpp"
+#include "duckdb/common/common.hpp"
 #include "duckdb/common/types/chunk_collection.hpp"
+#include "duckdb/common/types/value.hpp"
+#include "duckdb/common/unordered_map.hpp"
 #include "duckdb/execution/lineage/lineage_data.hpp"
 #include "duckdb/execution/lineage/pipeline_lineage.hpp"
+#include "lineage_top.h"
 
 #include <iostream>
 #include <utility>
@@ -68,7 +67,7 @@ public:
 	shared_ptr<LineageDataWithOffset> GetMyLatest();
 	shared_ptr<LineageDataWithOffset> GetChildLatest(idx_t lineage_idx);
 	idx_t GetThisOffset(idx_t lineage_idx);
-	SimpleAggQueryStruct RecurseForSimpleAgg(const shared_ptr<OperatorLineage>& child);
+	shared_ptr<vector<LineageDataWithOffset>> RecurseForSimpleAgg(const shared_ptr<OperatorLineage>& child);
 
 	void AccessIndex(LineageIndexStruct val);
 
@@ -78,7 +77,7 @@ public:
 	shared_ptr<PipelineLineage> pipeline_lineage;
 	// data[0] used by all ops; data[1] used by pipeline breakers
 	// Lineage data in here!
-	std::vector<LineageDataWithOffset> data[3];
+	vector<LineageDataWithOffset> data[3];
 	PhysicalOperatorType type;
 	shared_ptr<LineageNested> cached_internal_lineage = nullptr;
 	std::vector<shared_ptr<OperatorLineage>> children;
@@ -93,7 +92,7 @@ public:
 	idx_t last_base = 0;
 
 	// Index for hash aggregate
-    std::unordered_map<idx_t, vector<SourceAndMaybeData>> hash_map_agg;
+    std::unordered_map<idx_t, shared_ptr<vector<SourceAndMaybeData>>> hash_map_agg;
     // index: used to index selection vectors
     //        it stores the size of SV from each chunk
     //        which helps in locating the one needed
@@ -110,16 +109,6 @@ struct LineageProcessStruct {
 	idx_t finished_idx = 0;
 	idx_t data_idx = 0;
 	bool still_processing;
-};
-
-struct SimpleAggQueryStruct {
-	shared_ptr<OperatorLineage> materialized_child_op;
-	vector<LineageDataWithOffset> child_lineage_data_vector;
-};
-
-struct SourceAndMaybeData {
-	idx_t source;
-	shared_ptr<LineageDataWithOffset> data;
 };
 
 struct LineageIndexStruct {
