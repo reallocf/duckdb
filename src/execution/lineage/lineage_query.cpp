@@ -670,7 +670,7 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 						right_idx++;
 					}
 
-					if (binary_data.left != nullptr) {
+					if (binary_data.left != nullptr && join_type != JoinType::ANTI) { // Skip anti joins
 						auto left = binary_data.left->Backward(this_data.source - adjust_offset);
 						if (left == 0) {
 							return;
@@ -717,7 +717,7 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 						right_idx++;
 					}
 
-					if (binary_data.left != nullptr) {
+					if (binary_data.left != nullptr && join_type != JoinType::ANTI) { // Skip anti joins
 						auto left = binary_data.left->Backward(key.chunk.inner_simple_agg_idx - adjust_offset);
 						if (left == 0) {
 							return;
@@ -771,7 +771,7 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 					key.child_ptrs[right_idx++] = binary_data->data->GetChild();
 				}
 
-				if (dynamic_cast<LineageBinary &>(*binary_data->data).left != nullptr) {
+				if (dynamic_cast<LineageBinary &>(*binary_data->data).left != nullptr && join_type != JoinType::ANTI) { // Skip anti joins
 					auto left =
 					    dynamic_cast<LineageBinary &>(*binary_data->data).left->Backward(source - adjust_offset);
 					if (left == 0) {

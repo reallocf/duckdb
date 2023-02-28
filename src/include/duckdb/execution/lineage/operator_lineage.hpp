@@ -10,6 +10,7 @@
 #pragma once
 #include "duckdb/catalog/catalog.hpp"
 #include "duckdb/common/common.hpp"
+#include "duckdb/common/enums/join_type.hpp"
 #include "duckdb/common/types/chunk_collection.hpp"
 #include "duckdb/common/types/value.hpp"
 #include "duckdb/common/unordered_map.hpp"
@@ -100,6 +101,7 @@ public:
     // Index for when we need to identify the chunk from a global offset
     vector<idx_t> index;
     bool should_index;
+	JoinType join_type;
 };
 
 struct LineageProcessStruct {
