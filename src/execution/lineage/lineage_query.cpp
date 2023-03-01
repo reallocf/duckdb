@@ -968,7 +968,7 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 		auto vec = make_shared<vector<SourceAndMaybeData>>();
 		idx_t count_so_far = 0;
 		for (idx_t i = 0; i < data[LINEAGE_SINK].size(); i++) {
-			auto payload = (uint64_t *)data[LINEAGE_SINK][i].data->Process(0);
+			auto payload = (sel_t *)data[LINEAGE_SINK][i].data->Process(0);
 			idx_t res_count = data[LINEAGE_SINK][i].data->Count();
 			for (idx_t j = 0; j < res_count; ++j) {
 				if (matches.find(payload[j]) != matches.end()) {
