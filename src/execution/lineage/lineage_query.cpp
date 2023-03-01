@@ -877,7 +877,7 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 		for (idx_t i = 0; i < data[LINEAGE_SINK].size(); i++) {
 			auto payload = (uint64_t *)data[LINEAGE_SINK][i].data->Process(0);
 			idx_t res_count = data[LINEAGE_SINK][i].data->Count();
-			for (idx_t j = 0; i < res_count; ++i) {
+			for (idx_t j = 0; j < res_count; ++j) {
 				if (matches.find(payload[j]) != matches.end()) {
 					auto child = data[LINEAGE_SINK][i].data->GetChild();
 					auto val = j + count_so_far;
@@ -945,7 +945,7 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 		for (idx_t i = 0; i < data[LINEAGE_SINK].size(); i++) {
 			auto payload = (uint64_t *)data[LINEAGE_SINK][i].data->Process(0);
 			idx_t res_count = data[LINEAGE_SINK][i].data->Count();
-			for (idx_t j = 0; i < res_count; ++i) {
+			for (idx_t j = 0; j < res_count; ++j) {
 				if (matches.find(payload[j]) != matches.end()) {
 					auto child = data[LINEAGE_SINK][i].data->GetChild();
 					auto val = j + count_so_far;
