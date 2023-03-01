@@ -36,7 +36,6 @@ public:
 	//! Vector of rows that mush be fetched for every LHS key
 	vector<vector<row_t>> rhs_rows;
 	ExpressionExecutor probe_executor;
-	vector<shared_ptr<LineageDataWithOffset>> child_ptrs;
 	vector<Vector> cached_values_arr;
 	vector<vector<shared_ptr<LineageDataWithOffset>>> cached_child_ptrs_arr;
 	idx_t overflow_count = 0;
@@ -160,24 +159,9 @@ void PhysicalIndexJoin::Output(ExecutionContext &context, DataChunk &chunk, Phys
 		DataChunk join_chunk;
 		vector<shared_ptr<LineageDataWithOffset>> child_ptrs;
 
-		// 1. Access THIS child_ptrs to pass to AccessIndex
-		if (dynamic_cast<PhysicalIndexJoinOperatorState*>(state->child_state.get()) != nullptr){
-			auto child_state = dynamic_cast<PhysicalIndexJoinOperatorState*>(state->child_state.get());
-			if (!child_state->child_ptrs.empty()) {
-				child_ptrs = child_state->child_ptrs;
-			}
-		}
-		if (child_ptrs.empty()) {
-			child_ptrs.reserve(STANDARD_VECTOR_SIZE);
-			for (idx_t i = 0; i < STANDARD_VECTOR_SIZE; i++) {
-				child_ptrs.push_back(nullptr);
-			}
-		}
-
-		opLineage->AccessIndex({state->child_chunk, child_ptrs, join_chunk, state->cached_values_arr, state->cached_child_ptrs_arr, state->overflow_count});
+		opLineage->AccessIndex({state->child_chunk, join_chunk, state->cached_values_arr, state->cached_child_ptrs_arr, state->overflow_count});
 
 		// 2. Set PARENT'S child_ptrs so that it can pass it to AccessIndex
-		state->child_ptrs = child_ptrs;
 		chunk.Reference(state->child_chunk);
 		if (!state->child_chunk.next_lineage_agg_data->empty()) {
 			chunk.lineage_agg_data = move(state->child_chunk.next_lineage_agg_data);
@@ -248,25 +232,6 @@ void PhysicalIndexJoin::GetChunkInternal(ExecutionContext &context, DataChunk &c
 		// Return cached values if there are any
 		if (!state->cached_values_arr.empty()) {
 			throw std::logic_error("Shouldn't use this code path any more");
-			chunk.data[0].Reference(state->cached_values_arr[state->cached_values_idx]);
-			if (!state->cached_child_ptrs_arr.empty()) {
-				state->child_ptrs = state->cached_child_ptrs_arr[state->cached_values_idx];
-			}
-			if (state->overflow_count > STANDARD_VECTOR_SIZE) {
-				chunk.SetCardinality(STANDARD_VECTOR_SIZE);
-				state->overflow_count -= STANDARD_VECTOR_SIZE;
-			} else {
-				chunk.SetCardinality(state->overflow_count);
-				state->overflow_count = 0;
-			}
-			state->cached_values_idx++;
-			if (state->cached_values_idx == state->cached_values_arr.size()) {
-				D_ASSERT(state->overflow_count == 0);
-				state->cached_values_idx = 0;
-				state->cached_values_arr.clear();
-				state->cached_child_ptrs_arr.clear();
-			}
-			return;
 		}		//! Check if we need to get a new LHS chunk
 		if (state->lhs_idx >= state->child_chunk.size()) {
 			children[0]->GetChunk(context, state->child_chunk, state->child_state.get());

@@ -562,6 +562,7 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 //	for (idx_t i = 0; i < key.chunk.size(); i++) {
 //		std::cout << key.chunk.GetValue(0,i) << std::endl;
 //	}
+	vector<shared_ptr<LineageDataWithOffset>> child_ptrs;
 	switch (this->type) {
 	case (PhysicalOperatorType::DELIM_JOIN): {
 		// These should have been removed from the query plan
@@ -574,9 +575,9 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 		break;
 	}
 	case PhysicalOperatorType::TABLE_SCAN: {
-		if (data[LINEAGE_UNARY].empty() && key.child_ptrs[0] == nullptr) {
-			// Nothing to do! Lineage correct as-is
-		} else {
+//		if (data[LINEAGE_UNARY].empty() && key.child_ptrs[0] == nullptr) {
+//			// Nothing to do! Lineage correct as-is
+//		} else {
 			idx_t out_idx = 0;
 			if (!key.chunk.lineage_agg_data->empty()) {
 				if (key.chunk.lineage_agg_data->at(0)->at(0).data == nullptr) {
@@ -614,18 +615,16 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 				}
 				key.chunk.SetCardinality(out_idx);
 			} else {
-				if (key.child_ptrs[0] == nullptr) {
-					key.child_ptrs = LookupChunksFromGlobalIndex(key.chunk, data[LINEAGE_UNARY], index);
-				}
+				child_ptrs = LookupChunksFromGlobalIndex(key.chunk, data[LINEAGE_UNARY], index);
 				for (idx_t i = 0; i < key.chunk.size(); i++) {
 					key.chunk.SetValue(
 					    0,
 					    i,
-					    Value::UBIGINT(key.child_ptrs[i]->data->Backward(key.chunk.GetValue(0, i).GetValue<uint64_t>()) + key.child_ptrs[i]->child_offset)
+					    Value::UBIGINT(child_ptrs[i]->data->Backward(key.chunk.GetValue(0, i).GetValue<uint64_t>()) + child_ptrs[i]->child_offset)
 					);
 				}
 			}
-		}
+//		}
 		break;
 	}
 	case PhysicalOperatorType::FILTER:
@@ -641,7 +640,6 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 					auto this_data = agg_vec_ptr->at(key.chunk.inner_agg_idx);
 					idx_t new_val = this_data.data->data->Backward(this_data.source);
 					key.chunk.SetValue(0, out_idx, Value::UBIGINT(new_val));
-					key.child_ptrs[out_idx++] = this_data.data->data->GetChild();
 					key.chunk.inner_agg_idx++;
 				}
 				if (key.chunk.inner_agg_idx < agg_vec_ptr->size()) {
@@ -657,7 +655,6 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 				while(out_idx < STANDARD_VECTOR_SIZE && key.chunk.inner_simple_agg_idx < this_data.data->Count()) {
 					idx_t new_val = this_data.data->Backward(key.chunk.inner_simple_agg_idx);
 					key.chunk.SetValue(0, out_idx, Value::UBIGINT(new_val));
-					key.child_ptrs[out_idx++] = this_data.data->GetChild();
 					key.chunk.inner_simple_agg_idx++;
 				}
 				if (key.chunk.inner_simple_agg_idx < this_data.data->Count()) {
@@ -668,14 +665,11 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 			}
 			key.chunk.SetCardinality(out_idx);
 		} else {
-			if (key.child_ptrs[0] == nullptr) {
-				key.child_ptrs = LookupChunksFromGlobalIndex(key.chunk, data[LINEAGE_UNARY], index);
-			}
+			child_ptrs = LookupChunksFromGlobalIndex(key.chunk, data[LINEAGE_UNARY], index);
 			for (idx_t i = 0; i < key.chunk.size(); i++) {
 				idx_t source = key.chunk.GetValue(0, i).GetValue<uint64_t>();
-				idx_t new_val = key.child_ptrs[i]->data->Backward(source);
+				idx_t new_val = child_ptrs[i]->data->Backward(source);
 				key.chunk.SetValue(0, i, Value::UBIGINT(new_val));
-				key.child_ptrs[i] = key.child_ptrs[i]->data->GetChild();
 			}
 		}
 		break;
@@ -705,7 +699,6 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 					}
 					if (binary_data.right != nullptr) {
 						key.chunk.SetValue(0,right_idx,Value::UBIGINT(binary_data.right->Backward(this_data.source - adjust_offset)));
-						key.child_ptrs[right_idx] = binary_data.GetChild();
 						right_idx++;
 					}
 
@@ -752,7 +745,6 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 					}
 					if (binary_data.right != nullptr) {
 						key.chunk.SetValue(0,right_idx,Value::UBIGINT(binary_data.right->Backward(key.chunk.inner_simple_agg_idx - adjust_offset)));
-						key.child_ptrs[right_idx] = binary_data.GetChild();
 						right_idx++;
 					}
 
@@ -789,25 +781,22 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 		} else {
 			// we need hash table from the build side
 			// access the probe side, get the address from the right side
-			if (key.child_ptrs[0] == nullptr) {
-				key.child_ptrs = LookupChunksFromGlobalIndex(key.chunk, data[LINEAGE_PROBE], index);
-			}
+			child_ptrs = LookupChunksFromGlobalIndex(key.chunk, data[LINEAGE_PROBE], index);
 
 			for (idx_t i = 0; i < key.chunk.size(); i++) {
 				idx_t source = key.chunk.GetValue(0, i).GetValue<uint64_t>();
-				auto data_index = dynamic_cast<LineageNested &>(*key.child_ptrs[i]->data).LocateChunkIndex(source);
-				auto binary_data = dynamic_cast<LineageNested &>(*key.child_ptrs[i]->data).GetChunkAt(data_index);
+				auto data_index = dynamic_cast<LineageNested &>(*child_ptrs[i]->data).LocateChunkIndex(source);
+				auto binary_data = dynamic_cast<LineageNested &>(*child_ptrs[i]->data).GetChunkAt(data_index);
 				idx_t adjust_offset = 0;
 				if (data_index > 0) {
 					// adjust the source
-					adjust_offset = dynamic_cast<LineageNested &>(*key.child_ptrs[i]->data).GetAccCount(data_index - 1);
+					adjust_offset = dynamic_cast<LineageNested &>(*child_ptrs[i]->data).GetAccCount(data_index - 1);
 				}
 				if (dynamic_cast<LineageBinary &>(*binary_data->data).right != nullptr) {
 					key.chunk.SetValue(
 					    0, right_idx,
 					    Value::UBIGINT(
 					        dynamic_cast<LineageBinary &>(*binary_data->data).right->Backward(source - adjust_offset)));
-					key.child_ptrs[right_idx++] = binary_data->data->GetChild();
 				}
 
 				if (dynamic_cast<LineageBinary &>(*binary_data->data).left != nullptr && join_type != JoinType::ANTI) { // Skip anti joins
@@ -837,11 +826,6 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 		// Set cardinality of chunks
 		key.chunk.SetCardinality(right_idx);
 		key.join_chunk.SetCardinality(left_idx);
-
-		// Clear out child pointers for values that didn't have a right match
-		for (; right_idx < key.chunk.size(); right_idx++) {
-			key.child_ptrs[right_idx] = nullptr;
-		}
 		break;
 	}
 	case PhysicalOperatorType::HASH_GROUP_BY: {
@@ -883,12 +867,10 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 				key.chunk.outer_simple_agg_idx++;
 			}
 		} else {
-			if (key.child_ptrs[0] == nullptr) {
-				key.child_ptrs = LookupChunksFromGlobalIndex(key.chunk, data[LINEAGE_SOURCE], index);
-			}
+			child_ptrs = LookupChunksFromGlobalIndex(key.chunk, data[LINEAGE_SOURCE], index);
 
 			for (idx_t i = 0; i < key.chunk.size(); i++) {
-				auto payload = (uint64_t *)key.child_ptrs[i]->data->Process(0);
+				auto payload = (uint64_t *)child_ptrs[i]->data->Process(0);
 				matches.insert(payload[key.chunk.GetValue(0, i).GetValue<uint64_t>()]);
 				out_idx++;
 			}
@@ -901,20 +883,13 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 			idx_t res_count = data[LINEAGE_SINK][i].data->Count();
 			for (idx_t j = 0; j < res_count; ++j) {
 				if (matches.find(payload[j]) != matches.end()) {
-					auto child = data[LINEAGE_SINK][i].data->GetChild();
-					auto val = j + count_so_far;
-					if (child != nullptr) {
-						// We capture global value, so we convert to child local value here
-						val -= child->this_offset;
-					}
-					vec->push_back({val, child});
+					vec->push_back({j + count_so_far, nullptr});
 				}
 			}
 			count_so_far += res_count;
 		}
 
 		key.chunk.next_lineage_agg_data->push_back(vec);
-		key.child_ptrs = {};
 		// TODO: we never set Cardinality on chunk because we're actually returning more than 1024 values - is this okay?
 		break;
 	}
@@ -954,12 +929,10 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 				key.chunk.outer_simple_agg_idx++;
 			}
 		} else {
-			if (key.child_ptrs[0] == nullptr) {
-				key.child_ptrs = LookupChunksFromGlobalIndex(key.chunk, data[LINEAGE_SOURCE], index);
-			}
+			child_ptrs = LookupChunksFromGlobalIndex(key.chunk, data[LINEAGE_SOURCE], index);
 
 			for (idx_t i = 0; i < key.chunk.size(); i++) {
-				auto payload = (sel_t *)key.child_ptrs[i]->data->Process(0);
+				auto payload = (sel_t *)child_ptrs[i]->data->Process(0);
 				matches.insert(payload[key.chunk.GetValue(0, i).GetValue<uint64_t>()]);
 				out_idx++;
 			}
@@ -972,20 +945,13 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 			idx_t res_count = data[LINEAGE_SINK][i].data->Count();
 			for (idx_t j = 0; j < res_count; ++j) {
 				if (matches.find(payload[j]) != matches.end()) {
-					auto child = data[LINEAGE_SINK][i].data->GetChild();
-					auto val = j + count_so_far;
-					if (child != nullptr) {
-						// We capture global value, so we convert to child local value here
-						val -= child->this_offset;
-					}
-					vec->push_back({val, child});
+					vec->push_back({j + count_so_far, nullptr});
 				}
 			}
 			count_so_far += res_count;
 		}
 
 		key.chunk.next_lineage_agg_data->push_back(vec);
-		key.child_ptrs = {};
 		// TODO: we never set Cardinality on chunk because we're actually returning more than 1024 values - is this okay?
 		break;
 	}
@@ -1021,7 +987,6 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 					if (binary_lineage.left != nullptr) {
 						auto left = binary_lineage.left->Backward(this_data.source);
 						key.chunk.SetValue(0, left_idx, Value::UBIGINT(left));
-						key.child_ptrs[left_idx++] = binary_lineage.GetChild();
 					}
 					out_idx++;
 					key.chunk.inner_agg_idx++;
@@ -1045,7 +1010,6 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 					if (binary_lineage.left != nullptr) {
 						auto left = binary_lineage.left->Backward(key.chunk.inner_simple_agg_idx);
 						key.chunk.SetValue(0, left_idx, Value::UBIGINT(left));
-						key.child_ptrs[left_idx++] = binary_lineage.GetChild();
 					}
 					out_idx++;
 					key.chunk.inner_simple_agg_idx++;
@@ -1057,33 +1021,26 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 				key.chunk.outer_simple_agg_idx++;
 			}
 		} else {
-			if (key.child_ptrs[0] == nullptr) {
-				key.child_ptrs = LookupChunksFromGlobalIndex(key.chunk, data[LINEAGE_PROBE], index);
-			}
+			child_ptrs = LookupChunksFromGlobalIndex(key.chunk, data[LINEAGE_PROBE], index);
 
 			for (idx_t i = 0; i < key.chunk.size(); i++) {
 				idx_t source = key.chunk.GetValue(0, i).GetValue<uint64_t>();
 
-				if (dynamic_cast<LineageBinary &>(*key.child_ptrs[i]->data).right != nullptr) {
-					auto right = dynamic_cast<LineageBinary &>(*key.child_ptrs[i]->data).right->Backward(source);
+				if (dynamic_cast<LineageBinary &>(*child_ptrs[i]->data).right != nullptr) {
+					auto right = dynamic_cast<LineageBinary &>(*child_ptrs[i]->data).right->Backward(source);
 					key.join_chunk.SetValue(0, right_idx++, Value::UBIGINT(right));
 				}
 
-				if (dynamic_cast<LineageBinary &>(*key.child_ptrs[i]->data).left != nullptr) {
-					auto left = dynamic_cast<LineageBinary &>(*key.child_ptrs[i]->data).left->Backward(source);
+				if (dynamic_cast<LineageBinary &>(*child_ptrs[i]->data).left != nullptr) {
+					auto left = dynamic_cast<LineageBinary &>(*child_ptrs[i]->data).left->Backward(source);
 					key.chunk.SetValue(0, left_idx, Value::UBIGINT(left));
-					key.child_ptrs[left_idx++] = key.child_ptrs[i]->data->GetChild();
+					child_ptrs[left_idx++] = child_ptrs[i]->data->GetChild();
 				}
 			}
 		}
 		// Set cardinality of chunks
 		key.chunk.SetCardinality(right_idx);
 		key.join_chunk.SetCardinality(left_idx);
-
-		// Clear out child pointers for values that didn't have a left match
-		for (; left_idx < key.chunk.size(); left_idx++) {
-			key.child_ptrs[left_idx] = nullptr;
-		}
 		break;
 	}
 	case PhysicalOperatorType::CROSS_PRODUCT: {
@@ -1102,7 +1059,6 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 					auto this_data = agg_vec_ptr->at(key.chunk.inner_agg_idx);
 					key.join_chunk.SetValue(0, out_idx, Value::UBIGINT(this_data.data->data->Backward(this_data.source)));
 					key.chunk.SetValue(0, out_idx, Value::UBIGINT(this_data.source));
-					key.child_ptrs[out_idx++] = this_data.data->data->GetChild();
 					key.chunk.inner_agg_idx++;
 				}
 				if (key.chunk.inner_agg_idx < agg_vec_ptr->size()) {
@@ -1119,7 +1075,6 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 				while(out_idx < STANDARD_VECTOR_SIZE && key.chunk.inner_simple_agg_idx < this_data.data->Count()) {
 					key.join_chunk.SetValue(0, out_idx, Value::UBIGINT(this_data.data->Backward(key.chunk.inner_simple_agg_idx)));
 					key.chunk.SetValue(0, out_idx, Value::UBIGINT(key.chunk.inner_simple_agg_idx));
-					key.child_ptrs[out_idx++] = this_data.data->GetChild();
 					key.chunk.inner_simple_agg_idx++;
 				}
 				if (key.chunk.inner_simple_agg_idx < this_data.data->Count()) {
@@ -1131,16 +1086,14 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 			key.chunk.SetCardinality(out_idx);
 			key.join_chunk.SetCardinality(out_idx);
 		} else {
-			if (key.child_ptrs[0] == nullptr) {
-				key.child_ptrs = LookupChunksFromGlobalIndex(key.chunk, data[LINEAGE_PROBE], index);
-			}
+			child_ptrs = LookupChunksFromGlobalIndex(key.chunk, data[LINEAGE_PROBE], index);
 
 			for (idx_t i = 0; i < key.chunk.size(); i++) {
 				idx_t source = key.chunk.GetValue(0, i).GetValue<uint64_t>();
 
-				key.join_chunk.SetValue(0, i, Value::UBIGINT(key.child_ptrs[i]->data->Backward(source)));
+				key.join_chunk.SetValue(0, i, Value::UBIGINT(child_ptrs[i]->data->Backward(source)));
 				key.chunk.SetValue(0, i, Value::UBIGINT(source));
-				key.child_ptrs[i] = key.child_ptrs[i]->data->GetChild();
+				child_ptrs[i] = child_ptrs[i]->data->GetChild();
 			}
 
 			key.join_chunk.SetCardinality(key.chunk.size());
@@ -1172,7 +1125,7 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 					if (binary_lineage.left != nullptr) {
 						auto left = binary_lineage.left->Backward(this_data.source);
 						key.chunk.SetValue(0, left_idx, Value::UBIGINT(left));
-						key.child_ptrs[left_idx++] = binary_lineage.GetChild();
+						child_ptrs[left_idx++] = binary_lineage.GetChild();
 					}
 					out_idx++;
 					key.chunk.inner_agg_idx++;
@@ -1196,7 +1149,7 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 					if (binary_lineage.left != nullptr) {
 						auto left = binary_lineage.left->Backward(key.chunk.inner_simple_agg_idx);
 						key.chunk.SetValue(0, left_idx, Value::UBIGINT(left));
-						key.child_ptrs[left_idx++] = binary_lineage.GetChild();
+						child_ptrs[left_idx++] = binary_lineage.GetChild();
 					}
 					out_idx++;
 					key.chunk.inner_simple_agg_idx++;
@@ -1208,33 +1161,25 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 				key.chunk.outer_simple_agg_idx++;
 			}
 		} else {
-			if (key.child_ptrs[0] == nullptr) {
-				key.child_ptrs = LookupChunksFromGlobalIndex(key.chunk, data[LINEAGE_UNARY], index);
-			}
+			child_ptrs = LookupChunksFromGlobalIndex(key.chunk, data[LINEAGE_UNARY], index);
 
 			for (idx_t i = 0; i < key.chunk.size(); i++) {
 				idx_t source = key.chunk.GetValue(0, i).GetValue<uint64_t>();
 
-				if (dynamic_cast<LineageBinary &>(*key.child_ptrs[i]->data).right != nullptr) {
-					auto right = dynamic_cast<LineageBinary &>(*key.child_ptrs[i]->data).right->Backward(source);
+				if (dynamic_cast<LineageBinary &>(*child_ptrs[i]->data).right != nullptr) {
+					auto right = dynamic_cast<LineageBinary &>(*child_ptrs[i]->data).right->Backward(source);
 					key.join_chunk.SetValue(0, right_idx++, Value::UBIGINT(right));
 				}
 
-				if (dynamic_cast<LineageBinary &>(*key.child_ptrs[i]->data).left != nullptr) {
-					auto left = dynamic_cast<LineageBinary &>(*key.child_ptrs[i]->data).left->Backward(source);
+				if (dynamic_cast<LineageBinary &>(*child_ptrs[i]->data).left != nullptr) {
+					auto left = dynamic_cast<LineageBinary &>(*child_ptrs[i]->data).left->Backward(source);
 					key.chunk.SetValue(0, left_idx, Value::UBIGINT(left));
-					key.child_ptrs[left_idx++] = key.child_ptrs[i]->data->GetChild();
 				}
 			}
 		}
 		// Set cardinality of chunks
 		key.chunk.SetCardinality(right_idx);
 		key.join_chunk.SetCardinality(left_idx);
-
-		// Clear out child pointers for values that didn't have a left match
-		for (; left_idx < key.chunk.size(); left_idx++) {
-			key.child_ptrs[left_idx] = nullptr;
-		}
 		break;
 	}
 	case PhysicalOperatorType::ORDER_BY: {
@@ -1273,7 +1218,6 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 			for (idx_t i = 0; i < key.chunk.size(); i++) {
 				key.chunk.SetValue(0, i, Value::UBIGINT(data_ptr->data->Backward(key.chunk.GetValue(0, i).GetValue<uint64_t>())));
 			}
-			key.child_ptrs = {};
 		}
 		break;
 	}
@@ -1281,7 +1225,6 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 		// Recurse until we find a filter-like child, then use all of its lineage
 		// This optimizations allows us to skip aggregations and order bys - especially helping for query 15
 		key.chunk.next_lineage_simple_agg_data = RecurseForSimpleAgg(children[0]);
-		key.child_ptrs = {};
 		break;
 	}
 	default: {
