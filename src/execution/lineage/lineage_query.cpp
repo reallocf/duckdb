@@ -562,6 +562,7 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 							std::cout << "Nullptr" << std::endl;
 						}
 						std::cout << "Foo5.1" << std::endl;
+						std::cout << this_data.source << " " << this_data.data->data->Count() << std::endl;
 						idx_t init_val = this_data.data->data->Backward(this_data.source);
 						std::cout << "Foo5.2" << std::endl;
 						idx_t val = init_val + this_data.data->child_offset;
