@@ -558,6 +558,14 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 						std::cout << "Foo4" << std::endl;
 						auto this_data = agg_vec_ptr->at(key.chunk.inner_agg_idx);
 						std::cout << "Foo5" << std::endl;
+						if (this_data.data == nullptr) {
+							std::cout << "Nullptr" << std::endl;
+						}
+						std::cout << "Foo5.1" << std::endl;
+						idx_t init_val = this_data.data->data->Backward(this_data.source);
+						std::cout << "Foo5.2" << std::endl;
+						idx_t foo = init_val + this_data.data->child_offset;
+						std::cout << "Foo5.3" << std::endl;
 						idx_t val = this_data.data->data->Backward(this_data.source) + this_data.data->child_offset;
 						std::cout << "Foo6" << std::endl;
 						key.chunk.SetValue(0, out_idx++, Value::UBIGINT(val));
