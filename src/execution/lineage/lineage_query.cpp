@@ -639,7 +639,7 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 				while (out_idx < STANDARD_VECTOR_SIZE && key.chunk.inner_agg_idx < agg_vec_ptr->size()) {
 					auto this_data = agg_vec_ptr->at(key.chunk.inner_agg_idx);
 					idx_t new_val = this_data.data->data->Backward(this_data.source);
-					key.chunk.SetValue(0, out_idx, Value::UBIGINT(new_val));
+					key.chunk.SetValue(0, out_idx++, Value::UBIGINT(new_val));
 					key.chunk.inner_agg_idx++;
 				}
 				if (key.chunk.inner_agg_idx < agg_vec_ptr->size()) {
@@ -654,7 +654,7 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 				LineageDataWithOffset this_data = key.chunk.lineage_simple_agg_data->at(key.chunk.outer_simple_agg_idx);
 				while(out_idx < STANDARD_VECTOR_SIZE && key.chunk.inner_simple_agg_idx < this_data.data->Count()) {
 					idx_t new_val = this_data.data->Backward(key.chunk.inner_simple_agg_idx);
-					key.chunk.SetValue(0, out_idx, Value::UBIGINT(new_val));
+					key.chunk.SetValue(0, out_idx++, Value::UBIGINT(new_val));
 					key.chunk.inner_simple_agg_idx++;
 				}
 				if (key.chunk.inner_simple_agg_idx < this_data.data->Count()) {
@@ -797,6 +797,7 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 					    0, right_idx,
 					    Value::UBIGINT(
 					        dynamic_cast<LineageBinary &>(*binary_data->data).right->Backward(source - adjust_offset)));
+					right_idx++;
 				}
 
 				if (dynamic_cast<LineageBinary &>(*binary_data->data).left != nullptr && join_type != JoinType::ANTI) { // Skip anti joins
@@ -986,7 +987,7 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 
 					if (binary_lineage.left != nullptr) {
 						auto left = binary_lineage.left->Backward(this_data.source);
-						key.chunk.SetValue(0, left_idx, Value::UBIGINT(left));
+						key.chunk.SetValue(0, left_idx++, Value::UBIGINT(left));
 					}
 					out_idx++;
 					key.chunk.inner_agg_idx++;
@@ -1009,7 +1010,7 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 
 					if (binary_lineage.left != nullptr) {
 						auto left = binary_lineage.left->Backward(key.chunk.inner_simple_agg_idx);
-						key.chunk.SetValue(0, left_idx, Value::UBIGINT(left));
+						key.chunk.SetValue(0, left_idx++, Value::UBIGINT(left));
 					}
 					out_idx++;
 					key.chunk.inner_simple_agg_idx++;
@@ -1033,8 +1034,7 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 
 				if (dynamic_cast<LineageBinary &>(*child_ptrs[i]->data).left != nullptr) {
 					auto left = dynamic_cast<LineageBinary &>(*child_ptrs[i]->data).left->Backward(source);
-					key.chunk.SetValue(0, left_idx, Value::UBIGINT(left));
-					child_ptrs[left_idx++] = child_ptrs[i]->data->GetChild();
+					key.chunk.SetValue(0, left_idx++, Value::UBIGINT(left));
 				}
 			}
 		}
@@ -1058,7 +1058,7 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 				while (out_idx < STANDARD_VECTOR_SIZE && key.chunk.inner_agg_idx < agg_vec_ptr->size()) {
 					auto this_data = agg_vec_ptr->at(key.chunk.inner_agg_idx);
 					key.join_chunk.SetValue(0, out_idx, Value::UBIGINT(this_data.data->data->Backward(this_data.source)));
-					key.chunk.SetValue(0, out_idx, Value::UBIGINT(this_data.source));
+					key.chunk.SetValue(0, out_idx++, Value::UBIGINT(this_data.source));
 					key.chunk.inner_agg_idx++;
 				}
 				if (key.chunk.inner_agg_idx < agg_vec_ptr->size()) {
@@ -1074,7 +1074,7 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 				LineageDataWithOffset this_data = key.chunk.lineage_simple_agg_data->at(key.chunk.outer_simple_agg_idx);
 				while(out_idx < STANDARD_VECTOR_SIZE && key.chunk.inner_simple_agg_idx < this_data.data->Count()) {
 					key.join_chunk.SetValue(0, out_idx, Value::UBIGINT(this_data.data->Backward(key.chunk.inner_simple_agg_idx)));
-					key.chunk.SetValue(0, out_idx, Value::UBIGINT(key.chunk.inner_simple_agg_idx));
+					key.chunk.SetValue(0, out_idx++, Value::UBIGINT(key.chunk.inner_simple_agg_idx));
 					key.chunk.inner_simple_agg_idx++;
 				}
 				if (key.chunk.inner_simple_agg_idx < this_data.data->Count()) {
@@ -1124,8 +1124,7 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 
 					if (binary_lineage.left != nullptr) {
 						auto left = binary_lineage.left->Backward(this_data.source);
-						key.chunk.SetValue(0, left_idx, Value::UBIGINT(left));
-						child_ptrs[left_idx++] = binary_lineage.GetChild();
+						key.chunk.SetValue(0, left_idx++, Value::UBIGINT(left));
 					}
 					out_idx++;
 					key.chunk.inner_agg_idx++;
@@ -1148,8 +1147,7 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 
 					if (binary_lineage.left != nullptr) {
 						auto left = binary_lineage.left->Backward(key.chunk.inner_simple_agg_idx);
-						key.chunk.SetValue(0, left_idx, Value::UBIGINT(left));
-						child_ptrs[left_idx++] = binary_lineage.GetChild();
+						key.chunk.SetValue(0, left_idx++, Value::UBIGINT(left));
 					}
 					out_idx++;
 					key.chunk.inner_simple_agg_idx++;
@@ -1173,7 +1171,7 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 
 				if (dynamic_cast<LineageBinary &>(*child_ptrs[i]->data).left != nullptr) {
 					auto left = dynamic_cast<LineageBinary &>(*child_ptrs[i]->data).left->Backward(source);
-					key.chunk.SetValue(0, left_idx, Value::UBIGINT(left));
+					key.chunk.SetValue(0, left_idx++, Value::UBIGINT(left));
 				}
 			}
 		}
