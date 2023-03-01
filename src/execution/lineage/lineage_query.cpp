@@ -499,8 +499,8 @@ void LookupAggChunksFromGlobalIndex(
 			// from the source index
 			for (idx_t k = 0; k < data.size(); k++) {
 				if (val >= data[k].this_offset && val < data[k].this_offset + data[k].data->Count()) {
-					this_agg_data->at(k).source = val - data[k].this_offset;
-					this_agg_data->at(k).data = make_shared<LineageDataWithOffset>(data[k]);
+					this_agg_data->at(j).source = val - data[k].this_offset;
+					this_agg_data->at(j).data = make_shared<LineageDataWithOffset>(data[k]);
 					break;
 				}
 			}
@@ -542,7 +542,7 @@ shared_ptr<vector<LineageDataWithOffset>> OperatorLineage::RecurseForSimpleAgg(c
 }
 
 void OperatorLineage::AccessIndex(LineageIndexStruct key) {
-//	std::cout << "AccessIndex " << PhysicalOperatorToString(this->type) << this->opid << std::endl;
+	std::cout << "AccessIndex " << PhysicalOperatorToString(this->type) << this->opid << std::endl;
 //	for (idx_t i = 0; i < key.chunk.size(); i++) {
 //		std::cout << key.chunk.GetValue(0,i) << std::endl;
 //	}
