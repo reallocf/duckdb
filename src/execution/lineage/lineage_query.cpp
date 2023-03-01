@@ -857,10 +857,9 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 			auto payload = (uint64_t *)data[LINEAGE_SINK][i].data->Process(0);
 			idx_t res_count = data[LINEAGE_SINK][i].data->Count();
 			for (idx_t j = 0; i < res_count; ++i) {
-				auto val = j + count_so_far;
-				if (matches.find(val) != matches.end()) {
-					idx_t bucket = payload[j];
+				if (matches.find(payload[j]) != matches.end()) {
 					auto child = data[LINEAGE_SINK][i].data->GetChild();
+					auto val = j + count_so_far;
 					if (child != nullptr) {
 						// We capture global value, so we convert to child local value here
 						val -= child->this_offset;
@@ -926,10 +925,9 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 			auto payload = (uint64_t *)data[LINEAGE_SINK][i].data->Process(0);
 			idx_t res_count = data[LINEAGE_SINK][i].data->Count();
 			for (idx_t j = 0; i < res_count; ++i) {
-				auto val = j + count_so_far;
-				if (matches.find(val) != matches.end()) {
-					idx_t bucket = payload[j];
+				if (matches.find(payload[j]) != matches.end()) {
 					auto child = data[LINEAGE_SINK][i].data->GetChild();
+					auto val = j + count_so_far;
 					if (child != nullptr) {
 						// We capture global value, so we convert to child local value here
 						val -= child->this_offset;
