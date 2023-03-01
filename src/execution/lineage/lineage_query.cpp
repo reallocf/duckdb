@@ -500,43 +500,28 @@ void LookupAggChunksFromGlobalIndex(
     const vector<idx_t>& index
 ) {
 	// Binary Search index
-	std::cout << "Foo5" << std::endl;
 	for (idx_t i = 0; i < chunk.lineage_agg_data->size(); i++) {
-		std::cout << "Foo6" << std::endl;
 		auto this_agg_data = chunk.lineage_agg_data->at(0);
-		std::cout << "Foo7" << std::endl;
 		for (idx_t j = 0; j < this_agg_data->size(); j++) {
-			std::cout << "Foo8" << std::endl;
 			idx_t val = this_agg_data->at(j).source;
 			// we need a way to locate the exact data we should access
 			// from the source index
-			std::cout << "Foo9" << std::endl;
 			auto lower = lower_bound(index.begin(), index.end(), val);
-			std::cout << "Foo10" << std::endl;
 			if (lower == index.end() || (lower == index.end() - 1 && *lower == val)) {
 				throw std::logic_error("Out of bounds lineage requested");
 			}
-			std::cout << "Foo11" << std::endl;
 			auto chunk_id = lower - index.begin();
-			std::cout << "Foo12" << std::endl;
 			if (*lower == val) {
 				chunk_id += 1;
 			}
-			std::cout << "Foo13" << std::endl;
 			auto this_data = data[chunk_id];
-			std::cout << "Foo14" << std::endl;
 			if (chunk_id > 0) {
 				val -= index[chunk_id-1];
 			}
-			std::cout << "Foo15" << std::endl;
 			this_agg_data->at(j).source = val;
-			std::cout << "Foo16" << std::endl;
 			this_agg_data->at(j).data = make_shared<LineageDataWithOffset>(this_data);
-			std::cout << "Foo17" << std::endl;
 		}
-		std::cout << "Foo18" << std::endl;
 	}
-	std::cout << "Foo19" << std::endl;
 }
 
 shared_ptr<vector<LineageDataWithOffset>> OperatorLineage::RecurseForSimpleAgg(const shared_ptr<OperatorLineage>& child) {
@@ -573,7 +558,7 @@ shared_ptr<vector<LineageDataWithOffset>> OperatorLineage::RecurseForSimpleAgg(c
 }
 
 void OperatorLineage::AccessIndex(LineageIndexStruct key) {
-	std::cout << "AccessIndex " << PhysicalOperatorToString(this->type) << this->opid << std::endl;
+//	std::cout << "AccessIndex " << PhysicalOperatorToString(this->type) << this->opid << std::endl;
 //	for (idx_t i = 0; i < key.chunk.size(); i++) {
 //		std::cout << key.chunk.GetValue(0,i) << std::endl;
 //	}
@@ -703,14 +688,10 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 		idx_t right_idx = 0;
 		idx_t left_idx = 0;
 
-		std::cout << "Foo" << std::endl;
 		if (!key.chunk.lineage_agg_data->empty()) {
-			std::cout << "Foo2" << std::endl;
 			if (key.chunk.lineage_agg_data->at(0)->at(0).data == nullptr) {
-				std::cout << "Foo3" << std::endl;
 				LookupAggChunksFromGlobalIndex(key.chunk, data[LINEAGE_PROBE], index);
 			}
-			std::cout << "Foo4" << std::endl;
 			while (out_idx < STANDARD_VECTOR_SIZE && key.chunk.outer_agg_idx < key.chunk.lineage_agg_data->size()) {
 				auto agg_vec_ptr = key.chunk.lineage_agg_data->at(key.chunk.outer_agg_idx);
 				while (out_idx < STANDARD_VECTOR_SIZE && key.chunk.inner_agg_idx < agg_vec_ptr->size()) {
@@ -987,7 +968,7 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 		auto vec = make_shared<vector<SourceAndMaybeData>>();
 		idx_t count_so_far = 0;
 		for (idx_t i = 0; i < data[LINEAGE_SINK].size(); i++) {
-			auto payload = (uint64_t *)data[LINEAGE_SINK][i].data->Process(0);
+			auto payload = (sel_t *)data[LINEAGE_SINK][i].data->Process(0);
 			idx_t res_count = data[LINEAGE_SINK][i].data->Count();
 			for (idx_t j = 0; j < res_count; ++j) {
 				if (matches.find(payload[j]) != matches.end()) {
