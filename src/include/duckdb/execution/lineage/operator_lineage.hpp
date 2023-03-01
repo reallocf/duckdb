@@ -99,7 +99,7 @@ public:
     //        which helps in locating the one needed
     //        using binary-search.
     // Index for when we need to identify the chunk from a global offset
-    vector<idx_t> index;
+//    vector<idx_t> index;
     bool should_index;
 	JoinType join_type;
 };

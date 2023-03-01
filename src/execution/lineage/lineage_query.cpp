@@ -96,128 +96,128 @@ void LineageManager::PostProcess(PhysicalOperator *op, bool should_index) {
 
 LineageProcessStruct OperatorLineage::PostProcess(idx_t chunk_count, idx_t count_so_far, idx_t data_idx, idx_t finished_idx) {
 //	std::cout << "Postprocess " << PhysicalOperatorToString(this->type) << this->opid << std::endl;
-	if (data[finished_idx].size() > data_idx) {
-		switch (this->type) {
-		case PhysicalOperatorType::FILTER:
-		case PhysicalOperatorType::INDEX_JOIN:
-		case PhysicalOperatorType::LIMIT:
-		case PhysicalOperatorType::TABLE_SCAN: {
-			// Array index
-			if (chunk_count == 0) {
-				// Reserve index array
-				LineageDataWithOffset last_data = data[LINEAGE_UNARY][data[LINEAGE_UNARY].size() - 1];
-				index.reserve(last_data.child_offset + last_data.data->Size());
-			}
-			LineageDataWithOffset this_data = data[LINEAGE_UNARY][data_idx];
-			idx_t res_count = this_data.data->Count();
-			index.reserve(index.size() + res_count);
-			for (idx_t i = 0; i < res_count; i++) {
-				index.push_back(chunk_count);
-			}
-			break;
-		}
-		case PhysicalOperatorType::HASH_JOIN: {
-			// Hash Join - other joins too?
-			if (finished_idx == LINEAGE_BUILD) {
-				// Shouldn't hit this code path
-				D_ASSERT(false);
-			} else {
-				// Array index
-				if (chunk_count == 0) {
-					// Reserve index array
-					LineageDataWithOffset last_data = data[LINEAGE_PROBE][data[LINEAGE_PROBE].size() - 1];
-					index.reserve(last_data.child_offset + last_data.data->Size());
-				}
-				LineageDataWithOffset this_data = data[LINEAGE_PROBE][data_idx];
-				idx_t res_count = this_data.data->Count();
-				for (idx_t i = 0; i < res_count; i++) {
-					index.push_back(chunk_count);
-				}
-			}
-			break;
-		}
-		case PhysicalOperatorType::HASH_GROUP_BY:
-		case PhysicalOperatorType::PERFECT_HASH_GROUP_BY: {
-			// Hash Aggregate / Perfect Hash Aggregate
-			// schema for both: [INTEGER in_index, INTEGER out_index]
-			if (finished_idx == LINEAGE_SINK) {
-				// build hash table
-//				LineageDataWithOffset this_data = data[LINEAGE_SINK][data_idx];
-//				idx_t res_count = this_data.data->Count();
-//				if (type == PhysicalOperatorType::PERFECT_HASH_GROUP_BY) {
-//					auto payload = (sel_t*)this_data.data->Process(0);
-//					for (idx_t i=0; i < res_count; ++i) {
-//						idx_t bucket = payload[i];
-//						if (hash_map_agg[bucket] == nullptr) {
-//							hash_map_agg[bucket] = make_shared<vector<SourceAndMaybeData>>();
-//						}
-//						auto child = this_data.data->GetChild();
-//						auto val = i + count_so_far;
-//						if (child != nullptr) {
-//							// We capture global value, so we convert to child local value here
-//							val -= child->this_offset;
-//						}
-//						hash_map_agg[bucket]->push_back({val, child});
-//					}
-//				} else {
-//					auto payload = (uint64_t*)this_data.data->Process(0);
-//					for (idx_t i=0; i < res_count; ++i) {
-//						idx_t bucket = payload[i];
-//						if (hash_map_agg[bucket] == nullptr) {
-//							hash_map_agg[bucket] = make_shared<vector<SourceAndMaybeData>>();
-//						}
-//						auto child = this_data.data->GetChild();
-//						auto val = i + count_so_far;
-//						if (child != nullptr) {
-//							// We capture global value, so we convert to child local value here
-//							val -= child->this_offset;
-//						}
-//						hash_map_agg[bucket]->push_back({val, child});
-//					}
+//	if (data[finished_idx].size() > data_idx) {
+//		switch (this->type) {
+//		case PhysicalOperatorType::FILTER:
+//		case PhysicalOperatorType::INDEX_JOIN:
+//		case PhysicalOperatorType::LIMIT:
+//		case PhysicalOperatorType::TABLE_SCAN: {
+//			// Array index
+//			if (chunk_count == 0) {
+//				// Reserve index array
+//				LineageDataWithOffset last_data = data[LINEAGE_UNARY][data[LINEAGE_UNARY].size() - 1];
+//				index.reserve(last_data.child_offset + last_data.data->Size());
+//			}
+//			LineageDataWithOffset this_data = data[LINEAGE_UNARY][data_idx];
+//			idx_t res_count = this_data.data->Count();
+//			index.reserve(index.size() + res_count);
+//			for (idx_t i = 0; i < res_count; i++) {
+//				index.push_back(chunk_count);
+//			}
+//			break;
+//		}
+//		case PhysicalOperatorType::HASH_JOIN: {
+//			// Hash Join - other joins too?
+//			if (finished_idx == LINEAGE_BUILD) {
+//				// Shouldn't hit this code path
+//				D_ASSERT(false);
+//			} else {
+//				// Array index
+//				if (chunk_count == 0) {
+//					// Reserve index array
+//					LineageDataWithOffset last_data = data[LINEAGE_PROBE][data[LINEAGE_PROBE].size() - 1];
+//					index.reserve(last_data.child_offset + last_data.data->Size());
 //				}
-//				count_so_far += res_count;
-			} else if (finished_idx == LINEAGE_COMBINE) {
-			} else {
-				// Array index
-				if (chunk_count == 0) {
-					// Reserve index array
-					LineageDataWithOffset last_data = data[LINEAGE_SOURCE][data[LINEAGE_SOURCE].size() - 1];
-					index.reserve(last_data.child_offset + last_data.data->Size());
-				}
-				LineageDataWithOffset this_data = data[LINEAGE_SOURCE][data_idx];
-				idx_t res_count = this_data.data->Count();
-				for (idx_t i = 0; i < res_count; i++) {
-					index.push_back(chunk_count);
-				}
-			}
-			break;
-		}
-		case PhysicalOperatorType::BLOCKWISE_NL_JOIN:
-		case PhysicalOperatorType::CROSS_PRODUCT:
-		case PhysicalOperatorType::PIECEWISE_MERGE_JOIN:
-		case PhysicalOperatorType::NESTED_LOOP_JOIN: {
-			// Array index
-			if (chunk_count == 0) {
-				// Reserve index array
-				LineageDataWithOffset last_data = data[LINEAGE_PROBE][data[LINEAGE_PROBE].size() - 1];
-				index.reserve(last_data.child_offset + last_data.data->Size());
-			}
-			LineageDataWithOffset this_data = data[LINEAGE_PROBE][data_idx];
-			idx_t res_count = this_data.data->Count();
-			for (idx_t i = 0; i < res_count; i++) {
-				index.push_back(chunk_count);
-			}
-			break;
-		}
-		case PhysicalOperatorType::ORDER_BY: {
-			throw std::logic_error("Shouldn't post-process ORDER_BY");
-		}
-		default:
-			// We must capture lineage for everything getting post-processed
-			D_ASSERT(false);
-		}
-	}
-	data_idx++;
+//				LineageDataWithOffset this_data = data[LINEAGE_PROBE][data_idx];
+//				idx_t res_count = this_data.data->Count();
+//				for (idx_t i = 0; i < res_count; i++) {
+//					index.push_back(chunk_count);
+//				}
+//			}
+//			break;
+//		}
+//		case PhysicalOperatorType::HASH_GROUP_BY:
+//		case PhysicalOperatorType::PERFECT_HASH_GROUP_BY: {
+//			// Hash Aggregate / Perfect Hash Aggregate
+//			// schema for both: [INTEGER in_index, INTEGER out_index]
+//			if (finished_idx == LINEAGE_SINK) {
+//				// build hash table
+////				LineageDataWithOffset this_data = data[LINEAGE_SINK][data_idx];
+////				idx_t res_count = this_data.data->Count();
+////				if (type == PhysicalOperatorType::PERFECT_HASH_GROUP_BY) {
+////					auto payload = (sel_t*)this_data.data->Process(0);
+////					for (idx_t i=0; i < res_count; ++i) {
+////						idx_t bucket = payload[i];
+////						if (hash_map_agg[bucket] == nullptr) {
+////							hash_map_agg[bucket] = make_shared<vector<SourceAndMaybeData>>();
+////						}
+////						auto child = this_data.data->GetChild();
+////						auto val = i + count_so_far;
+////						if (child != nullptr) {
+////							// We capture global value, so we convert to child local value here
+////							val -= child->this_offset;
+////						}
+////						hash_map_agg[bucket]->push_back({val, child});
+////					}
+////				} else {
+////					auto payload = (uint64_t*)this_data.data->Process(0);
+////					for (idx_t i=0; i < res_count; ++i) {
+////						idx_t bucket = payload[i];
+////						if (hash_map_agg[bucket] == nullptr) {
+////							hash_map_agg[bucket] = make_shared<vector<SourceAndMaybeData>>();
+////						}
+////						auto child = this_data.data->GetChild();
+////						auto val = i + count_so_far;
+////						if (child != nullptr) {
+////							// We capture global value, so we convert to child local value here
+////							val -= child->this_offset;
+////						}
+////						hash_map_agg[bucket]->push_back({val, child});
+////					}
+////				}
+////				count_so_far += res_count;
+//			} else if (finished_idx == LINEAGE_COMBINE) {
+//			} else {
+//				// Array index
+//				if (chunk_count == 0) {
+//					// Reserve index array
+//					LineageDataWithOffset last_data = data[LINEAGE_SOURCE][data[LINEAGE_SOURCE].size() - 1];
+//					index.reserve(last_data.child_offset + last_data.data->Size());
+//				}
+//				LineageDataWithOffset this_data = data[LINEAGE_SOURCE][data_idx];
+//				idx_t res_count = this_data.data->Count();
+//				for (idx_t i = 0; i < res_count; i++) {
+//					index.push_back(chunk_count);
+//				}
+//			}
+//			break;
+//		}
+//		case PhysicalOperatorType::BLOCKWISE_NL_JOIN:
+//		case PhysicalOperatorType::CROSS_PRODUCT:
+//		case PhysicalOperatorType::PIECEWISE_MERGE_JOIN:
+//		case PhysicalOperatorType::NESTED_LOOP_JOIN: {
+//			// Array index
+//			if (chunk_count == 0) {
+//				// Reserve index array
+//				LineageDataWithOffset last_data = data[LINEAGE_PROBE][data[LINEAGE_PROBE].size() - 1];
+//				index.reserve(last_data.child_offset + last_data.data->Size());
+//			}
+//			LineageDataWithOffset this_data = data[LINEAGE_PROBE][data_idx];
+//			idx_t res_count = this_data.data->Count();
+//			for (idx_t i = 0; i < res_count; i++) {
+//				index.push_back(chunk_count);
+//			}
+//			break;
+//		}
+//		case PhysicalOperatorType::ORDER_BY: {
+//			throw std::logic_error("Shouldn't post-process ORDER_BY");
+//		}
+//		default:
+//			// We must capture lineage for everything getting post-processed
+//			D_ASSERT(false);
+//		}
+//	}
+//	data_idx++;
 	return LineageProcessStruct{ count_so_far, 0, data_idx, finished_idx, data[finished_idx].size() > data_idx};
 }
 
@@ -466,8 +466,7 @@ unique_ptr<PhysicalOperator> CombineByMode(
 
 vector<shared_ptr<LineageDataWithOffset>> LookupChunksFromGlobalIndex(
     DataChunk &chunk,
-    const vector<LineageDataWithOffset>& data,
-    const vector<idx_t>& index
+    const vector<LineageDataWithOffset>& data
 ) {
 	vector<shared_ptr<LineageDataWithOffset>> res;
 	res.reserve(chunk.size());
@@ -476,28 +475,20 @@ vector<shared_ptr<LineageDataWithOffset>> LookupChunksFromGlobalIndex(
 		idx_t val = chunk.GetValue(0, i).GetValue<uint64_t>();
 		// we need a way to locate the exact data we should access
 		// from the source index
-		auto lower = lower_bound(index.begin(), index.end(), val);
-		if (lower == index.end() || (lower == index.end() - 1 && *lower == val)) {
-			throw std::logic_error("Out of bounds lineage requested");
+		for (idx_t j = 0; j < data.size(); j++) {
+			if (val >= data[j].this_offset && val < data[j].this_offset + data[j].data->Count()) {
+				chunk.SetValue(0, i, Value::UBIGINT(val - data[j].this_offset));
+				res.push_back(make_unique<LineageDataWithOffset>(data[j]));
+				break;
+			}
 		}
-		auto chunk_id = lower - index.begin();
-		if (*lower == val) {
-			chunk_id += 1;
-		}
-		auto this_data = data[chunk_id];
-		if (chunk_id > 0) {
-			val -= index[chunk_id-1];
-		}
-		chunk.SetValue(0, i, Value::UBIGINT(val));
-		res.push_back(make_unique<LineageDataWithOffset>(this_data));
 	}
 	return res;
 }
 
 void LookupAggChunksFromGlobalIndex(
     DataChunk &chunk,
-    const vector<LineageDataWithOffset>& data,
-    const vector<idx_t>& index
+    const vector<LineageDataWithOffset>& data
 ) {
 	// Binary Search index
 	for (idx_t i = 0; i < chunk.lineage_agg_data->size(); i++) {
@@ -506,20 +497,13 @@ void LookupAggChunksFromGlobalIndex(
 			idx_t val = this_agg_data->at(j).source;
 			// we need a way to locate the exact data we should access
 			// from the source index
-			auto lower = lower_bound(index.begin(), index.end(), val);
-			if (lower == index.end() || (lower == index.end() - 1 && *lower == val)) {
-				throw std::logic_error("Out of bounds lineage requested");
+			for (idx_t k = 0; k < data.size(); k++) {
+				if (val >= data[k].this_offset && val < data[k].this_offset + data[k].data->Count()) {
+					this_agg_data->at(k).source = val - data[k].this_offset;
+					this_agg_data->at(k).data = make_shared<LineageDataWithOffset>(data[k]);
+					break;
+				}
 			}
-			auto chunk_id = lower - index.begin();
-			if (*lower == val) {
-				chunk_id += 1;
-			}
-			auto this_data = data[chunk_id];
-			if (chunk_id > 0) {
-				val -= index[chunk_id-1];
-			}
-			this_agg_data->at(j).source = val;
-			this_agg_data->at(j).data = make_shared<LineageDataWithOffset>(this_data);
 		}
 	}
 }
@@ -581,7 +565,7 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 			idx_t out_idx = 0;
 			if (!key.chunk.lineage_agg_data->empty()) {
 				if (key.chunk.lineage_agg_data->at(0)->at(0).data == nullptr) {
-					LookupAggChunksFromGlobalIndex(key.chunk, data[LINEAGE_UNARY], index);
+					LookupAggChunksFromGlobalIndex(key.chunk, data[LINEAGE_UNARY]);
 				}
 				while (out_idx < STANDARD_VECTOR_SIZE && key.chunk.outer_agg_idx < key.chunk.lineage_agg_data->size()) {
 					auto agg_vec_ptr = key.chunk.lineage_agg_data->at(key.chunk.outer_agg_idx);
@@ -615,7 +599,7 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 				}
 				key.chunk.SetCardinality(out_idx);
 			} else {
-				child_ptrs = LookupChunksFromGlobalIndex(key.chunk, data[LINEAGE_UNARY], index);
+				child_ptrs = LookupChunksFromGlobalIndex(key.chunk, data[LINEAGE_UNARY]);
 				for (idx_t i = 0; i < key.chunk.size(); i++) {
 					key.chunk.SetValue(
 					    0,
@@ -632,7 +616,7 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 		idx_t out_idx = 0;
 		if (!key.chunk.lineage_agg_data->empty()) {
 			if (key.chunk.lineage_agg_data->at(0)->at(0).data == nullptr) {
-				LookupAggChunksFromGlobalIndex(key.chunk, data[LINEAGE_UNARY], index);
+				LookupAggChunksFromGlobalIndex(key.chunk, data[LINEAGE_UNARY]);
 			}
 			while (out_idx < STANDARD_VECTOR_SIZE && key.chunk.outer_agg_idx < key.chunk.lineage_agg_data->size()) {
 				auto agg_vec_ptr = key.chunk.lineage_agg_data->at(key.chunk.outer_agg_idx);
@@ -665,7 +649,7 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 			}
 			key.chunk.SetCardinality(out_idx);
 		} else {
-			child_ptrs = LookupChunksFromGlobalIndex(key.chunk, data[LINEAGE_UNARY], index);
+			child_ptrs = LookupChunksFromGlobalIndex(key.chunk, data[LINEAGE_UNARY]);
 			for (idx_t i = 0; i < key.chunk.size(); i++) {
 				idx_t source = key.chunk.GetValue(0, i).GetValue<uint64_t>();
 				idx_t new_val = child_ptrs[i]->data->Backward(source);
@@ -684,7 +668,7 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 
 		if (!key.chunk.lineage_agg_data->empty()) {
 			if (key.chunk.lineage_agg_data->at(0)->at(0).data == nullptr) {
-				LookupAggChunksFromGlobalIndex(key.chunk, data[LINEAGE_PROBE], index);
+				LookupAggChunksFromGlobalIndex(key.chunk, data[LINEAGE_PROBE]);
 			}
 			while (out_idx < STANDARD_VECTOR_SIZE && key.chunk.outer_agg_idx < key.chunk.lineage_agg_data->size()) {
 				auto agg_vec_ptr = key.chunk.lineage_agg_data->at(key.chunk.outer_agg_idx);
@@ -781,7 +765,7 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 		} else {
 			// we need hash table from the build side
 			// access the probe side, get the address from the right side
-			child_ptrs = LookupChunksFromGlobalIndex(key.chunk, data[LINEAGE_PROBE], index);
+			child_ptrs = LookupChunksFromGlobalIndex(key.chunk, data[LINEAGE_PROBE]);
 
 			for (idx_t i = 0; i < key.chunk.size(); i++) {
 				idx_t source = key.chunk.GetValue(0, i).GetValue<uint64_t>();
@@ -835,7 +819,7 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 		unordered_set<idx_t> matches;
 		if (!key.chunk.lineage_agg_data->empty()) {
 			if (key.chunk.lineage_agg_data->at(0)->at(0).data == nullptr) {
-				LookupAggChunksFromGlobalIndex(key.chunk, data[LINEAGE_SOURCE], index);
+				LookupAggChunksFromGlobalIndex(key.chunk, data[LINEAGE_SOURCE]);
 			}
 			while (out_idx < STANDARD_VECTOR_SIZE && key.chunk.outer_agg_idx < key.chunk.lineage_agg_data->size()) {
 				auto agg_vec_ptr = key.chunk.lineage_agg_data->at(key.chunk.outer_agg_idx);
@@ -868,7 +852,7 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 				key.chunk.outer_simple_agg_idx++;
 			}
 		} else {
-			child_ptrs = LookupChunksFromGlobalIndex(key.chunk, data[LINEAGE_SOURCE], index);
+			child_ptrs = LookupChunksFromGlobalIndex(key.chunk, data[LINEAGE_SOURCE]);
 
 			for (idx_t i = 0; i < key.chunk.size(); i++) {
 				auto payload = (uint64_t *)child_ptrs[i]->data->Process(0);
@@ -900,7 +884,7 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 		if (!key.chunk.lineage_agg_data->empty()) {
 			while (out_idx < STANDARD_VECTOR_SIZE && key.chunk.outer_agg_idx < key.chunk.lineage_agg_data->size()) {
 				if (key.chunk.lineage_agg_data->at(0)->at(0).data == nullptr) {
-					LookupAggChunksFromGlobalIndex(key.chunk, data[LINEAGE_SOURCE], index);
+					LookupAggChunksFromGlobalIndex(key.chunk, data[LINEAGE_SOURCE]);
 				}
 				auto agg_vec_ptr = key.chunk.lineage_agg_data->at(key.chunk.outer_agg_idx);
 				while (out_idx < STANDARD_VECTOR_SIZE && key.chunk.inner_agg_idx < agg_vec_ptr->size()) {
@@ -930,7 +914,7 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 				key.chunk.outer_simple_agg_idx++;
 			}
 		} else {
-			child_ptrs = LookupChunksFromGlobalIndex(key.chunk, data[LINEAGE_SOURCE], index);
+			child_ptrs = LookupChunksFromGlobalIndex(key.chunk, data[LINEAGE_SOURCE]);
 
 			for (idx_t i = 0; i < key.chunk.size(); i++) {
 				auto payload = (sel_t *)child_ptrs[i]->data->Process(0);
@@ -973,7 +957,7 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 
 		if (!key.chunk.lineage_agg_data->empty()) {
 			if (key.chunk.lineage_agg_data->at(0)->at(0).data == nullptr) {
-				LookupAggChunksFromGlobalIndex(key.chunk, data[LINEAGE_PROBE], index);
+				LookupAggChunksFromGlobalIndex(key.chunk, data[LINEAGE_PROBE]);
 			}
 			while (out_idx < STANDARD_VECTOR_SIZE && key.chunk.outer_agg_idx < key.chunk.lineage_agg_data->size()) {
 				auto agg_vec_ptr = key.chunk.lineage_agg_data->at(key.chunk.outer_agg_idx);
@@ -1022,7 +1006,7 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 				key.chunk.outer_simple_agg_idx++;
 			}
 		} else {
-			child_ptrs = LookupChunksFromGlobalIndex(key.chunk, data[LINEAGE_PROBE], index);
+			child_ptrs = LookupChunksFromGlobalIndex(key.chunk, data[LINEAGE_PROBE]);
 
 			for (idx_t i = 0; i < key.chunk.size(); i++) {
 				idx_t source = key.chunk.GetValue(0, i).GetValue<uint64_t>();
@@ -1051,7 +1035,7 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 
 		if (!key.chunk.lineage_agg_data->empty()) {
 			if (key.chunk.lineage_agg_data->at(0)->at(0).data == nullptr) {
-				LookupAggChunksFromGlobalIndex(key.chunk, data[LINEAGE_PROBE], index);
+				LookupAggChunksFromGlobalIndex(key.chunk, data[LINEAGE_PROBE]);
 			}
 			while (out_idx < STANDARD_VECTOR_SIZE && key.chunk.outer_agg_idx < key.chunk.lineage_agg_data->size()) {
 				auto agg_vec_ptr = key.chunk.lineage_agg_data->at(key.chunk.outer_agg_idx);
@@ -1086,7 +1070,7 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 			key.chunk.SetCardinality(out_idx);
 			key.join_chunk.SetCardinality(out_idx);
 		} else {
-			child_ptrs = LookupChunksFromGlobalIndex(key.chunk, data[LINEAGE_PROBE], index);
+			child_ptrs = LookupChunksFromGlobalIndex(key.chunk, data[LINEAGE_PROBE]);
 
 			for (idx_t i = 0; i < key.chunk.size(); i++) {
 				idx_t source = key.chunk.GetValue(0, i).GetValue<uint64_t>();
@@ -1110,7 +1094,7 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 
 		if (!key.chunk.lineage_agg_data->empty()) {
 			if (key.chunk.lineage_agg_data->at(0)->at(0).data == nullptr) {
-				LookupAggChunksFromGlobalIndex(key.chunk, data[LINEAGE_UNARY], index);
+				LookupAggChunksFromGlobalIndex(key.chunk, data[LINEAGE_UNARY]);
 			}
 			while (out_idx < STANDARD_VECTOR_SIZE && key.chunk.outer_agg_idx < key.chunk.lineage_agg_data->size()) {
 				auto agg_vec_ptr = key.chunk.lineage_agg_data->at(key.chunk.outer_agg_idx);
@@ -1159,7 +1143,7 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 				key.chunk.outer_simple_agg_idx++;
 			}
 		} else {
-			child_ptrs = LookupChunksFromGlobalIndex(key.chunk, data[LINEAGE_UNARY], index);
+			child_ptrs = LookupChunksFromGlobalIndex(key.chunk, data[LINEAGE_UNARY]);
 
 			for (idx_t i = 0; i < key.chunk.size(); i++) {
 				idx_t source = key.chunk.GetValue(0, i).GetValue<uint64_t>();
