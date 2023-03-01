@@ -173,17 +173,17 @@ void LineageManager::CreateOperatorLineage(PhysicalOperator *op, int thd_id, boo
 		CreateOperatorLineage( dynamic_cast<PhysicalDelimJoin *>(op)->join.get(), thd_id, trace_lineage, true);
 	}
 	for (idx_t i = 0; i < op->children.size(); i++) {
-		bool child_should_index =
-		    op->type == PhysicalOperatorType::HASH_GROUP_BY
-		    || op->type == PhysicalOperatorType::PERFECT_HASH_GROUP_BY
-		    || (op->type == PhysicalOperatorType::HASH_JOIN && i == 1) // Only build side child needs an index
-		    || (op->type == PhysicalOperatorType::BLOCKWISE_NL_JOIN && i == 1) // Right side needs index
-		    || (op->type == PhysicalOperatorType::CROSS_PRODUCT && i == 1) // Right side needs index
-		    || (op->type == PhysicalOperatorType::NESTED_LOOP_JOIN && i == 1) // Right side needs index
-		    || (op->type == PhysicalOperatorType::PIECEWISE_MERGE_JOIN && i == 1) // Right side needs index
-		    || op->type == PhysicalOperatorType::ORDER_BY
-		    || (op->type == PhysicalOperatorType::DELIM_JOIN && i == 0) // Child zero needs an index
-		    || (op->type == PhysicalOperatorType::PROJECTION && should_index); // Pass through should_index on projection
+		bool child_should_index = true;
+//		    op->type == PhysicalOperatorType::HASH_GROUP_BY
+//		    || op->type == PhysicalOperatorType::PERFECT_HASH_GROUP_BY
+//		    || (op->type == PhysicalOperatorType::HASH_JOIN && i == 1) // Only build side child needs an index
+//		    || (op->type == PhysicalOperatorType::BLOCKWISE_NL_JOIN && i == 1) // Right side needs index
+//		    || (op->type == PhysicalOperatorType::CROSS_PRODUCT && i == 1) // Right side needs index
+//		    || (op->type == PhysicalOperatorType::NESTED_LOOP_JOIN && i == 1) // Right side needs index
+//		    || (op->type == PhysicalOperatorType::PIECEWISE_MERGE_JOIN && i == 1) // Right side needs index
+//		    || op->type == PhysicalOperatorType::ORDER_BY
+//		    || (op->type == PhysicalOperatorType::DELIM_JOIN && i == 0) // Child zero needs an index
+//		    || (op->type == PhysicalOperatorType::PROJECTION && should_index); // Pass through should_index on projection
 		CreateOperatorLineage(op->children[i].get(), thd_id, trace_lineage, child_should_index);
 	}
 	op->lineage_op[thd_id] = make_shared<OperatorLineage>(
