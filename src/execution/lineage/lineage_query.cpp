@@ -549,48 +549,49 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 		} else {
 			idx_t out_idx = 0;
 			if (!key.chunk.lineage_agg_data->empty()) {
+				std::cout << "Foo" << std::endl;
 				while (out_idx < STANDARD_VECTOR_SIZE && key.chunk.outer_agg_idx < key.chunk.lineage_agg_data->size()) {
+					std::cout << "Foo2" << std::endl;
 					auto agg_vec_ptr = key.chunk.lineage_agg_data->at(key.chunk.outer_agg_idx);
+					std::cout << "Foo3" << std::endl;
 					while (out_idx < STANDARD_VECTOR_SIZE && key.chunk.inner_agg_idx < agg_vec_ptr->size()) {
+						std::cout << "Foo4" << std::endl;
 						auto this_data = agg_vec_ptr->at(key.chunk.inner_agg_idx);
+						std::cout << "Foo5" << std::endl;
 						idx_t val = this_data.data->data->Backward(this_data.source) + this_data.data->child_offset;
+						std::cout << "Foo6" << std::endl;
 						key.chunk.SetValue(0, out_idx++, Value::UBIGINT(val));
+						std::cout << "Foo7" << std::endl;
 						key.chunk.inner_agg_idx++;
+						std::cout << "Foo8" << std::endl;
 					}
+					std::cout << "Foo9" << std::endl;
 					if (key.chunk.inner_agg_idx < agg_vec_ptr->size()) {
+						std::cout << "Foo10" << std::endl;
 						break;
 					}
+					std::cout << "Foo11" << std::endl;
 					key.chunk.inner_agg_idx = 0;
+					std::cout << "Foo12" << std::endl;
 					key.chunk.outer_agg_idx++;
+					std::cout << "Foo13" << std::endl;
 				}
+				std::cout << "Foo14" << std::endl;
 				key.chunk.SetCardinality(out_idx);
 			} else if (!key.chunk.lineage_simple_agg_data->empty()) {
-				std::cout << "Foo" << std::endl;
 				while (out_idx < STANDARD_VECTOR_SIZE && key.chunk.outer_simple_agg_idx < key.chunk.lineage_simple_agg_data->size()) {
-					std::cout << "Foo2" << std::endl;
 					LineageDataWithOffset this_data = key.chunk.lineage_simple_agg_data->at(key.chunk.outer_simple_agg_idx);
-					std::cout << "Foo3" << std::endl;
 					while(out_idx < STANDARD_VECTOR_SIZE && key.chunk.inner_simple_agg_idx < this_data.data->Count()) {
-						std::cout << "Foo4" << std::endl;
 						idx_t val = this_data.data->Backward(key.chunk.inner_simple_agg_idx) + this_data.child_offset;
-						std::cout << "Foo5" << std::endl;
 						key.chunk.SetValue(0, out_idx++, Value::UBIGINT(val));
-						std::cout << "Foo6" << std::endl;
 						key.chunk.inner_simple_agg_idx++;
-						std::cout << "Foo7" << std::endl;
 					}
-					std::cout << "Foo8" << std::endl;
 					if (key.chunk.inner_simple_agg_idx < this_data.data->Count()) {
-						std::cout << "Foo9" << std::endl;
 						break;
 					}
-					std::cout << "Foo10" << std::endl;
 					key.chunk.inner_simple_agg_idx = 0;
-					std::cout << "Foo11" << std::endl;
 					key.chunk.outer_simple_agg_idx++;
-					std::cout << "Foo12" << std::endl;
 				}
-				std::cout << "Foo13" << std::endl;
 				key.chunk.SetCardinality(out_idx);
 			} else {
 				if (key.child_ptrs[0] == nullptr) {
