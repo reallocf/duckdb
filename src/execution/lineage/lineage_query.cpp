@@ -494,6 +494,36 @@ vector<shared_ptr<LineageDataWithOffset>> LookupChunksFromGlobalIndex(
 	return res;
 }
 
+void LookupAggChunksFromGlobalIndex(
+    DataChunk &chunk,
+    const vector<LineageDataWithOffset>& data,
+    const vector<idx_t>& index
+) {
+	// Binary Search index
+	for (idx_t i = 0; i < chunk.lineage_agg_data->size(); i++) {
+		auto this_agg_data = chunk.lineage_agg_data->at(0);
+		for (idx_t j = 0; j < this_agg_data->size(); j++) {
+			idx_t val = this_agg_data->at(j).source;
+			// we need a way to locate the exact data we should access
+			// from the source index
+			auto lower = lower_bound(index.begin(), index.end(), val);
+			if (lower == index.end() || (lower == index.end() - 1 && *lower == val)) {
+				throw std::logic_error("Out of bounds lineage requested");
+			}
+			auto chunk_id = lower - index.begin();
+			if (*lower == val) {
+				chunk_id += 1;
+			}
+			auto this_data = data[chunk_id];
+			if (chunk_id > 0) {
+				val -= index[chunk_id-1];
+			}
+			this_agg_data->at(j).source = val;
+			this_agg_data->at(j).data = make_shared<LineageDataWithOffset>(this_data);
+		}
+	}
+}
+
 shared_ptr<vector<LineageDataWithOffset>> OperatorLineage::RecurseForSimpleAgg(const shared_ptr<OperatorLineage>& child) {
 	vector<LineageDataWithOffset> child_lineage_data_vector;
 	switch (child->type) {
@@ -549,6 +579,9 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 		} else {
 			idx_t out_idx = 0;
 			if (!key.chunk.lineage_agg_data->empty()) {
+				if (key.chunk.lineage_agg_data->at(0)->at(0).data == nullptr) {
+					LookupAggChunksFromGlobalIndex(key.chunk, data[LINEAGE_UNARY], index);
+				}
 				while (out_idx < STANDARD_VECTOR_SIZE && key.chunk.outer_agg_idx < key.chunk.lineage_agg_data->size()) {
 					auto agg_vec_ptr = key.chunk.lineage_agg_data->at(key.chunk.outer_agg_idx);
 					while (out_idx < STANDARD_VECTOR_SIZE && key.chunk.inner_agg_idx < agg_vec_ptr->size()) {
@@ -599,6 +632,9 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 	case PhysicalOperatorType::LIMIT: {
 		idx_t out_idx = 0;
 		if (!key.chunk.lineage_agg_data->empty()) {
+			if (key.chunk.lineage_agg_data->at(0)->at(0).data == nullptr) {
+				LookupAggChunksFromGlobalIndex(key.chunk, data[LINEAGE_UNARY], index);
+			}
 			while (out_idx < STANDARD_VECTOR_SIZE && key.chunk.outer_agg_idx < key.chunk.lineage_agg_data->size()) {
 				auto agg_vec_ptr = key.chunk.lineage_agg_data->at(key.chunk.outer_agg_idx);
 				while (out_idx < STANDARD_VECTOR_SIZE && key.chunk.inner_agg_idx < agg_vec_ptr->size()) {
@@ -653,6 +689,9 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 		idx_t left_idx = 0;
 
 		if (!key.chunk.lineage_agg_data->empty()) {
+			if (key.chunk.lineage_agg_data->at(0)->at(0).data == nullptr) {
+				LookupAggChunksFromGlobalIndex(key.chunk, data[LINEAGE_PROBE], index);
+			}
 			while (out_idx < STANDARD_VECTOR_SIZE && key.chunk.outer_agg_idx < key.chunk.lineage_agg_data->size()) {
 				auto agg_vec_ptr = key.chunk.lineage_agg_data->at(key.chunk.outer_agg_idx);
 				while (out_idx < STANDARD_VECTOR_SIZE && key.chunk.inner_agg_idx < agg_vec_ptr->size()) {
@@ -810,6 +849,9 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 		idx_t out_idx = 0;
 		unordered_set<idx_t> matches;
 		if (!key.chunk.lineage_agg_data->empty()) {
+			if (key.chunk.lineage_agg_data->at(0)->at(0).data == nullptr) {
+				LookupAggChunksFromGlobalIndex(key.chunk, data[LINEAGE_SOURCE], index);
+			}
 			while (out_idx < STANDARD_VECTOR_SIZE && key.chunk.outer_agg_idx < key.chunk.lineage_agg_data->size()) {
 				auto agg_vec_ptr = key.chunk.lineage_agg_data->at(key.chunk.outer_agg_idx);
 				while (out_idx < STANDARD_VECTOR_SIZE && key.chunk.inner_agg_idx < agg_vec_ptr->size()) {
@@ -881,6 +923,9 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 		unordered_set<idx_t> matches;
 		if (!key.chunk.lineage_agg_data->empty()) {
 			while (out_idx < STANDARD_VECTOR_SIZE && key.chunk.outer_agg_idx < key.chunk.lineage_agg_data->size()) {
+				if (key.chunk.lineage_agg_data->at(0)->at(0).data == nullptr) {
+					LookupAggChunksFromGlobalIndex(key.chunk, data[LINEAGE_SOURCE], index);
+				}
 				auto agg_vec_ptr = key.chunk.lineage_agg_data->at(key.chunk.outer_agg_idx);
 				while (out_idx < STANDARD_VECTOR_SIZE && key.chunk.inner_agg_idx < agg_vec_ptr->size()) {
 					auto this_data = agg_vec_ptr->at(key.chunk.inner_agg_idx);
@@ -960,6 +1005,9 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 		idx_t left_idx = 0;
 
 		if (!key.chunk.lineage_agg_data->empty()) {
+			if (key.chunk.lineage_agg_data->at(0)->at(0).data == nullptr) {
+				LookupAggChunksFromGlobalIndex(key.chunk, data[LINEAGE_PROBE], index);
+			}
 			while (out_idx < STANDARD_VECTOR_SIZE && key.chunk.outer_agg_idx < key.chunk.lineage_agg_data->size()) {
 				auto agg_vec_ptr = key.chunk.lineage_agg_data->at(key.chunk.outer_agg_idx);
 				while (out_idx < STANDARD_VECTOR_SIZE && key.chunk.inner_agg_idx < agg_vec_ptr->size()) {
@@ -1045,6 +1093,9 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 		idx_t out_idx = 0;
 
 		if (!key.chunk.lineage_agg_data->empty()) {
+			if (key.chunk.lineage_agg_data->at(0)->at(0).data == nullptr) {
+				LookupAggChunksFromGlobalIndex(key.chunk, data[LINEAGE_PROBE], index);
+			}
 			while (out_idx < STANDARD_VECTOR_SIZE && key.chunk.outer_agg_idx < key.chunk.lineage_agg_data->size()) {
 				auto agg_vec_ptr = key.chunk.lineage_agg_data->at(key.chunk.outer_agg_idx);
 				while (out_idx < STANDARD_VECTOR_SIZE && key.chunk.inner_agg_idx < agg_vec_ptr->size()) {
@@ -1105,6 +1156,9 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 		idx_t left_idx = 0;
 
 		if (!key.chunk.lineage_agg_data->empty()) {
+			if (key.chunk.lineage_agg_data->at(0)->at(0).data == nullptr) {
+				LookupAggChunksFromGlobalIndex(key.chunk, data[LINEAGE_UNARY], index);
+			}
 			while (out_idx < STANDARD_VECTOR_SIZE && key.chunk.outer_agg_idx < key.chunk.lineage_agg_data->size()) {
 				auto agg_vec_ptr = key.chunk.lineage_agg_data->at(key.chunk.outer_agg_idx);
 				while (out_idx < STANDARD_VECTOR_SIZE && key.chunk.inner_agg_idx < agg_vec_ptr->size()) {
@@ -1185,12 +1239,13 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 	}
 	case PhysicalOperatorType::ORDER_BY: {
 		idx_t out_idx = 0;
+		auto data_ptr = make_shared<LineageDataWithOffset>(data[LINEAGE_UNARY][0]);
 		if (!key.chunk.lineage_agg_data->empty()) {
 			while (out_idx < STANDARD_VECTOR_SIZE && key.chunk.outer_agg_idx < key.chunk.lineage_agg_data->size()) {
 				auto agg_vec_ptr = key.chunk.lineage_agg_data->at(key.chunk.outer_agg_idx);
 				while (out_idx < STANDARD_VECTOR_SIZE && key.chunk.inner_agg_idx < agg_vec_ptr->size()) {
 					auto this_data = agg_vec_ptr->at(key.chunk.inner_agg_idx);
-					key.chunk.SetValue(0, out_idx++, Value::UBIGINT(this_data.data->data->Backward(this_data.source)));
+					key.chunk.SetValue(0, out_idx++, Value::UBIGINT(data_ptr->data->Backward(this_data.source)));
 					key.chunk.inner_agg_idx++;
 				}
 				if (key.chunk.inner_agg_idx < agg_vec_ptr->size()) {
@@ -1204,7 +1259,7 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 			while (out_idx < STANDARD_VECTOR_SIZE && key.chunk.outer_simple_agg_idx < key.chunk.lineage_simple_agg_data->size()) {
 				LineageDataWithOffset this_data = key.chunk.lineage_simple_agg_data->at(key.chunk.outer_simple_agg_idx);
 				while(out_idx < STANDARD_VECTOR_SIZE && key.chunk.inner_simple_agg_idx < this_data.data->Count()) {
-					key.chunk.SetValue(0, out_idx++, Value::UBIGINT(this_data.data->Backward(key.chunk.inner_simple_agg_idx)));
+					key.chunk.SetValue(0, out_idx++, Value::UBIGINT(data_ptr->data->Backward(key.chunk.inner_simple_agg_idx)));
 					key.chunk.inner_simple_agg_idx++;
 				}
 				if (key.chunk.inner_simple_agg_idx < this_data.data->Count()) {
@@ -1215,7 +1270,6 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 			}
 			key.chunk.SetCardinality(out_idx);
 		} else {
-			auto data_ptr = make_shared<LineageDataWithOffset>(data[LINEAGE_UNARY][0]);
 			for (idx_t i = 0; i < key.chunk.size(); i++) {
 				key.chunk.SetValue(0, i, Value::UBIGINT(data_ptr->data->Backward(key.chunk.GetValue(0, i).GetValue<uint64_t>())));
 			}
