@@ -32,6 +32,9 @@
 #include "duckdb/common/to_string.hpp"
 #include "duckdb/common/file_system.hpp"
 #include "duckdb/execution/column_binding_resolver.hpp"
+#ifdef LINEAGE
+#include "duckdb/execution/lineage/lineage_query.hpp"
+#endif
 
 namespace duckdb {
 
@@ -168,10 +171,38 @@ unique_ptr<DataChunk> ClientContext::FetchInternal(ClientContextLock &) {
 	return executor.FetchChunk();
 }
 
+// move lineage query plan to here
 shared_ptr<PreparedStatementData> ClientContext::CreatePreparedStatement(ClientContextLock &lock, const string &query,
                                                                          unique_ptr<SQLStatement> statement) {
 	StatementType statement_type = statement->type;
 	auto result = make_shared<PreparedStatementData>(statement_type);
+
+	// check iif it is lineage query then construct the query here
+	if (statement && statement->parent_pragma) {
+		auto info = *((PragmaStatement &)*statement->parent_pragma).info;
+		if (info.name == "lineage_query") {
+			//	if (info.name )
+			FunctionParameters parameters {info.parameters, info.named_parameters};
+			string query = parameters.values[0].ToString();
+			int lineage_id = parameters.values[1].GetValue<int>();
+			string mode = parameters.values[2].ToString();
+			bool should_count = parameters.values[3].GetValue<int>() != 0;
+			auto op = query_to_plan[query].get();
+			if (op == nullptr) {
+				throw std::logic_error("Querying non-existent lineage");
+			}
+			vector<unique_ptr<PhysicalOperator>> other_plans;
+			unique_ptr<PhysicalOperator> first_plan =
+			    GenerateCustomPlan(op, *this, lineage_id, nullptr, false, &other_plans);
+			// We construct other_plans in reverse execution order, swap here
+			Reverse(&other_plans);
+			unique_ptr<PhysicalOperator> final_plan =
+			    CombineByMode(*this, mode, should_count, move(first_plan), move(other_plans));
+			result->types.resize(final_plan->types.size());
+ 			std::copy(final_plan->types.begin(), final_plan->types.end(), result->types.begin());
+ 			result->plan = move(final_plan);
+ 		}
+	}
 
 	profiler->StartPhase("planner");
 	Planner planner(*this);
@@ -188,35 +219,37 @@ shared_ptr<PreparedStatementData> ClientContext::CreatePreparedStatement(ClientC
 	result->requires_valid_transaction = planner.requires_valid_transaction;
 	result->allow_stream_result = planner.allow_stream_result;
 	result->names = planner.names;
-	result->types = planner.types;
 	result->value_map = move(planner.value_map);
 	result->catalog_version = Transaction::GetTransaction(*this).catalog_version;
 
-	if(query.find("LINEAGE") != -1){
-		enable_optimizer = false;
-	}
-	if (enable_optimizer) {
-		profiler->StartPhase("optimizer");
-		Optimizer optimizer(*planner.binder, *this);
-		plan = optimizer.Optimize(move(plan));
-		D_ASSERT(plan);
+	if (!result->plan) {
+		result->types = planner.types;
+
+		if(query.find("LINEAGE") != -1){
+			enable_optimizer = false;
+		}
+		if (enable_optimizer) {
+			profiler->StartPhase("optimizer");
+			Optimizer optimizer(*planner.binder, *this);
+			plan = optimizer.Optimize(move(plan));
+			D_ASSERT(plan);
+			profiler->EndPhase();
+
+#ifdef DEBUG
+			plan->Verify();
+#endif
+		}
+		profiler->StartPhase("physical_planner");
+		// now convert logical query plan into a physical query plan
+		PhysicalPlanGenerator physical_planner(*this);
+		auto physical_plan = physical_planner.CreatePlan(move(plan));
 		profiler->EndPhase();
 
 #ifdef DEBUG
-		plan->Verify();
+		D_ASSERT(!physical_plan->ToString().empty());
 #endif
+		result->plan = move(physical_plan);
 	}
-
-	profiler->StartPhase("physical_planner");
-	// now convert logical query plan into a physical query plan
-	PhysicalPlanGenerator physical_planner(*this);
-	auto physical_plan = physical_planner.CreatePlan(move(plan));
-	profiler->EndPhase();
-
-#ifdef DEBUG
-	D_ASSERT(!physical_plan->ToString().empty());
-#endif
-	result->plan = move(physical_plan);
 	return result;
 }
 
@@ -297,31 +330,6 @@ unique_ptr<QueryResult> ClientContext::ExecutePreparedStatement(ClientContextLoc
 		query_to_plan[query] = move(statement.plan);
 	}
 #endif
-	if (enable_progress_bar) {
-		progress_bar->Stop();
-	}
-	return move(result);
-}
-
-unique_ptr<QueryResult> ClientContext::RunPlan(PhysicalOperator* plan) {
-	if (enable_progress_bar) {
-		progress_bar->Initialize(wait_time);
-		progress_bar->Start();
-	}
-
-	executor.Initialize(plan);
-
-	auto types = executor.GetTypes();
-
-	// create a materialized result by continuously fetching
-	auto result = make_unique<MaterializedQueryResult>(StatementType::SELECT_STATEMENT);
-	while (true) {
-		auto chunk = executor.FetchChunk();
-		if (chunk->size() == 0) {
-			break;
-		}
-		result->collection.Append(*chunk);
-	}
 	if (enable_progress_bar) {
 		progress_bar->Stop();
 	}

@@ -33,6 +33,7 @@ void PragmaHandler::HandlePragmaStatementsInternal(vector<unique_ptr<SQLStatemen
 				// insert the new statements and remove the old statement
 				// FIXME: off by one here maybe?
 				for (idx_t j = 0; j < parser.statements.size(); j++) {
+					parser.statements[j]->parent_pragma = move(statements[i]);
 					new_statements.push_back(move(parser.statements[j]));
 				}
 				continue;

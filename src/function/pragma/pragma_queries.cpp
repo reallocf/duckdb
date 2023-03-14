@@ -1,61 +1,12 @@
 #include "duckdb/function/pragma/pragma_functions.hpp"
 #include "duckdb/common/string_util.hpp"
 #include "duckdb/common/file_system.hpp"
-#include "duckdb/execution/lineage/lineage_query.hpp"
 
 namespace duckdb {
 
 #ifdef LINEAGE
 string PragmaBackwardLineageDuckDBExecEngine(ClientContext &context, const FunctionParameters &parameters) {
-	// query the lineage data, create a view on top of it, and then query that
-	string query = parameters.values[0].ToString();
-	int lineage_id = parameters.values[1].GetValue<int>();
-	string mode = parameters.values[2].ToString();
-	bool should_count = parameters.values[3].GetValue<int>() != 0;
-	auto op = context.query_to_plan[query].get();
-	if (op == nullptr) {
-		throw std::logic_error("Querying non-existent lineage");
-	}
-	LineageQuery lineage_query = LineageQuery();
-	clock_t start = clock();
-	unique_ptr<QueryResult> result = lineage_query.Run(op, context, mode, lineage_id, should_count);
-	clock_t execute = clock();
-
-	string str_results;
-	idx_t count = 0;
-	unique_ptr<DataChunk> chunk = result->Fetch();
-	while (chunk != nullptr) {
-		for (idx_t row_idx = 0; row_idx < chunk->size(); row_idx++) {
-			count++;
-			string row;
-			for (idx_t col_idx = 0; col_idx < chunk->ColumnCount(); col_idx++) {
-				int val = chunk->GetValue(col_idx, row_idx).GetValue<int>();
-
-				if (!row.empty()) {
-					row += StringUtil::Format(", %d", val);
-				} else {
-					row += to_string(val);
-				}
-			}
-			if (chunk->ColumnCount() > 1) {
-				row = "list_value(" + row + ")";
-			}
-			if (!str_results.empty()) {
-				str_results += ", " + row;
-			} else {
-				str_results += row;
-			}
-		}
-		chunk = result->Fetch();
-	}
-	if (count > 1) {
-		str_results = "list_value(" + str_results + ")";
-	}
-	clock_t end = clock();
-	std::cout << "Execute time: " << ((float) execute - start) / CLOCKS_PER_SEC << std::endl;
-	std::cout << "List build time: " << ((float) end - execute) / CLOCKS_PER_SEC << std::endl;
-	std::cout << "Total time: " << ((float) end - start) / CLOCKS_PER_SEC << std::endl;
-	return StringUtil::Format("SELECT %s", str_results);
+	return StringUtil::Format("SELECT 1");
 }
 
 string PragmaClearLineage(ClientContext &context, const FunctionParameters &parameters) {

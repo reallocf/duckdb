@@ -17,7 +17,7 @@ namespace duckdb {
 //! SQLStatement is the base class of any type of SQL statement.
 class SQLStatement {
 public:
-	explicit SQLStatement(StatementType type) : type(type) {};
+	explicit SQLStatement(StatementType type) : type(type), parent_pragma(nullptr) {};
 	virtual ~SQLStatement() {
 	}
 
@@ -31,6 +31,8 @@ public:
 	idx_t n_param;
 	//! The query text that corresponds to this SQL statement
 	string query;
+	//! Pointer to pragma statement
+	unique_ptr<SQLStatement> parent_pragma;
 
 public:
 	//! Create a copy of this SelectStatement

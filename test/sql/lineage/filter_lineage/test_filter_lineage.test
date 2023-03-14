@@ -25,6 +25,12 @@ select * from t1 where 2 > i  OR i > 1998
 statement ok
 PRAGMA trace_lineage = "OFF";
 
+
+query I
+PRAGMA lineage_query('select * from t1 where 2 > i  OR i > 1998', 2, 'LIN', 0)
+----
+1999
+
 query II
 SELECT out_index, in_index FROM LINEAGE_1_FILTER_1_0
 ----
