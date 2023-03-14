@@ -228,31 +228,6 @@ LineageProcessStruct OperatorLineage::PostProcess(idx_t chunk_count, idx_t count
 	return LineageProcessStruct{ count_so_far, 0, data_idx, finished_idx, data[finished_idx].size() > data_idx};
 }
 
-template <typename T>
-void Reverse(vector<unique_ptr<T>> *vec) {
-	for (idx_t i = 0; i < vec->size() / 2; i++) {
-		unique_ptr<T> tmp = move(vec->at(i));
-		vec->at(i) = move(vec->at(vec->size() - i - 1));
-		vec->at(vec->size() - i - 1) = move(tmp);
-	}
-}
-
-unique_ptr<QueryResult> LineageQuery::Run(
-    PhysicalOperator *op,
-    ClientContext &context,
-    const string& mode,
-    int lineage_id,
-    bool should_count
-) {
-	vector<unique_ptr<PhysicalOperator>> other_plans;
-	unique_ptr<PhysicalOperator> first_plan = GenerateCustomPlan(op, context, lineage_id, nullptr, false, &other_plans);
-	// We construct other_plans in reverse execution order, swap here
-	Reverse(&other_plans);
-
-	unique_ptr<PhysicalOperator> final_plan = CombineByMode(context, mode, should_count, move(first_plan), move(other_plans));
-	return context.RunPlan(final_plan.get());
-}
-
 // Lineage Query Plan Constructing
 
 unique_ptr<PhysicalIndexJoin> PreparePhysicalIndexJoin(PhysicalOperator *op, unique_ptr<PhysicalOperator> left, ClientContext &cxt, ChunkCollection *chunk_collection) {

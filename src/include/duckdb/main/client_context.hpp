@@ -184,8 +184,6 @@ public:
 	//! Equivalent to CURRENT_SETTING(key) SQL function.
 	DUCKDB_API bool TryGetCurrentSetting(const std::string &key, Value &result);
 
-	unique_ptr<QueryResult> RunPlan(PhysicalOperator *plan);
-
 private:
 	//! Parse statements from a query
 	vector<unique_ptr<SQLStatement>> ParseStatementsInternal(ClientContextLock &lock, const string &query);
