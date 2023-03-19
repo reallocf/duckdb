@@ -24,13 +24,16 @@ Executor::~Executor() {
 void Executor::Initialize(PhysicalOperator *plan) {
 	Reset();
 
+	std::cout << "Baz1" << std::endl;
 	auto &scheduler = TaskScheduler::GetScheduler(context);
 	{
 		lock_guard<mutex> elock(executor_lock);
 		physical_plan = plan;
 		physical_state = physical_plan->GetOperatorState();
 
+		std::cout << "Baz2" << std::endl;
 		context.profiler->Initialize(physical_plan);
+		std::cout << "Baz3" << std::endl;
 		this->producer = scheduler.CreateProducer();
 
 		BuildPipelines(physical_plan, nullptr);
@@ -47,14 +50,17 @@ void Executor::Initialize(PhysicalOperator *plan) {
 			}
 		}
 	}
+	std::cout << "Baz4" << std::endl;
 
 	// now execute tasks from this producer until all pipelines are completed
 	while (completed_pipelines < total_pipelines) {
 		unique_ptr<Task> task;
+		std::cout << "Baz5" << std::endl;
 		while (scheduler.GetTaskFromProducer(*producer, task)) {
 			task->Execute();
 			task.reset();
 		}
+		std::cout << "Baz6" << std::endl;
 		string exception;
 		if (!GetError(exception)) {
 			// no exceptions: continue
@@ -85,6 +91,7 @@ void Executor::Initialize(PhysicalOperator *plan) {
 		}
 		throw Exception(exception);
 	}
+	std::cout << "Baz7" << std::endl;
 
 	lock_guard<mutex> elock(executor_lock);
 	pipelines.clear();
@@ -92,6 +99,7 @@ void Executor::Initialize(PhysicalOperator *plan) {
 		// an exception has occurred executing one of the pipelines
 		throw Exception(exceptions[0]);
 	} // LCOV_EXCL_STOP
+	std::cout << "Baz8" << std::endl;
 }
 
 void Executor::Reset() {
