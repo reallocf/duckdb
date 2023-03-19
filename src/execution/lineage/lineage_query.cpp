@@ -23,23 +23,6 @@ namespace duckdb {
 class PhysicalDelimJoin;
 class PhysicalJoin;
 
-unique_ptr<PhysicalOperator> GenerateCustomPlan(
-	PhysicalOperator* op,
-	ClientContext &cxt,
-	int lineage_id,
-	unique_ptr<PhysicalOperator> left,
-	bool simple_agg_flag,
-	vector<unique_ptr<PhysicalOperator>> *pipelines
-);
-
-unique_ptr<PhysicalOperator> CombineByMode(
-	ClientContext &context,
-	const string& mode,
-	bool should_count,
-	unique_ptr<PhysicalOperator> first_plan,
-	vector<unique_ptr<PhysicalOperator>> other_plans
-);
-
 // Post Processing to prepare for querying
 
 void LineageManager::PostProcess(PhysicalOperator *op, bool should_index) {
@@ -267,10 +250,10 @@ unique_ptr<PhysicalIndexJoin> PreparePhysicalIndexJoin(PhysicalOperator *op, uni
 	);
 }
 
-unique_ptr<PhysicalOperator> GenerateCustomPlan(
+unique_ptr<PhysicalOperator> GenerateCustomLineagePlan(
 	PhysicalOperator* op,
 	ClientContext &cxt,
-	int lineage_id,
+	ChunkCollection* lineage_ids,
 	unique_ptr<PhysicalOperator> left,
 	bool simple_agg_flag,
 	vector<unique_ptr<PhysicalOperator>> *pipelines
@@ -280,11 +263,11 @@ unique_ptr<PhysicalOperator> GenerateCustomPlan(
 	}
 	if (op->type == PhysicalOperatorType::HASH_JOIN && dynamic_cast<PhysicalJoin *>(op)->join_type == JoinType::MARK) {
 		// Skip Mark Joins
-		return GenerateCustomPlan(op->children[0].get(), cxt, lineage_id, move(left), simple_agg_flag, pipelines);
+		return GenerateCustomLineagePlan(op->children[0].get(), cxt, lineage_ids, move(left), simple_agg_flag, pipelines);
 	}
 	if (op->type == PhysicalOperatorType::PROJECTION) {
 		// Skip Projections
-		return GenerateCustomPlan(op->children[0].get(), cxt, lineage_id, move(left), simple_agg_flag, pipelines);
+		return GenerateCustomLineagePlan(op->children[0].get(), cxt, lineage_ids, move(left), simple_agg_flag, pipelines);
 	}
 	if (op->type == PhysicalOperatorType::DELIM_SCAN) {
 		// Skip DELIM_SCANs since they never affect the lineage
@@ -300,7 +283,7 @@ unique_ptr<PhysicalOperator> GenerateCustomPlan(
 		op->type == PhysicalOperatorType::ORDER_BY ||
 		op->type == PhysicalOperatorType::PROJECTION
 	)) {
-		return GenerateCustomPlan(op->children[0].get(), cxt, lineage_id, move(left), true, pipelines);
+		return GenerateCustomLineagePlan(op->children[0].get(), cxt, lineage_ids, move(left), true, pipelines);
 	}
 	vector<LogicalType> types = {LogicalType::UBIGINT};
 	PhysicalOperatorType op_type = PhysicalOperatorType::CHUNK_SCAN;
@@ -324,17 +307,11 @@ unique_ptr<PhysicalOperator> GenerateCustomPlan(
 			// we only want to do the child reordering once
 			op->delim_handled = true;
 		}
-		return GenerateCustomPlan(dynamic_cast<PhysicalDelimJoin *>(op)->join.get(), cxt, lineage_id, move(left), simple_agg_flag, pipelines);
+		return GenerateCustomLineagePlan(dynamic_cast<PhysicalDelimJoin *>(op)->join.get(), cxt, lineage_ids, move(left), simple_agg_flag, pipelines);
 	}
 	if (left == nullptr) {
 		unique_ptr<PhysicalChunkScan> chunk_scan = make_unique<PhysicalChunkScan>(types, op_type, estimated_cardinality, true);
-		DataChunk lineage_chunk;
-		lineage_chunk.Initialize(types);
-		lineage_chunk.SetCardinality(1);
-		Vector lineage(Value::UBIGINT(lineage_id));
-		lineage_chunk.data[0].Reference(lineage);
-		chunk_scan->collection = new ChunkCollection();
-		chunk_scan->collection->Append(lineage_chunk);
+		chunk_scan->collection = lineage_ids;
 		if (
 			op->children.size() == 2 &&
 			(op->type == PhysicalOperatorType::INDEX_JOIN || op->type == PhysicalOperatorType::CROSS_PRODUCT || dynamic_cast<PhysicalJoin *>(op)->join_type != JoinType::ANTI)
@@ -344,21 +321,21 @@ unique_ptr<PhysicalOperator> GenerateCustomPlan(
 			build_chunk_scan->collection = new ChunkCollection();
 
 			// Probe side of join
-			unique_ptr<PhysicalOperator> custom_plan = GenerateCustomPlan(op->children[0].get(), cxt, lineage_id, PreparePhysicalIndexJoin(op, move(chunk_scan), cxt, build_chunk_scan->collection), false, pipelines);
+			unique_ptr<PhysicalOperator> custom_plan = GenerateCustomLineagePlan(op->children[0].get(), cxt, lineage_ids, PreparePhysicalIndexJoin(op, move(chunk_scan), cxt, build_chunk_scan->collection), false, pipelines);
 
 			// Push build side chunk scan to pipelines
 			if (op->type == PhysicalOperatorType::INDEX_JOIN) {
 				pipelines->push_back(move(build_chunk_scan));
 			} else {
-				pipelines->push_back(GenerateCustomPlan(op->children[1].get(), cxt, lineage_id, move(build_chunk_scan), false, pipelines));
+				pipelines->push_back(GenerateCustomLineagePlan(op->children[1].get(), cxt, lineage_ids, move(build_chunk_scan), false, pipelines));
 			}
 
 			return custom_plan;
 		}
-		return GenerateCustomPlan(
+		return GenerateCustomLineagePlan(
 			op->children[0].get(),
 			cxt,
-			lineage_id,
+			lineage_ids,
 			PreparePhysicalIndexJoin(op, move(chunk_scan), cxt, nullptr),
 			op->type == PhysicalOperatorType::SIMPLE_AGGREGATE,
 			pipelines
@@ -370,22 +347,22 @@ unique_ptr<PhysicalOperator> GenerateCustomPlan(
 			build_chunk_scan->collection = new ChunkCollection();
 
 			// Probe side of join
-			unique_ptr<PhysicalOperator> custom_plan = GenerateCustomPlan(op->children[0].get(), cxt, lineage_id, PreparePhysicalIndexJoin(op, move(left), cxt,  build_chunk_scan->collection), false, pipelines);
+			unique_ptr<PhysicalOperator> custom_plan = GenerateCustomLineagePlan(op->children[0].get(), cxt, lineage_ids, PreparePhysicalIndexJoin(op, move(left), cxt,  build_chunk_scan->collection), false, pipelines);
 
 			// Push build side chunk scan to pipelines
 			if (op->type == PhysicalOperatorType::INDEX_JOIN) {
 				pipelines->push_back(move(build_chunk_scan));
 			} else {
-				pipelines->push_back(GenerateCustomPlan(op->children[1].get(), cxt, lineage_id, move(build_chunk_scan), false, pipelines));
+				pipelines->push_back(GenerateCustomLineagePlan(op->children[1].get(), cxt, lineage_ids, move(build_chunk_scan), false, pipelines));
 			}
 
 			// probe side of hash join
 			return custom_plan;
 		}
-		return GenerateCustomPlan(
+		return GenerateCustomLineagePlan(
 			op->children[0].get(),
 			cxt,
-			lineage_id,
+		    lineage_ids,
 			PreparePhysicalIndexJoin(op, move(left), cxt, nullptr),
 			op->type == PhysicalOperatorType::SIMPLE_AGGREGATE,
 			pipelines

@@ -9,10 +9,10 @@
 
 namespace duckdb {
 
-unique_ptr<PhysicalOperator> GenerateCustomPlan(
+unique_ptr<PhysicalOperator> GenerateCustomLineagePlan(
 	PhysicalOperator* op,
 	ClientContext &cxt,
-	int lineage_id,
+	ChunkCollection* lineage_ids,
 	unique_ptr<PhysicalOperator> left,
 	bool simple_agg_flag,
 	vector<unique_ptr<PhysicalOperator>> *pipelines);

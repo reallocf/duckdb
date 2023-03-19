@@ -177,29 +177,57 @@ shared_ptr<PreparedStatementData> ClientContext::CreatePreparedStatement(ClientC
 	StatementType statement_type = statement->type;
 	auto result = make_shared<PreparedStatementData>(statement_type);
 
-	// check iif it is lineage query then construct the query here
+	// check if it is lineage query then construct the query here
 	if (statement && statement->parent_pragma) {
 		auto info = *((PragmaStatement &)*statement->parent_pragma).info;
 		if (info.name == "lineage_query") {
-			//	if (info.name )
 			FunctionParameters parameters {info.parameters, info.named_parameters};
-			string query = parameters.values[0].ToString();
-			int lineage_id = parameters.values[1].GetValue<int>();
+			string q = parameters.values[0].ToString();
+			string lineage_ids_str = parameters.values[1].GetValue<string>();
 			string mode = parameters.values[2].ToString();
 			bool should_count = parameters.values[3].GetValue<int>() != 0;
-			auto op = query_to_plan[query].get();
+
+			// Split string like 1,2,3 into separate lineage ids, and ultimately into input ChunkCollection
+			ChunkCollection lineage_ids;
+			DataChunk lineage_id_chunk;
+			lineage_id_chunk.Initialize({LogicalTypeId::BIGINT});
+			lineage_ids.Append(lineage_id_chunk);
+			idx_t num_vals_in_chunk = 0;
+			idx_t chunk_coll_idx = 0;
+			string tmp;
+			char delim = ',';
+			for (idx_t i = 0; i < lineage_ids_str.length(); i++) {
+				if (lineage_ids_str[i] == delim) {
+					lineage_ids.Chunks()[chunk_coll_idx].get()->data[0].SetValue(num_vals_in_chunk++, Value::BIGINT(stoi(tmp)));
+					tmp = "";
+					if (num_vals_in_chunk == STANDARD_VECTOR_SIZE) {
+						lineage_ids.Chunks()[chunk_coll_idx].get()->SetCardinality(STANDARD_VECTOR_SIZE);
+						chunk_coll_idx++;
+						DataChunk next_lineage_id_chunk;
+						next_lineage_id_chunk.Initialize({LogicalTypeId::BIGINT});
+						lineage_ids.Append(next_lineage_id_chunk);
+						num_vals_in_chunk = 0;
+					}
+				} else {
+					tmp.push_back(lineage_ids_str[i]);
+				}
+			}
+			lineage_ids.Chunks()[chunk_coll_idx].get()->data[0].SetValue(num_vals_in_chunk++, Value::BIGINT(stoi(tmp)));
+			lineage_ids.Chunks()[chunk_coll_idx].get()->SetCardinality(num_vals_in_chunk);
+
+			auto op = query_to_plan[q].get();
 			if (op == nullptr) {
 				throw std::logic_error("Querying non-existent lineage");
 			}
 			vector<unique_ptr<PhysicalOperator>> other_plans;
 			unique_ptr<PhysicalOperator> first_plan =
-			    GenerateCustomPlan(op, *this, lineage_id, nullptr, false, &other_plans);
+			    GenerateCustomLineagePlan(op, *this, &lineage_ids, nullptr, false, &other_plans);
 			// We construct other_plans in reverse execution order, swap here
 			Reverse(&other_plans);
 			unique_ptr<PhysicalOperator> final_plan =
 			    CombineByMode(*this, mode, should_count, move(first_plan), move(other_plans));
 			result->types.resize(final_plan->types.size());
- 			std::copy(final_plan->types.begin(), final_plan->types.end(), result->types.begin());
+ 			copy(final_plan->types.begin(), final_plan->types.end(), result->types.begin());
  			result->plan = move(final_plan);
  		}
 	}
