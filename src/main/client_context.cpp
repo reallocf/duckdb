@@ -308,7 +308,9 @@ unique_ptr<QueryResult> ClientContext::ExecutePreparedStatement(ClientContextLoc
 
 #ifdef LINEAGE
 	// Always annotate plan with lineage - lineage is always captured even if it isn't persisted TODO is this right?
+	std::cout << "Foo" << std::endl;
 	lineage_manager->InitOperatorPlan(statement.plan.get(), trace_lineage);
+	std::cout << "Foo2" << std::endl;
 #endif
 
 	// store the physical plan in the context for calls to Fetch()
@@ -318,6 +320,7 @@ unique_ptr<QueryResult> ClientContext::ExecutePreparedStatement(ClientContextLoc
 
 	D_ASSERT(types == statement.types);
 
+	std::cout << "Foo3" << std::endl;
 	if (create_stream_result) {
 		if (enable_progress_bar) {
 			progress_bar->Stop();
@@ -327,6 +330,7 @@ unique_ptr<QueryResult> ClientContext::ExecutePreparedStatement(ClientContextLoc
 		return make_unique<StreamQueryResult>(statement.statement_type, shared_from_this(), statement.types,
 		                                      statement.names, move(statement_p));
 	}
+	std::cout << "Foo4" << std::endl;
 	// create a materialized result by continuously fetching
 	auto result = make_unique<MaterializedQueryResult>(statement.statement_type, statement.types, statement.names);
 	while (true) {
@@ -343,6 +347,7 @@ unique_ptr<QueryResult> ClientContext::ExecutePreparedStatement(ClientContextLoc
 #endif
 		result->collection.Append(*chunk);
 	}
+	std::cout << "Foo5" << std::endl;
 #ifdef LINEAGE
 	if (trace_lineage) {
 		idx_t lineage_size = lineage_manager->CreateLineageTables(statement.plan.get());
