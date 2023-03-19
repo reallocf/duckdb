@@ -212,6 +212,7 @@ shared_ptr<PreparedStatementData> ClientContext::CreatePreparedStatement(ClientC
 			lineage_id_chunk->data[0].SetValue(num_vals_in_chunk++, Value::BIGINT(stoi(tmp)));
 			lineage_id_chunk->SetCardinality(num_vals_in_chunk);
 			lineage_ids.Append(move(lineage_id_chunk));
+			std::cout << "Number in chunk collection " << lineage_ids.Count() << std::endl;
 
 			auto op = query_to_plan[q].get();
 			if (op == nullptr) {
@@ -314,6 +315,8 @@ unique_ptr<QueryResult> ClientContext::ExecutePreparedStatement(ClientContextLoc
 #endif
 
 	// store the physical plan in the context for calls to Fetch()
+	std::cout << statement.plan->GetName() << std::endl;
+	std::cout << "Bar0" << std::endl;
 	executor.Initialize(statement.plan.get());
 	std::cout << "Bar1" << std::endl;
 
