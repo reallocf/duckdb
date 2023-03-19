@@ -26,7 +26,7 @@ void PhysicalChunkScan::GetChunkInternal(ExecutionContext &context, DataChunk &c
 	if (state->chunk_index >= collection->ChunkCount()) {
 		return;
 	}
-	std::cout << "Woo4" << std::endl;
+	std::cout << "Woo4: " << state->chunk_index << " " << collection->Count() << std::endl;
 	auto &collection_chunk = collection->GetChunk(state->chunk_index);
 	std::cout << "Woo5" << std::endl;
 	chunk.Reference(collection_chunk);
