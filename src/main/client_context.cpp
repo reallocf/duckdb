@@ -194,6 +194,7 @@ shared_ptr<PreparedStatementData> ClientContext::CreatePreparedStatement(ClientC
 			idx_t num_vals_in_chunk = 0;
 			string tmp;
 			char delim = ',';
+			std::cout << "Foo" << std::endl;
 			for (idx_t i = 0; i < lineage_ids_str.length(); i++) {
 				if (lineage_ids_str[i] == delim) {
 					lineage_id_chunk->data[0].SetValue(num_vals_in_chunk++, Value::BIGINT(stoi(tmp)));
@@ -209,9 +210,13 @@ shared_ptr<PreparedStatementData> ClientContext::CreatePreparedStatement(ClientC
 					tmp.push_back(lineage_ids_str[i]);
 				}
 			}
+			std::cout << "Foo2" << std::endl;
 			lineage_id_chunk->data[0].SetValue(num_vals_in_chunk++, Value::BIGINT(stoi(tmp)));
+			std::cout << "Foo3" << std::endl;
 			lineage_id_chunk->SetCardinality(num_vals_in_chunk);
+			std::cout << "Foo4" << std::endl;
 			lineage_ids.Append(move(lineage_id_chunk));
+			std::cout << "Foo5" << std::endl;
 
 			auto op = query_to_plan[q].get();
 			if (op == nullptr) {
