@@ -13,18 +13,24 @@ public:
 
 void PhysicalChunkScan::GetChunkInternal(ExecutionContext &context, DataChunk &chunk,
                                          PhysicalOperatorState *state_p) const {
+	std::cout << "Woo1" << std::endl;
 	auto state = (PhysicalChunkScanState *)state_p;
 	D_ASSERT(!should_be_set || collection->Count() > 0);
 	D_ASSERT(collection);
+	std::cout << "Woo2" << std::endl;
 	if (collection->Count() == 0) {
 		return;
 	}
+	std::cout << "Woo3" << std::endl;
 	D_ASSERT(chunk.GetTypes() == collection->Types());
 	if (state->chunk_index >= collection->ChunkCount()) {
 		return;
 	}
+	std::cout << "Woo4" << std::endl;
 	auto &collection_chunk = collection->GetChunk(state->chunk_index);
+	std::cout << "Woo5" << std::endl;
 	chunk.Reference(collection_chunk);
+	std::cout << "Woo6" << std::endl;
 	state->chunk_index++;
 }
 
