@@ -210,28 +210,29 @@ shared_ptr<PreparedStatementData> ClientContext::CreatePreparedStatement(ClientC
 					tmp.push_back(lineage_ids_str[i]);
 				}
 			}
-			std::cout << "Foo2" << std::endl;
 			lineage_id_chunk->data[0].SetValue(num_vals_in_chunk++, Value::BIGINT(stoi(tmp)));
-			std::cout << "Foo3" << std::endl;
 			lineage_id_chunk->SetCardinality(num_vals_in_chunk);
-			std::cout << "Foo4" << std::endl;
 			lineage_ids.Append(move(lineage_id_chunk));
-			std::cout << "Foo5" << std::endl;
+			std::cout << "Foo2" << std::endl;
 
 			auto op = query_to_plan[q].get();
 			if (op == nullptr) {
 				throw std::logic_error("Querying non-existent lineage");
 			}
 			vector<unique_ptr<PhysicalOperator>> other_plans;
+			std::cout << "Foo3" << std::endl;
 			unique_ptr<PhysicalOperator> first_plan =
 			    GenerateCustomLineagePlan(op, *this, &lineage_ids, nullptr, false, &other_plans);
+			std::cout << "Foo4" << std::endl;
 			// We construct other_plans in reverse execution order, swap here
 			Reverse(&other_plans);
 			unique_ptr<PhysicalOperator> final_plan =
 			    CombineByMode(*this, mode, should_count, move(first_plan), move(other_plans));
+			std::cout << "Foo5" << std::endl;
 			result->types.resize(final_plan->types.size());
  			copy(final_plan->types.begin(), final_plan->types.end(), result->types.begin());
  			result->plan = move(final_plan);
+			std::cout << "Foo6" << std::endl;
  		}
 	}
 
