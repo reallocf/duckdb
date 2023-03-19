@@ -315,8 +315,10 @@ unique_ptr<QueryResult> ClientContext::ExecutePreparedStatement(ClientContextLoc
 
 	// store the physical plan in the context for calls to Fetch()
 	executor.Initialize(statement.plan.get());
+	std::cout << "Bar1" << std::endl;
 
 	auto types = executor.GetTypes();
+	std::cout << "Bar2" << std::endl;
 
 	D_ASSERT(types == statement.types);
 
