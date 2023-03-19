@@ -197,23 +197,35 @@ shared_ptr<PreparedStatementData> ClientContext::CreatePreparedStatement(ClientC
 			string tmp;
 			char delim = ',';
 			for (idx_t i = 0; i < lineage_ids_str.length(); i++) {
+				std::cout << "Foo" << std::endl;
 				if (lineage_ids_str[i] == delim) {
+					std::cout << "Foo2" << std::endl;
 					lineage_ids.Chunks()[chunk_coll_idx].get()->data[0].SetValue(num_vals_in_chunk++, Value::BIGINT(stoi(tmp)));
+					std::cout << "Foo3" << std::endl;
 					tmp = "";
 					if (num_vals_in_chunk == STANDARD_VECTOR_SIZE) {
+						std::cout << "Foo4" << std::endl;
 						lineage_ids.Chunks()[chunk_coll_idx].get()->SetCardinality(STANDARD_VECTOR_SIZE);
+						std::cout << "Foo5" << std::endl;
 						chunk_coll_idx++;
 						DataChunk next_lineage_id_chunk;
 						next_lineage_id_chunk.Initialize({LogicalTypeId::BIGINT});
+						std::cout << "Foo6" << std::endl;
 						lineage_ids.Append(next_lineage_id_chunk);
+						std::cout << "Foo7" << std::endl;
 						num_vals_in_chunk = 0;
 					}
 				} else {
+					std::cout << "Foo8" << std::endl;
 					tmp.push_back(lineage_ids_str[i]);
+					std::cout << "Foo9" << std::endl;
 				}
 			}
+			std::cout << "Foo10" << std::endl;
 			lineage_ids.Chunks()[chunk_coll_idx].get()->data[0].SetValue(num_vals_in_chunk++, Value::BIGINT(stoi(tmp)));
+			std::cout << "Foo11" << std::endl;
 			lineage_ids.Chunks()[chunk_coll_idx].get()->SetCardinality(num_vals_in_chunk);
+			std::cout << "Foo12" << std::endl;
 
 			auto op = query_to_plan[q].get();
 			if (op == nullptr) {
