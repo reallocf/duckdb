@@ -311,7 +311,8 @@ unique_ptr<PhysicalOperator> GenerateCustomLineagePlan(
 	}
 	if (left == nullptr) {
 		unique_ptr<PhysicalChunkScan> chunk_scan = make_unique<PhysicalChunkScan>(types, op_type, estimated_cardinality, true);
-		chunk_scan->collection = lineage_ids;
+		chunk_scan->collection = new ChunkCollection();
+		chunk_scan->collection->Merge(*lineage_ids);
 		if (
 			op->children.size() == 2 &&
 			(op->type == PhysicalOperatorType::INDEX_JOIN || op->type == PhysicalOperatorType::CROSS_PRODUCT || dynamic_cast<PhysicalJoin *>(op)->join_type != JoinType::ANTI)
