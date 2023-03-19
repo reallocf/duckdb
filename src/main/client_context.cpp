@@ -189,47 +189,29 @@ shared_ptr<PreparedStatementData> ClientContext::CreatePreparedStatement(ClientC
 
 			// Split string like 1,2,3 into separate lineage ids, and ultimately into input ChunkCollection
 			ChunkCollection lineage_ids;
-			DataChunk lineage_id_chunk;
-			lineage_id_chunk.Initialize({LogicalTypeId::BIGINT});
-			lineage_ids.Append(lineage_id_chunk);
+			unique_ptr<DataChunk> lineage_id_chunk = make_unique<DataChunk>();
+			lineage_id_chunk->Initialize({LogicalTypeId::BIGINT});
 			idx_t num_vals_in_chunk = 0;
-			idx_t chunk_coll_idx = 0;
 			string tmp;
 			char delim = ',';
 			for (idx_t i = 0; i < lineage_ids_str.length(); i++) {
-				std::cout << "Foo" << std::endl;
 				if (lineage_ids_str[i] == delim) {
-					std::cout << "Foo2" << std::endl;
-					lineage_ids.GetChunk(chunk_coll_idx).data[0].SetValue(num_vals_in_chunk++, Value::BIGINT(stoi(tmp)));
-					std::cout << "Foo3" << std::endl;
+					lineage_id_chunk->data[0].SetValue(num_vals_in_chunk++, Value::BIGINT(stoi(tmp)));
 					tmp = "";
 					if (num_vals_in_chunk == STANDARD_VECTOR_SIZE) {
-						std::cout << "Foo4" << std::endl;
-						lineage_ids.GetChunk(chunk_coll_idx).SetCardinality(STANDARD_VECTOR_SIZE);
-						std::cout << "Foo5" << std::endl;
-						chunk_coll_idx++;
-						DataChunk next_lineage_id_chunk;
-						next_lineage_id_chunk.Initialize({LogicalTypeId::BIGINT});
-						std::cout << "Foo6" << std::endl;
-						lineage_ids.Append(next_lineage_id_chunk);
-						std::cout << "Foo7" << std::endl;
+						lineage_id_chunk->SetCardinality(STANDARD_VECTOR_SIZE);
+						lineage_ids.Append(move(lineage_id_chunk));
 						num_vals_in_chunk = 0;
+						lineage_id_chunk = make_unique<DataChunk>();
+						lineage_id_chunk->Initialize({LogicalTypeId::BIGINT});
 					}
 				} else {
-					std::cout << "Foo8" << std::endl;
 					tmp.push_back(lineage_ids_str[i]);
-					std::cout << "Foo9" << std::endl;
 				}
 			}
-			std::cout << "Foo10" << std::endl;
-			std::cout << lineage_ids.GetChunk(chunk_coll_idx).size() << std::endl;
-			std::cout << "Foo11" << std::endl;
-			std::cout << lineage_ids.GetChunk(chunk_coll_idx).data.size() << std::endl;
-			std::cout << "Foo12" << std::endl;
-			lineage_ids.GetChunk(chunk_coll_idx).data[0].SetValue(num_vals_in_chunk++, Value::BIGINT(stoi(tmp)));
-			std::cout << "Foo13" << std::endl;
-			lineage_ids.GetChunk(chunk_coll_idx).SetCardinality(num_vals_in_chunk);
-			std::cout << "Foo14" << std::endl;
+			lineage_id_chunk->data[0].SetValue(num_vals_in_chunk++, Value::BIGINT(stoi(tmp)));
+			lineage_id_chunk->SetCardinality(num_vals_in_chunk);
+			lineage_ids.Append(move(lineage_id_chunk));
 
 			auto op = query_to_plan[q].get();
 			if (op == nullptr) {
