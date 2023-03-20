@@ -147,11 +147,11 @@ LineageProcessStruct OperatorLineage::PostProcess(idx_t chunk_count, idx_t count
 					auto payload = (uint64_t*)this_data.data->Process(0);
 					for (idx_t i=0; i < res_count; ++i) {
 						idx_t bucket = payload[i];
-						if (hash_map_agg[bucket] == nullptr) {
-							hash_map_agg[bucket] = nullptr; //make_shared<vector<SourceAndMaybeData>>();
-						}
+//						if (hash_map_agg[bucket] == nullptr) {
+//							hash_map_agg[bucket] = make_shared<vector<SourceAndMaybeData>>();
+//						}
 						auto child = this_data.data->GetChild();
-						auto val = i + count_so_far;
+						auto val = i + count_so_far + bucket;
 						if (child != nullptr) {
 							// We capture global value, so we convert to child local value here
 							val -= child->this_offset;
