@@ -150,12 +150,12 @@ LineageProcessStruct OperatorLineage::PostProcess(idx_t chunk_count, idx_t count
 //						if (hash_map_agg[bucket] == nullptr) {
 //							hash_map_agg[bucket] = make_shared<vector<SourceAndMaybeData>>();
 //						}
-						auto child = this_data.data->GetChild();
+//						auto child = this_data.data->GetChild();
 						auto val = i + count_so_far + bucket;
-						if (child != nullptr) {
-							// We capture global value, so we convert to child local value here
-							val -= child->this_offset;
-						}
+//						if (child != nullptr) {
+//							// We capture global value, so we convert to child local value here
+//							val -= child->this_offset;
+//						}
 //						hash_map_agg[bucket]->push_back({val, child});
 					}
 				}
