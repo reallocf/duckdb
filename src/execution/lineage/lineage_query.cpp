@@ -141,7 +141,7 @@ LineageProcessStruct OperatorLineage::PostProcess(idx_t chunk_count, idx_t count
 							// We capture global value, so we convert to child local value here
 							val -= child->this_offset;
 						}
-						hash_map_agg[bucket]->push_back({val, child});
+//						hash_map_agg[bucket]->push_back({val, child});
 					}
 				} else {
 					auto payload = (uint64_t*)this_data.data->Process(0);
