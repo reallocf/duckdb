@@ -38,7 +38,7 @@ void LineageManager::PostProcess(PhysicalOperator *op) {
 		        + lineage_op->data[LINEAGE_SOURCE][lineage_op->data[LINEAGE_SOURCE].size() - 1].data->Count();
 		lineage_op->hash_map_agg.reserve(total_hash_map_buckets);
 
-		// Do a first pass over data to figure out how to pre-allocate hash map index
+		// Do a first pass over data to figure out how to pre-allocate hash map index: ~215ms
 		unordered_map<idx_t, idx_t> map_maker;
 		map_maker.reserve(total_hash_map_buckets);
 		for (idx_t data_idx = 0; data_idx < lineage_op->data[LINEAGE_SINK].size(); data_idx++) {
@@ -57,43 +57,49 @@ void LineageManager::PostProcess(PhysicalOperator *op) {
 			}
 		}
 
-		// Pre allocate hash map index
-//		for (auto const& map_maker_elem : map_maker) {
-//			lineage_op->hash_map_agg[map_maker_elem.first] = make_shared<vector<SourceAndMaybeData>>();
-//			lineage_op->hash_map_agg[map_maker_elem.first]->reserve(map_maker_elem.second);
-//		}
+		// Pre allocate hash map index: ~100ms
+		for (auto const& map_maker_elem : map_maker) {
+			lineage_op->hash_map_agg[map_maker_elem.first] = make_shared<vector<SourceAndMaybeData>>();
+			lineage_op->hash_map_agg[map_maker_elem.first]->reserve(map_maker_elem.second);
+		}
 
-		// Actually fill hash map index
-//		idx_t count_so_far = 0;
-//		for (idx_t data_idx = 0; data_idx < lineage_op->data[LINEAGE_SINK].size(); data_idx++) {
-//			shared_ptr<LineageData> this_data = lineage_op->data[LINEAGE_SINK][data_idx].data;
-//			idx_t res_count = this_data->Count();
-//			auto child = this_data->GetChild();
-//			if (lineage_op->type == PhysicalOperatorType::PERFECT_HASH_GROUP_BY) {
-//				auto payload = (sel_t*)this_data->Process(0);
-//				if (child != nullptr) {
-//					for (idx_t i = 0; i < res_count; i++) {
-//						lineage_op->hash_map_agg[payload[i]]->push_back({i + count_so_far - child->this_offset, child});
-//					}
-//				} else {
-//					for (idx_t i = 0; i < res_count; i++) {
-//						lineage_op->hash_map_agg[payload[i]]->push_back({i + count_so_far, nullptr});
-//					}
-//				}
-//			} else {
-//				auto payload = (uint64_t*)this_data->Process(0);
-//				if (child != nullptr) {
-//					for (idx_t i = 0; i < res_count; i++) {
-//						lineage_op->hash_map_agg[payload[i]]->push_back({i + count_so_far - child->this_offset, child});
-//					}
-//				} else {
-//					for (idx_t i = 0; i < res_count; i++) {
-//						lineage_op->hash_map_agg[payload[i]]->push_back({i + count_so_far, nullptr});
-//					}
-//				}
-//			}
-//			count_so_far += res_count;
-//		}
+		// Actually fill hash map index: ~1700ms
+		idx_t count_so_far = 0;
+		if (lineage_op->type == PhysicalOperatorType::PERFECT_HASH_GROUP_BY) {
+			for (idx_t data_idx = 0; data_idx < lineage_op->data[LINEAGE_SINK].size(); data_idx++) {
+				shared_ptr<LineageData> this_data = lineage_op->data[LINEAGE_SINK][data_idx].data;
+				idx_t res_count = this_data->Count();
+				auto child = this_data->GetChild();
+				auto payload = (sel_t *)this_data->Process(0);
+				if (child != nullptr) {
+					for (idx_t i = 0; i < res_count; i++) {
+						lineage_op->hash_map_agg[payload[i]]->push_back({i + count_so_far - child->this_offset, child});
+					}
+				} else {
+					for (idx_t i = 0; i < res_count; i++) {
+						lineage_op->hash_map_agg[payload[i]]->push_back({i + count_so_far, nullptr});
+					}
+				}
+				count_so_far += res_count;
+			}
+		} else {
+			for (idx_t data_idx = 0; data_idx < lineage_op->data[LINEAGE_SINK].size(); data_idx++) {
+				shared_ptr<LineageData> this_data = lineage_op->data[LINEAGE_SINK][data_idx].data;
+				idx_t res_count = this_data->Count();
+				auto child = this_data->GetChild();
+				auto payload = (uint64_t*)this_data->Process(0);
+				if (child != nullptr) {
+					for (idx_t i = 0; i < res_count; i++) {
+						lineage_op->hash_map_agg[payload[i]]->push_back({i + count_so_far - child->this_offset, child});
+					}
+				} else {
+					for (idx_t i = 0; i < res_count; i++) {
+						lineage_op->hash_map_agg[payload[i]]->push_back({i + count_so_far, nullptr});
+					}
+				}
+				count_so_far += res_count;
+			}
+		}
 	}
 
 	if (op->type == PhysicalOperatorType::DELIM_JOIN) {
