@@ -36,7 +36,7 @@ void LineageManager::PostProcess(PhysicalOperator *op) {
 		idx_t total_hash_map_buckets =
 		    lineage_op->data[LINEAGE_SOURCE][lineage_op->data[LINEAGE_SOURCE].size() - 1].this_offset
 		        + lineage_op->data[LINEAGE_SOURCE][lineage_op->data[LINEAGE_SOURCE].size() - 1].data->Count();
-		lineage_op->hash_map_agg_2.reserve(total_hash_map_buckets);
+		lineage_op->hash_map_agg.reserve(total_hash_map_buckets);
 
 		// Do a first pass over data to figure out how to pre-allocate hash map index: ~215ms
 		unordered_map<idx_t, idx_t> map_maker;
@@ -59,8 +59,8 @@ void LineageManager::PostProcess(PhysicalOperator *op) {
 
 		// Pre allocate hash map index: ~100ms
 		for (auto const& map_maker_elem : map_maker) {
-			lineage_op->hash_map_agg_2[map_maker_elem.first] = make_shared<vector<idx_t>>();
-			lineage_op->hash_map_agg_2[map_maker_elem.first]->reserve(map_maker_elem.second);
+			lineage_op->hash_map_agg[map_maker_elem.first] = make_shared<vector<SourceAndMaybeData>>();
+			lineage_op->hash_map_agg[map_maker_elem.first]->reserve(map_maker_elem.second);
 		}
 
 		// Actually fill hash map index: ~1700ms
@@ -73,7 +73,7 @@ void LineageManager::PostProcess(PhysicalOperator *op) {
 					auto child = this_data->GetChild();
 					auto payload = (sel_t *)this_data->Process(0);
 					for (idx_t i = 0; i < res_count; i++) {
-						lineage_op->hash_map_agg_2[payload[i]]->push_back(i + count_so_far);
+						lineage_op->hash_map_agg[payload[i]]->push_back({i + count_so_far, child});
 					}
 					count_so_far += res_count;
 				}
@@ -84,7 +84,7 @@ void LineageManager::PostProcess(PhysicalOperator *op) {
 					idx_t res_count = this_data->Count();
 					auto payload = (sel_t *)this_data->Process(0);
 					for (idx_t i = 0; i < res_count; i++) {
-						lineage_op->hash_map_agg_2[payload[i]]->push_back(i + count_so_far);
+						lineage_op->hash_map_agg[payload[i]]->push_back({i + count_so_far, nullptr});
 					}
 					count_so_far += res_count;
 				}
@@ -96,9 +96,9 @@ void LineageManager::PostProcess(PhysicalOperator *op) {
 					idx_t res_count = this_data->Count();
 					auto child = this_data->GetChild();
 					auto payload = (uint64_t*)this_data->Process(0);
-					for (idx_t i = 0; i < res_count; i++) {
-						lineage_op->hash_map_agg_2[payload[i]]->push_back(i + count_so_far);
-					}
+//					for (idx_t i = 0; i < res_count; i++) {
+//						lineage_op->hash_map_agg[payload[i]]->push_back({i + count_so_far, child});
+//					}
 					count_so_far += res_count;
 				}
 			}
@@ -108,7 +108,7 @@ void LineageManager::PostProcess(PhysicalOperator *op) {
 					idx_t res_count = this_data->Count();
 					auto payload = (uint64_t*)this_data->Process(0);
 					for (idx_t i = 0; i < res_count; i++) {
-						lineage_op->hash_map_agg_2[payload[i]]->push_back(i + count_so_far);
+						lineage_op->hash_map_agg[payload[i]]->push_back({i + count_so_far, nullptr});
 					}
 					count_so_far += res_count;
 				}
