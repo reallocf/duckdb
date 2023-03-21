@@ -33,6 +33,13 @@ void LineageManager::PostProcess(PhysicalOperator *op) {
 		// for group by, build hash table on the unique groups
 		auto lineage_op = op->lineage_op[-1]; // TODO handle multithreading
 		idx_t count_so_far = 0;
+		// The number of hash map buckets is equal to the number of outputs from LINEAGE_SOURCE
+		idx_t total_hash_map_buckets =
+		    lineage_op->data[LINEAGE_SOURCE][lineage_op->data[LINEAGE_SOURCE].size() - 1].this_offset
+		        + lineage_op->data[LINEAGE_SOURCE][lineage_op->data[LINEAGE_SOURCE].size() - 1].data->Count();
+		lineage_op->hash_map_agg.reserve(total_hash_map_buckets);
+		std::cout << "Reserving: " << total_hash_map_buckets << std::endl;
+		std::cout << "Starting bucket count: " << lineage_op->hash_map_agg.size() << std::endl;
 		for (idx_t data_idx = 0; data_idx < lineage_op->data[LINEAGE_SINK].size(); data_idx++) {
 			shared_ptr<LineageData> this_data = lineage_op->data[LINEAGE_SINK][data_idx].data;
 			idx_t res_count = this_data->Count();
@@ -78,6 +85,7 @@ void LineageManager::PostProcess(PhysicalOperator *op) {
 			}
 			count_so_far += res_count;
 		}
+		std::cout << "Ending bucket count: " << lineage_op->hash_map_agg.size() << std::endl;
 	}
 
 	if (op->type == PhysicalOperatorType::DELIM_JOIN) {
