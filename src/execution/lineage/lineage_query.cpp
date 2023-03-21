@@ -27,34 +27,17 @@ class PhysicalJoin;
 
 void LineageManager::PostProcess(PhysicalOperator *op, bool should_index) {
 	// massage the data to make it easier to query
-	bool always_post_process =
+	bool should_post_process =
 		op->type == PhysicalOperatorType::HASH_GROUP_BY || op->type == PhysicalOperatorType::PERFECT_HASH_GROUP_BY;
-	bool never_post_process =
-		op->type == PhysicalOperatorType::ORDER_BY; // 1 large chunk, so index is useless
-	if ((always_post_process) && !never_post_process) {
-		vector<vector<ColumnDefinition>> table_column_types = GetTableColumnTypes(op);
-		for (idx_t i = 0; i < table_column_types.size(); i++) {
-			bool skip_this_sel_vec =
-				(op->type == PhysicalOperatorType::HASH_GROUP_BY && i == LINEAGE_COMBINE)
-				|| (op->type == PhysicalOperatorType::HASH_JOIN && i == LINEAGE_BUILD)
-				|| (op->type == PhysicalOperatorType::HASH_JOIN && dynamic_cast<PhysicalJoin *>(op)->join_type != JoinType::MARK)
-				|| (op->type == PhysicalOperatorType::PERFECT_HASH_GROUP_BY && i == LINEAGE_COMBINE)
-				|| (op->type == PhysicalOperatorType::HASH_GROUP_BY && i == LINEAGE_SOURCE)
-				|| (op->type == PhysicalOperatorType::PERFECT_HASH_GROUP_BY && i == LINEAGE_SOURCE);
-			if (skip_this_sel_vec) {
-				continue;
-			}
-			// for hash join, build hash table on the build side that map the address to id
-			// for group by, build hash table on the unique groups
-			for (auto const& lineage_op : op->lineage_op) {
-				idx_t chunk_count = 0;
-				LineageProcessStruct lps = lineage_op.second->PostProcess(chunk_count, 0, lineage_op.first);
-				while (lps.still_processing) {
-					lps = lineage_op.second->PostProcess(++chunk_count,  lps.count_so_far, lps.data_idx, lps.finished_idx);
-				}
-				lineage_op.second->FinishedProcessing(lps.data_idx, lps.finished_idx);
-			}
+	if (should_post_process) {
+		// for group by, build hash table on the unique groups
+		auto lineage_op = op->lineage_op[LINEAGE_SINK];
+		idx_t chunk_count = 0;
+		LineageProcessStruct lps = lineage_op->PostProcess(chunk_count, 0, LINEAGE_SINK);
+		while (lps.still_processing) {
+			lps = lineage_op->PostProcess(++chunk_count,  lps.count_so_far, lps.data_idx, lps.finished_idx);
 		}
+		lineage_op->FinishedProcessing(lps.data_idx, lps.finished_idx);
 	}
 
 	if (op->type == PhysicalOperatorType::DELIM_JOIN) {
