@@ -82,44 +82,6 @@ LineageProcessStruct OperatorLineage::PostProcess(idx_t chunk_count, idx_t count
 //	std::cout << "Postprocess " << PhysicalOperatorToString(this->type) << this->opid << std::endl;
 	if (data[finished_idx].size() > data_idx) {
 		switch (this->type) {
-		case PhysicalOperatorType::FILTER:
-		case PhysicalOperatorType::INDEX_JOIN:
-		case PhysicalOperatorType::LIMIT:
-		case PhysicalOperatorType::TABLE_SCAN: {
-			// Array index
-			if (chunk_count == 0) {
-				// Reserve index array
-				LineageDataWithOffset last_data = data[LINEAGE_UNARY][data[LINEAGE_UNARY].size() - 1];
-				index.reserve(last_data.child_offset + last_data.data->Size());
-			}
-			LineageDataWithOffset this_data = data[LINEAGE_UNARY][data_idx];
-			idx_t res_count = this_data.data->Count();
-			index.reserve(index.size() + res_count);
-			for (idx_t i = 0; i < res_count; i++) {
-				index.push_back(chunk_count);
-			}
-			break;
-		}
-		case PhysicalOperatorType::HASH_JOIN: {
-			// Hash Join - other joins too?
-			if (finished_idx == LINEAGE_BUILD) {
-				// Shouldn't hit this code path
-				D_ASSERT(false);
-			} else {
-				// Array index
-				if (chunk_count == 0) {
-					// Reserve index array
-					LineageDataWithOffset last_data = data[LINEAGE_PROBE][data[LINEAGE_PROBE].size() - 1];
-					index.reserve(last_data.child_offset + last_data.data->Size());
-				}
-				LineageDataWithOffset this_data = data[LINEAGE_PROBE][data_idx];
-				idx_t res_count = this_data.data->Count();
-				for (idx_t i = 0; i < res_count; i++) {
-					index.push_back(chunk_count);
-				}
-			}
-			break;
-		}
 		case PhysicalOperatorType::HASH_GROUP_BY:
 		case PhysicalOperatorType::PERFECT_HASH_GROUP_BY: {
 			// Hash Aggregate / Perfect Hash Aggregate
@@ -165,41 +127,8 @@ LineageProcessStruct OperatorLineage::PostProcess(idx_t chunk_count, idx_t count
 					}
 				}
 				count_so_far += res_count;
-			} else if (finished_idx == LINEAGE_COMBINE) {
-			} else {
-				// Array index
-				if (chunk_count == 0) {
-					// Reserve index array
-					LineageDataWithOffset last_data = data[LINEAGE_SOURCE][data[LINEAGE_SOURCE].size() - 1];
-					index.reserve(last_data.child_offset + last_data.data->Size());
-				}
-				LineageDataWithOffset this_data = data[LINEAGE_SOURCE][data_idx];
-				idx_t res_count = this_data.data->Count();
-				for (idx_t i = 0; i < res_count; i++) {
-					index.push_back(chunk_count);
-				}
 			}
 			break;
-		}
-		case PhysicalOperatorType::BLOCKWISE_NL_JOIN:
-		case PhysicalOperatorType::CROSS_PRODUCT:
-		case PhysicalOperatorType::PIECEWISE_MERGE_JOIN:
-		case PhysicalOperatorType::NESTED_LOOP_JOIN: {
-			// Array index
-			if (chunk_count == 0) {
-				// Reserve index array
-				LineageDataWithOffset last_data = data[LINEAGE_PROBE][data[LINEAGE_PROBE].size() - 1];
-				index.reserve(last_data.child_offset + last_data.data->Size());
-			}
-			LineageDataWithOffset this_data = data[LINEAGE_PROBE][data_idx];
-			idx_t res_count = this_data.data->Count();
-			for (idx_t i = 0; i < res_count; i++) {
-				index.push_back(chunk_count);
-			}
-			break;
-		}
-		case PhysicalOperatorType::ORDER_BY: {
-			throw std::logic_error("Shouldn't post-process ORDER_BY");
 		}
 		default:
 			// We must capture lineage for everything getting post-processed
