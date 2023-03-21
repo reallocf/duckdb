@@ -25,7 +25,7 @@ class PhysicalJoin;
 
 // Post Processing to prepare for querying
 
-void LineageManager::PostProcess(PhysicalOperator *op, bool should_index) {
+void LineageManager::PostProcess(PhysicalOperator *op) {
 	// massage the data to make it easier to query
 	bool should_post_process = op->type == PhysicalOperatorType::HASH_GROUP_BY
 	                           || op->type == PhysicalOperatorType::PERFECT_HASH_GROUP_BY;
@@ -34,11 +34,11 @@ void LineageManager::PostProcess(PhysicalOperator *op, bool should_index) {
 		auto lineage_op = op->lineage_op[-1]; // TODO handle multithreading
 		idx_t count_so_far = 0;
 		for (idx_t data_idx = 0; data_idx < lineage_op->data[LINEAGE_SINK].size(); data_idx++) {
-			LineageDataWithOffset this_data = lineage_op->data[LINEAGE_SINK][data_idx];
-			idx_t res_count = this_data.data->Count();
-			auto child = this_data.data->GetChild();
+			shared_ptr<LineageData> this_data = lineage_op->data[LINEAGE_SINK][data_idx].data;
+			idx_t res_count = this_data->Count();
+			auto child = this_data->GetChild();
 			if (lineage_op->type == PhysicalOperatorType::PERFECT_HASH_GROUP_BY) {
-				auto payload = (sel_t*)this_data.data->Process(0);
+				auto payload = (sel_t*)this_data->Process(0);
 				if (child != nullptr) {
 					for (idx_t i = 0; i < res_count; i++) {
 						idx_t bucket = payload[i];
@@ -57,7 +57,7 @@ void LineageManager::PostProcess(PhysicalOperator *op, bool should_index) {
 					}
 				}
 			} else {
-				auto payload = (uint64_t*)this_data.data->Process(0);
+				auto payload = (uint64_t*)this_data->Process(0);
 				if (child != nullptr) {
 					for (idx_t i = 0; i < res_count; i++) {
 						idx_t bucket = payload[i];
@@ -81,80 +81,14 @@ void LineageManager::PostProcess(PhysicalOperator *op, bool should_index) {
 	}
 
 	if (op->type == PhysicalOperatorType::DELIM_JOIN) {
-		PostProcess( dynamic_cast<PhysicalDelimJoin *>(op)->children[0].get(), false);
-		PostProcess( dynamic_cast<PhysicalDelimJoin *>(op)->join.get(), false);
-		PostProcess( (PhysicalOperator *)dynamic_cast<PhysicalDelimJoin *>(op)->distinct.get(), false);
+		PostProcess( dynamic_cast<PhysicalDelimJoin *>(op)->children[0].get());
+		PostProcess( dynamic_cast<PhysicalDelimJoin *>(op)->join.get());
+		PostProcess( (PhysicalOperator *)dynamic_cast<PhysicalDelimJoin *>(op)->distinct.get());
 	} else {
 		for (idx_t i = 0; i < op->children.size(); i++) {
-			PostProcess(op->children[i].get(), false);
+			PostProcess(op->children[i].get());
 		}
 	}
-}
-
-LineageProcessStruct OperatorLineage::PostProcess(idx_t chunk_count, idx_t count_so_far, idx_t data_idx, idx_t finished_idx) {
-//	std::cout << "Postprocess " << PhysicalOperatorToString(this->type) << this->opid << std::endl;
-	if (data[finished_idx].size() > data_idx) {
-		switch (this->type) {
-		case PhysicalOperatorType::HASH_GROUP_BY:
-		case PhysicalOperatorType::PERFECT_HASH_GROUP_BY: {
-			// Hash Aggregate / Perfect Hash Aggregate
-			// schema for both: [INTEGER in_index, INTEGER out_index]
-			if (finished_idx == LINEAGE_SINK) {
-				// build hash table
-				LineageDataWithOffset this_data = data[LINEAGE_SINK][data_idx];
-				idx_t res_count = this_data.data->Count();
-				if (type == PhysicalOperatorType::PERFECT_HASH_GROUP_BY) {
-					auto payload = (sel_t*)this_data.data->Process(0);
-					auto child = this_data.data->GetChild();
-					if (child != nullptr) {
-						for (idx_t i = 0; i < res_count; i++) {
-							idx_t bucket = payload[i];
-							if (hash_map_agg[bucket] == nullptr) {
-								hash_map_agg[bucket] = make_shared<vector<SourceAndMaybeData>>();
-							}
-							hash_map_agg[bucket]->push_back({i + count_so_far - child->this_offset, child});
-						}
-					} else {
-						for (idx_t i = 0; i < res_count; i++) {
-							idx_t bucket = payload[i];
-							if (hash_map_agg[bucket] == nullptr) {
-								hash_map_agg[bucket] = make_shared<vector<SourceAndMaybeData>>();
-							}
-							hash_map_agg[bucket]->push_back({i + count_so_far, nullptr});
-						}
-					}
-				} else {
-					auto payload = (uint64_t*)this_data.data->Process(0);
-					auto child = this_data.data->GetChild();
-					if (child != nullptr) {
-						for (idx_t i = 0; i < res_count; i++) {
-							idx_t bucket = payload[i];
-							if (hash_map_agg[bucket] == nullptr) {
-								hash_map_agg[bucket] = make_shared<vector<SourceAndMaybeData>>();
-							}
-							hash_map_agg[bucket]->push_back({i + count_so_far - child->this_offset, child});
-						}
-					} else {
-						for (idx_t i = 0; i < res_count; i++) {
-							idx_t bucket = payload[i];
-							if (hash_map_agg[bucket] == nullptr) {
-								hash_map_agg[bucket] = make_shared<vector<SourceAndMaybeData>>();
-							}
-							hash_map_agg[bucket]->push_back({i + count_so_far, nullptr});
-						}
-					}
-				}
-				count_so_far += res_count;
-			}
-			break;
-		}
-		default:
-			// We must capture lineage for everything getting post-processed
-			D_ASSERT(false);
-		}
-	}
-	data_idx++;
-	return LineageProcessStruct{ count_so_far, 0, data_idx, finished_idx, data[finished_idx].size() > data_idx};
 }
 
 // Lineage Query Plan Constructing

@@ -348,7 +348,7 @@ unique_ptr<QueryResult> ClientContext::ExecutePreparedStatement(ClientContextLoc
 		idx_t lineage_size = lineage_manager->CreateLineageTables(statement.plan.get());
 		if (LINEAGE_INDEXES_ON) {
 			clock_t start = clock();
-			lineage_manager->PostProcess(statement.plan.get(), true);
+			lineage_manager->PostProcess(statement.plan.get());
 			clock_t end = clock();
 			std::cout << "PostProcess time: " << ((float) end - start) / CLOCKS_PER_SEC << " sec" << std::endl;
 		}

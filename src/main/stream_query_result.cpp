@@ -68,7 +68,7 @@ void StreamQueryResult::Close() {
 //		idx_t lineage_size = context->lineage_manager->CreateLineageTables(prepared->plan.get());
 		if (LINEAGE_INDEXES_ON) {
 			clock_t start = clock();
-			context->lineage_manager->PostProcess(prepared->plan.get(), true);
+			context->lineage_manager->PostProcess(prepared->plan.get());
 			clock_t end = clock();
 			std::cout << "PostProcess time: " << ((float) end - start) / CLOCKS_PER_SEC << " sec" << std::endl;
 		}
