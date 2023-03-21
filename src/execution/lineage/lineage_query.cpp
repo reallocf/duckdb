@@ -66,38 +66,52 @@ void LineageManager::PostProcess(PhysicalOperator *op) {
 		// Actually fill hash map index: ~1700ms
 		idx_t count_so_far = 0;
 		if (lineage_op->type == PhysicalOperatorType::PERFECT_HASH_GROUP_BY) {
-			for (idx_t data_idx = 0; data_idx < lineage_op->data[LINEAGE_SINK].size(); data_idx++) {
-				shared_ptr<LineageData> this_data = lineage_op->data[LINEAGE_SINK][data_idx].data;
-				idx_t res_count = this_data->Count();
-				auto child = this_data->GetChild();
-				auto payload = (sel_t *)this_data->Process(0);
-				if (child != nullptr) {
+			if (lineage_op->data[LINEAGE_SINK][0].data->GetChild() != nullptr) {
+				for (idx_t data_idx = 0; data_idx < lineage_op->data[LINEAGE_SINK].size(); data_idx++) {
+					shared_ptr<LineageData> this_data = lineage_op->data[LINEAGE_SINK][data_idx].data;
+					idx_t res_count = this_data->Count();
+					auto child = this_data->GetChild();
+					auto payload = (sel_t *)this_data->Process(0);
 					for (idx_t i = 0; i < res_count; i++) {
-						lineage_op->hash_map_agg[payload[i]]->push_back({i + count_so_far - child->this_offset, child});
+						lineage_op->hash_map_agg[payload[i]]->push_back({i + count_so_far, child});
 					}
-				} else {
+					count_so_far += res_count;
+				}
+			}
+			else {
+				for (idx_t data_idx = 0; data_idx < lineage_op->data[LINEAGE_SINK].size(); data_idx++) {
+					shared_ptr<LineageData> this_data = lineage_op->data[LINEAGE_SINK][data_idx].data;
+					idx_t res_count = this_data->Count();
+					auto payload = (sel_t *)this_data->Process(0);
 					for (idx_t i = 0; i < res_count; i++) {
 						lineage_op->hash_map_agg[payload[i]]->push_back({i + count_so_far, nullptr});
 					}
+					count_so_far += res_count;
 				}
-				count_so_far += res_count;
 			}
 		} else {
-			for (idx_t data_idx = 0; data_idx < lineage_op->data[LINEAGE_SINK].size(); data_idx++) {
-				shared_ptr<LineageData> this_data = lineage_op->data[LINEAGE_SINK][data_idx].data;
-				idx_t res_count = this_data->Count();
-				auto child = this_data->GetChild();
-				auto payload = (uint64_t*)this_data->Process(0);
-				if (child != nullptr) {
+			if (lineage_op->data[LINEAGE_SINK][0].data->GetChild() != nullptr) {
+				for (idx_t data_idx = 0; data_idx < lineage_op->data[LINEAGE_SINK].size(); data_idx++) {
+					shared_ptr<LineageData> this_data = lineage_op->data[LINEAGE_SINK][data_idx].data;
+					idx_t res_count = this_data->Count();
+					auto child = this_data->GetChild();
+					auto payload = (uint64_t*)this_data->Process(0);
 					for (idx_t i = 0; i < res_count; i++) {
-						lineage_op->hash_map_agg[payload[i]]->push_back({i + count_so_far - child->this_offset, child});
+						lineage_op->hash_map_agg[payload[i]]->push_back({i + count_so_far, child});
 					}
-				} else {
+					count_so_far += res_count;
+				}
+			}
+			else {
+				for (idx_t data_idx = 0; data_idx < lineage_op->data[LINEAGE_SINK].size(); data_idx++) {
+					shared_ptr<LineageData> this_data = lineage_op->data[LINEAGE_SINK][data_idx].data;
+					idx_t res_count = this_data->Count();
+					auto payload = (uint64_t*)this_data->Process(0);
 					for (idx_t i = 0; i < res_count; i++) {
 						lineage_op->hash_map_agg[payload[i]]->push_back({i + count_so_far, nullptr});
 					}
+					count_so_far += res_count;
 				}
-				count_so_far += res_count;
 			}
 		}
 	}
