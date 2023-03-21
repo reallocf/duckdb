@@ -34,7 +34,7 @@ void LineageManager::PostProcess(PhysicalOperator *op, bool should_index) {
 		auto lineage_op = op->lineage_op[LINEAGE_SINK];
 		idx_t chunk_count = 0;
 		idx_t count_so_far = 0;
-		for (idx_t data_idx = 0; data_idx < lineage_op->Size(); data_idx++) {
+		for (idx_t data_idx = 0; data_idx < lineage_op->data[LINEAGE_SINK].size(); data_idx++) {
 			LineageDataWithOffset this_data = lineage_op->data[LINEAGE_SINK][data_idx];
 			idx_t res_count = this_data.data->Count();
 			auto child = this_data.data->GetChild();
