@@ -73,31 +73,26 @@ void LineageManager::PostProcess(PhysicalOperator *op) {
 				auto payload = (sel_t*)this_data->Process(0);
 				if (child != nullptr) {
 					for (idx_t i = 0; i < res_count; i++) {
-						lineage_op->hash_map_agg[payload[i]]->push_back({i + count_so_far - child->this_offset, child});
+						lineage_op->hash_map_agg[payload[i]];//->push_back({i + count_so_far - child->this_offset, child});
 					}
 				} else {
 					for (idx_t i = 0; i < res_count; i++) {
-						lineage_op->hash_map_agg[payload[i]]->push_back({i + count_so_far, nullptr});
+						lineage_op->hash_map_agg[payload[i]];//->push_back({i + count_so_far, nullptr});
 					}
 				}
 			} else {
 				auto payload = (uint64_t*)this_data->Process(0);
 				if (child != nullptr) {
 					for (idx_t i = 0; i < res_count; i++) {
-						lineage_op->hash_map_agg[payload[i]]->push_back({i + count_so_far - child->this_offset, child});
+						lineage_op->hash_map_agg[payload[i]];//->push_back({i + count_so_far - child->this_offset, child});
 					}
 				} else {
 					for (idx_t i = 0; i < res_count; i++) {
-						lineage_op->hash_map_agg[payload[i]]->push_back({i + count_so_far, nullptr});
+						lineage_op->hash_map_agg[payload[i]];//->push_back({i + count_so_far, nullptr});
 					}
 				}
 			}
 			count_so_far += res_count;
-		}
-
-		// Confirming
-		for (auto const& hash_map_elem : lineage_op->hash_map_agg) {
-			std::cout << "Expected: " << map_maker[hash_map_elem.first] << " Found: " << hash_map_elem.second->size();
 		}
 	}
 
