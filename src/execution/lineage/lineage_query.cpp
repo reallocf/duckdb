@@ -63,7 +63,7 @@ void LineageManager::PostProcess(PhysicalOperator *op) {
 			lineage_op->hash_map_agg[map_maker_elem.first]->reserve(map_maker_elem.second);
 		}
 
-		// Actually fill hash map index: ~1700ms
+		// Actually fill hash map index: ~1700ms, ~1850ms when broken out like it currently is
 		idx_t count_so_far = 0;
 		if (lineage_op->type == PhysicalOperatorType::PERFECT_HASH_GROUP_BY) {
 			if (lineage_op->data[LINEAGE_SINK][0].data->GetChild() != nullptr) {
@@ -96,12 +96,9 @@ void LineageManager::PostProcess(PhysicalOperator *op) {
 					idx_t res_count = this_data->Count();
 					auto child = this_data->GetChild();
 					auto payload = (uint64_t*)this_data->Process(0);
-//					for (idx_t i = 0; i < res_count; i++) { // 0.312147 sec
-//						auto bucket = payload[i]; // 0.310607 sec
-//						auto vec = lineage_op->hash_map_agg[bucket]; // 1.27635 sec
-//						auto add = i + count_so_far; // 1.26737 sec
-//						vec->push_back({add, child}); // 1.83351 sec
-//					}
+					for (idx_t i = 0; i < res_count; i++) {
+						lineage_op->hash_map_agg[payload[i]]->push_back({i + count_so_far, child});
+					}
 					count_so_far += res_count;
 				}
 			}
