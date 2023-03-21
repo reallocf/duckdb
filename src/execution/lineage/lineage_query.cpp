@@ -59,7 +59,8 @@ void LineageManager::PostProcess(PhysicalOperator *op) {
 
 		// Pre allocate hash map index: ~100ms
 		for (auto const& map_maker_elem : map_maker) {
-			lineage_op->hash_map_agg_2[map_maker_elem.first].reserve(map_maker_elem.second);
+			lineage_op->hash_map_agg_2[map_maker_elem.first] = make_shared<vector<idx_t>>();
+			lineage_op->hash_map_agg_2[map_maker_elem.first]->reserve(map_maker_elem.second);
 		}
 
 		// Actually fill hash map index: ~1700ms
@@ -72,7 +73,7 @@ void LineageManager::PostProcess(PhysicalOperator *op) {
 					auto child = this_data->GetChild();
 					auto payload = (sel_t *)this_data->Process(0);
 					for (idx_t i = 0; i < res_count; i++) {
-						lineage_op->hash_map_agg_2[payload[i]].push_back(i + count_so_far);
+						lineage_op->hash_map_agg_2[payload[i]]->push_back(i + count_so_far);
 					}
 					count_so_far += res_count;
 				}
@@ -83,7 +84,7 @@ void LineageManager::PostProcess(PhysicalOperator *op) {
 					idx_t res_count = this_data->Count();
 					auto payload = (sel_t *)this_data->Process(0);
 					for (idx_t i = 0; i < res_count; i++) {
-						lineage_op->hash_map_agg_2[payload[i]].push_back(i + count_so_far);
+						lineage_op->hash_map_agg_2[payload[i]]->push_back(i + count_so_far);
 					}
 					count_so_far += res_count;
 				}
@@ -96,7 +97,7 @@ void LineageManager::PostProcess(PhysicalOperator *op) {
 					auto child = this_data->GetChild();
 					auto payload = (uint64_t*)this_data->Process(0);
 					for (idx_t i = 0; i < res_count; i++) {
-						lineage_op->hash_map_agg_2[payload[i]].push_back(i + count_so_far);
+						lineage_op->hash_map_agg_2[payload[i]]->push_back(i + count_so_far);
 					}
 					count_so_far += res_count;
 				}
@@ -107,7 +108,7 @@ void LineageManager::PostProcess(PhysicalOperator *op) {
 					idx_t res_count = this_data->Count();
 					auto payload = (uint64_t*)this_data->Process(0);
 					for (idx_t i = 0; i < res_count; i++) {
-						lineage_op->hash_map_agg_2[payload[i]].push_back(i + count_so_far);
+						lineage_op->hash_map_agg_2[payload[i]]->push_back(i + count_so_far);
 					}
 					count_so_far += res_count;
 				}
