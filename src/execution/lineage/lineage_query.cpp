@@ -64,36 +64,36 @@ void LineageManager::PostProcess(PhysicalOperator *op) {
 		}
 
 		// Actually fill hash map index
-		idx_t count_so_far = 0;
-		for (idx_t data_idx = 0; data_idx < lineage_op->data[LINEAGE_SINK].size(); data_idx++) {
-			shared_ptr<LineageData> this_data = lineage_op->data[LINEAGE_SINK][data_idx].data;
-			idx_t res_count = this_data->Count();
-			auto child = this_data->GetChild();
-			if (lineage_op->type == PhysicalOperatorType::PERFECT_HASH_GROUP_BY) {
-				auto payload = (sel_t*)this_data->Process(0);
-				if (child != nullptr) {
-					for (idx_t i = 0; i < res_count; i++) {
-						lineage_op->hash_map_agg[payload[i]];//->push_back({i + count_so_far - child->this_offset, child});
-					}
-				} else {
-					for (idx_t i = 0; i < res_count; i++) {
-						lineage_op->hash_map_agg[payload[i]];//->push_back({i + count_so_far, nullptr});
-					}
-				}
-			} else {
-				auto payload = (uint64_t*)this_data->Process(0);
-				if (child != nullptr) {
-					for (idx_t i = 0; i < res_count; i++) {
-						lineage_op->hash_map_agg[payload[i]];//->push_back({i + count_so_far - child->this_offset, child});
-					}
-				} else {
-					for (idx_t i = 0; i < res_count; i++) {
-						lineage_op->hash_map_agg[payload[i]];//->push_back({i + count_so_far, nullptr});
-					}
-				}
-			}
-			count_so_far += res_count;
-		}
+//		idx_t count_so_far = 0;
+//		for (idx_t data_idx = 0; data_idx < lineage_op->data[LINEAGE_SINK].size(); data_idx++) {
+//			shared_ptr<LineageData> this_data = lineage_op->data[LINEAGE_SINK][data_idx].data;
+//			idx_t res_count = this_data->Count();
+//			auto child = this_data->GetChild();
+//			if (lineage_op->type == PhysicalOperatorType::PERFECT_HASH_GROUP_BY) {
+//				auto payload = (sel_t*)this_data->Process(0);
+//				if (child != nullptr) {
+//					for (idx_t i = 0; i < res_count; i++) {
+//						lineage_op->hash_map_agg[payload[i]]->push_back({i + count_so_far - child->this_offset, child});
+//					}
+//				} else {
+//					for (idx_t i = 0; i < res_count; i++) {
+//						lineage_op->hash_map_agg[payload[i]]->push_back({i + count_so_far, nullptr});
+//					}
+//				}
+//			} else {
+//				auto payload = (uint64_t*)this_data->Process(0);
+//				if (child != nullptr) {
+//					for (idx_t i = 0; i < res_count; i++) {
+//						lineage_op->hash_map_agg[payload[i]]->push_back({i + count_so_far - child->this_offset, child});
+//					}
+//				} else {
+//					for (idx_t i = 0; i < res_count; i++) {
+//						lineage_op->hash_map_agg[payload[i]]->push_back({i + count_so_far, nullptr});
+//					}
+//				}
+//			}
+//			count_so_far += res_count;
+//		}
 	}
 
 	if (op->type == PhysicalOperatorType::DELIM_JOIN) {
