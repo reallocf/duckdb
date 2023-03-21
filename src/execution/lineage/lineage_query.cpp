@@ -31,8 +31,7 @@ void LineageManager::PostProcess(PhysicalOperator *op, bool should_index) {
 	                           || op->type == PhysicalOperatorType::PERFECT_HASH_GROUP_BY;
 	if (should_post_process) {
 		// for group by, build hash table on the unique groups
-		auto lineage_op = op->lineage_op[LINEAGE_SINK];
-		idx_t chunk_count = 0;
+		auto lineage_op = op->lineage_op[-1]; // TODO handle multithreading
 		idx_t count_so_far = 0;
 		for (idx_t data_idx = 0; data_idx < lineage_op->data[LINEAGE_SINK].size(); data_idx++) {
 			LineageDataWithOffset this_data = lineage_op->data[LINEAGE_SINK][data_idx];
