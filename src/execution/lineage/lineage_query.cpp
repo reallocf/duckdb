@@ -58,12 +58,12 @@ void LineageManager::PostProcess(PhysicalOperator *op) {
 		}
 
 		// Pre allocate hash map index
-		for (auto const& map_maker_val : map_maker) {
-			lineage_op->hash_map_agg[map_maker_val.first] = make_shared<vector<SourceAndMaybeData>>();
-			lineage_op->hash_map_agg[map_maker_val.first]->reserve(map_maker_val.second);
+		for (auto const& map_maker_elem : map_maker) {
+			lineage_op->hash_map_agg[map_maker_elem.first] = make_shared<vector<SourceAndMaybeData>>();
+			lineage_op->hash_map_agg[map_maker_elem.first]->reserve(map_maker_elem.second);
 		}
 
-		// Actually fill hash map
+		// Actually fill hash map index
 		idx_t count_so_far = 0;
 		for (idx_t data_idx = 0; data_idx < lineage_op->data[LINEAGE_SINK].size(); data_idx++) {
 			shared_ptr<LineageData> this_data = lineage_op->data[LINEAGE_SINK][data_idx].data;
@@ -93,6 +93,11 @@ void LineageManager::PostProcess(PhysicalOperator *op) {
 				}
 			}
 			count_so_far += res_count;
+		}
+
+		// Confirming
+		for (auto const& hash_map_elem : lineage_op->hash_map_agg) {
+			std::cout << "Expected: " << map_maker[hash_map_elem.first] << " Found: " << hash_map_elem.second->size();
 		}
 	}
 
