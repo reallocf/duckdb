@@ -27,17 +27,58 @@ class PhysicalJoin;
 
 void LineageManager::PostProcess(PhysicalOperator *op, bool should_index) {
 	// massage the data to make it easier to query
-	bool should_post_process =
-		op->type == PhysicalOperatorType::HASH_GROUP_BY || op->type == PhysicalOperatorType::PERFECT_HASH_GROUP_BY;
+	bool should_post_process = op->type == PhysicalOperatorType::HASH_GROUP_BY
+	                           || op->type == PhysicalOperatorType::PERFECT_HASH_GROUP_BY;
 	if (should_post_process) {
 		// for group by, build hash table on the unique groups
 		auto lineage_op = op->lineage_op[LINEAGE_SINK];
 		idx_t chunk_count = 0;
-		LineageProcessStruct lps = lineage_op->PostProcess(chunk_count, 0, LINEAGE_SINK);
-		while (lps.still_processing) {
-			lps = lineage_op->PostProcess(++chunk_count,  lps.count_so_far, lps.data_idx, lps.finished_idx);
+		idx_t count_so_far = 0;
+		for (idx_t data_idx = 0; data_idx < lineage_op->Size(); data_idx++) {
+			LineageDataWithOffset this_data = lineage_op->data[LINEAGE_SINK][data_idx];
+			idx_t res_count = this_data.data->Count();
+			auto child = this_data.data->GetChild();
+			if (lineage_op->type == PhysicalOperatorType::PERFECT_HASH_GROUP_BY) {
+				auto payload = (sel_t*)this_data.data->Process(0);
+				if (child != nullptr) {
+					for (idx_t i = 0; i < res_count; i++) {
+						idx_t bucket = payload[i];
+						if (lineage_op->hash_map_agg[bucket] == nullptr) {
+							lineage_op->hash_map_agg[bucket] = make_shared<vector<SourceAndMaybeData>>();
+						}
+						lineage_op->hash_map_agg[bucket]->push_back({i + count_so_far - child->this_offset, child});
+					}
+				} else {
+					for (idx_t i = 0; i < res_count; i++) {
+						idx_t bucket = payload[i];
+						if (lineage_op->hash_map_agg[bucket] == nullptr) {
+							lineage_op->hash_map_agg[bucket] = make_shared<vector<SourceAndMaybeData>>();
+						}
+						lineage_op->hash_map_agg[bucket]->push_back({i + count_so_far, nullptr});
+					}
+				}
+			} else {
+				auto payload = (uint64_t*)this_data.data->Process(0);
+				if (child != nullptr) {
+					for (idx_t i = 0; i < res_count; i++) {
+						idx_t bucket = payload[i];
+						if (lineage_op->hash_map_agg[bucket] == nullptr) {
+							lineage_op->hash_map_agg[bucket] = make_shared<vector<SourceAndMaybeData>>();
+						}
+						lineage_op->hash_map_agg[bucket]->push_back({i + count_so_far - child->this_offset, child});
+					}
+				} else {
+					for (idx_t i = 0; i < res_count; i++) {
+						idx_t bucket = payload[i];
+						if (lineage_op->hash_map_agg[bucket] == nullptr) {
+							lineage_op->hash_map_agg[bucket] = make_shared<vector<SourceAndMaybeData>>();
+						}
+						lineage_op->hash_map_agg[bucket]->push_back({i + count_so_far, nullptr});
+					}
+				}
+			}
+			count_so_far += res_count;
 		}
-		lineage_op->FinishedProcessing(lps.data_idx, lps.finished_idx);
 	}
 
 	if (op->type == PhysicalOperatorType::DELIM_JOIN) {
