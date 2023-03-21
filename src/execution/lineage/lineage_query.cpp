@@ -27,54 +27,27 @@ class PhysicalJoin;
 
 void LineageManager::PostProcess(PhysicalOperator *op, bool should_index) {
 	// massage the data to make it easier to query
-	bool always_post_process =
+	bool should_post_process =
 		op->type == PhysicalOperatorType::HASH_GROUP_BY || op->type == PhysicalOperatorType::PERFECT_HASH_GROUP_BY;
-	bool never_post_process =
-		op->type == PhysicalOperatorType::ORDER_BY; // 1 large chunk, so index is useless
-	if ((always_post_process) && !never_post_process) {
-		vector<vector<ColumnDefinition>> table_column_types = GetTableColumnTypes(op);
-		for (idx_t i = 0; i < table_column_types.size(); i++) {
-			bool skip_this_sel_vec =
-				(op->type == PhysicalOperatorType::HASH_GROUP_BY && i == LINEAGE_COMBINE)
-				|| (op->type == PhysicalOperatorType::HASH_JOIN && i == LINEAGE_BUILD)
-				|| (op->type == PhysicalOperatorType::HASH_JOIN && dynamic_cast<PhysicalJoin *>(op)->join_type != JoinType::MARK)
-				|| (op->type == PhysicalOperatorType::PERFECT_HASH_GROUP_BY && i == LINEAGE_COMBINE)
-				|| (op->type == PhysicalOperatorType::HASH_GROUP_BY && i == LINEAGE_SOURCE)
-				|| (op->type == PhysicalOperatorType::PERFECT_HASH_GROUP_BY && i == LINEAGE_SOURCE);
-			if (skip_this_sel_vec) {
-				continue;
-			}
-			// for hash join, build hash table on the build side that map the address to id
-			// for group by, build hash table on the unique groups
-			for (auto const& lineage_op : op->lineage_op) {
-				idx_t chunk_count = 0;
-				LineageProcessStruct lps = lineage_op.second->PostProcess(chunk_count, 0, lineage_op.first);
-				while (lps.still_processing) {
-					lps = lineage_op.second->PostProcess(++chunk_count,  lps.count_so_far, lps.data_idx, lps.finished_idx);
-				}
-				lineage_op.second->FinishedProcessing(lps.data_idx, lps.finished_idx);
-			}
+	if (should_post_process) {
+		// for group by, build hash table on the unique groups
+		auto lineage_op = op->lineage_op[LINEAGE_SINK];
+		idx_t chunk_count = 0;
+		LineageProcessStruct lps = lineage_op->PostProcess(chunk_count, 0, LINEAGE_SINK);
+		while (lps.still_processing) {
+			lps = lineage_op->PostProcess(++chunk_count,  lps.count_so_far, lps.data_idx, lps.finished_idx);
 		}
+		lineage_op->FinishedProcessing(lps.data_idx, lps.finished_idx);
 	}
 
 	if (op->type == PhysicalOperatorType::DELIM_JOIN) {
-		PostProcess( dynamic_cast<PhysicalDelimJoin *>(op)->children[0].get(), true);
-		PostProcess( dynamic_cast<PhysicalDelimJoin *>(op)->join.get(), true);
-		PostProcess( (PhysicalOperator *)dynamic_cast<PhysicalDelimJoin *>(op)->distinct.get(), true);
-		return;
-	}
-	for (idx_t i = 0; i < op->children.size(); i++) {
-		bool child_should_index =
-			op->type == PhysicalOperatorType::HASH_GROUP_BY
-			|| op->type == PhysicalOperatorType::PERFECT_HASH_GROUP_BY
-			|| (op->type == PhysicalOperatorType::HASH_JOIN && i == 1) // Only build side child needs an index
-			|| (op->type == PhysicalOperatorType::BLOCKWISE_NL_JOIN && i == 1) // Right side needs index
-			|| (op->type == PhysicalOperatorType::CROSS_PRODUCT && i == 1) // Right side needs index
-			|| (op->type == PhysicalOperatorType::NESTED_LOOP_JOIN && i == 1) // Right side needs index
-			|| (op->type == PhysicalOperatorType::PIECEWISE_MERGE_JOIN && i == 1) // Right side needs index
-			|| op->type == PhysicalOperatorType::ORDER_BY
-			|| (op->type == PhysicalOperatorType::PROJECTION && should_index); // Pass through should_index on projection
-		PostProcess(op->children[i].get(), child_should_index);
+		PostProcess( dynamic_cast<PhysicalDelimJoin *>(op)->children[0].get(), false);
+		PostProcess( dynamic_cast<PhysicalDelimJoin *>(op)->join.get(), false);
+		PostProcess( (PhysicalOperator *)dynamic_cast<PhysicalDelimJoin *>(op)->distinct.get(), false);
+	} else {
+		for (idx_t i = 0; i < op->children.size(); i++) {
+			PostProcess(op->children[i].get(), false);
+		}
 	}
 }
 
@@ -92,18 +65,23 @@ LineageProcessStruct OperatorLineage::PostProcess(idx_t chunk_count, idx_t count
 				idx_t res_count = this_data.data->Count();
 				if (type == PhysicalOperatorType::PERFECT_HASH_GROUP_BY) {
 					auto payload = (sel_t*)this_data.data->Process(0);
-					for (idx_t i=0; i < res_count; ++i) {
-						idx_t bucket = payload[i];
-						if (hash_map_agg[bucket] == nullptr) {
-							hash_map_agg[bucket] = make_shared<vector<SourceAndMaybeData>>();
+					auto child = this_data.data->GetChild();
+					if (child != nullptr) {
+						for (idx_t i = 0; i < res_count; i++) {
+							idx_t bucket = payload[i];
+							if (hash_map_agg[bucket] == nullptr) {
+								hash_map_agg[bucket] = make_shared<vector<SourceAndMaybeData>>();
+							}
+							hash_map_agg[bucket]->push_back({i + count_so_far - child->this_offset, child});
 						}
-						auto child = this_data.data->GetChild();
-						auto val = i + count_so_far;
-						if (child != nullptr) {
-							// We capture global value, so we convert to child local value here
-							val -= child->this_offset;
+					} else {
+						for (idx_t i = 0; i < res_count; i++) {
+							idx_t bucket = payload[i];
+							if (hash_map_agg[bucket] == nullptr) {
+								hash_map_agg[bucket] = make_shared<vector<SourceAndMaybeData>>();
+							}
+							hash_map_agg[bucket]->push_back({i + count_so_far, nullptr});
 						}
-//						hash_map_agg[bucket]->push_back({val, child});
 					}
 				} else {
 					auto payload = (uint64_t*)this_data.data->Process(0);
