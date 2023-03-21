@@ -93,6 +93,7 @@ public:
 
 	// Index for hash aggregate
     std::unordered_map<idx_t, shared_ptr<vector<SourceAndMaybeData>>> hash_map_agg;
+	unordered_map<idx_t, shared_ptr<vector<idx_t>>> hash_map_agg_2;
     // index: used to index selection vectors
     //        it stores the size of SV from each chunk
     //        which helps in locating the one needed
