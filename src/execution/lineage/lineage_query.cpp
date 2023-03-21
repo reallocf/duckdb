@@ -99,8 +99,8 @@ void LineageManager::PostProcess(PhysicalOperator *op) {
 					for (idx_t i = 0; i < res_count; i++) {
 						auto bucket = payload[i];
 						auto vec = lineage_op->hash_map_agg[bucket];
-						auto add = i + count_so_far;
-//						vec->push_back({add, child});
+//						auto add = i + count_so_far; // 1.26737 sec
+//						vec->push_back({add, child}); // 1.83351 sec
 					}
 					count_so_far += res_count;
 				}
