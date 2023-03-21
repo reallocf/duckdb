@@ -59,10 +59,8 @@ void LineageManager::PostProcess(PhysicalOperator *op) {
 
 		// Pre allocate hash map index
 		for (auto const& map_maker_val : map_maker) {
-			idx_t bucket = map_maker_val.first;
-			idx_t bucket_hits = map_maker_val.second;
-			lineage_op->hash_map_agg[bucket] = make_shared<vector<SourceAndMaybeData>>();
-			lineage_op->hash_map_agg[bucket]->reserve(bucket_hits);
+			lineage_op->hash_map_agg[map_maker_val.first] = make_shared<vector<SourceAndMaybeData>>();
+			lineage_op->hash_map_agg[map_maker_val.first]->reserve(map_maker_val.second);
 		}
 
 		// Actually fill hash map
@@ -75,38 +73,22 @@ void LineageManager::PostProcess(PhysicalOperator *op) {
 				auto payload = (sel_t*)this_data->Process(0);
 				if (child != nullptr) {
 					for (idx_t i = 0; i < res_count; i++) {
-						idx_t bucket = payload[i];
-						if (lineage_op->hash_map_agg[bucket] == nullptr) {
-							lineage_op->hash_map_agg[bucket] = make_shared<vector<SourceAndMaybeData>>();
-						}
-						lineage_op->hash_map_agg[bucket]->push_back({i + count_so_far - child->this_offset, child});
+						lineage_op->hash_map_agg[payload[i]]->push_back({i + count_so_far - child->this_offset, child});
 					}
 				} else {
 					for (idx_t i = 0; i < res_count; i++) {
-						idx_t bucket = payload[i];
-						if (lineage_op->hash_map_agg[bucket] == nullptr) {
-							lineage_op->hash_map_agg[bucket] = make_shared<vector<SourceAndMaybeData>>();
-						}
-						lineage_op->hash_map_agg[bucket]->push_back({i + count_so_far, nullptr});
+						lineage_op->hash_map_agg[payload[i]]->push_back({i + count_so_far, child});
 					}
 				}
 			} else {
 				auto payload = (uint64_t*)this_data->Process(0);
 				if (child != nullptr) {
 					for (idx_t i = 0; i < res_count; i++) {
-						idx_t bucket = payload[i];
-						if (lineage_op->hash_map_agg[bucket] == nullptr) {
-							lineage_op->hash_map_agg[bucket] = make_shared<vector<SourceAndMaybeData>>();
-						}
-						lineage_op->hash_map_agg[bucket]->push_back({i + count_so_far - child->this_offset, child});
+						lineage_op->hash_map_agg[payload[i]]->push_back({i + count_so_far, nullptr});
 					}
 				} else {
 					for (idx_t i = 0; i < res_count; i++) {
-						idx_t bucket = payload[i];
-						if (lineage_op->hash_map_agg[bucket] == nullptr) {
-							lineage_op->hash_map_agg[bucket] = make_shared<vector<SourceAndMaybeData>>();
-						}
-						lineage_op->hash_map_agg[bucket]->push_back({i + count_so_far, nullptr});
+						lineage_op->hash_map_agg[payload[i]]->push_back({i + count_so_far, nullptr});
 					}
 				}
 			}
