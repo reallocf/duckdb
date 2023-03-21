@@ -58,10 +58,10 @@ void LineageManager::PostProcess(PhysicalOperator *op) {
 		}
 
 		// Pre allocate hash map index
-		for (auto const& map_maker_elem : map_maker) {
-			lineage_op->hash_map_agg[map_maker_elem.first] = make_shared<vector<SourceAndMaybeData>>();
-			lineage_op->hash_map_agg[map_maker_elem.first]->reserve(map_maker_elem.second);
-		}
+//		for (auto const& map_maker_elem : map_maker) {
+//			lineage_op->hash_map_agg[map_maker_elem.first] = make_shared<vector<SourceAndMaybeData>>();
+//			lineage_op->hash_map_agg[map_maker_elem.first]->reserve(map_maker_elem.second);
+//		}
 
 		// Actually fill hash map index
 //		idx_t count_so_far = 0;
