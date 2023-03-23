@@ -1514,6 +1514,16 @@ void ListVector::Append(Vector &target, const Vector &source, idx_t source_size,
 	}
 	auto &target_buffer = (VectorListBuffer &)*target.auxiliary;
 	target_buffer.Append(source, source_size, source_offset);
+/*
+	target_buffer.Reserve(target_buffer.size + 1);
+ 	auto target_offset = target_buffer.size;
+
+ 	//TemplatedCopy<int32_t>(source, *sel, target, source_offset, target_offset, copy_count);
+	auto ldata = FlatVector::GetData<int32_t>(source);
+	auto tdata = FlatVector::GetData<int32_t>(*target_buffer.child);
+	auto source_idx = source_offset ;
+	tdata[target_offset] = ldata[source_idx];
+ 	target_buffer.size += 1;*/
 }
 
 void ListVector::Append(Vector &target, const Vector &source, const SelectionVector &sel, idx_t source_size,

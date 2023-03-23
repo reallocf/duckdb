@@ -1,3 +1,5 @@
+#include "duckdb/common/types/vector_cache.hpp"
+
 #include "duckdb/execution/operator/aggregate/physical_hash_aggregate.hpp"
 
 #include "duckdb/catalog/catalog_entry/aggregate_function_catalog_entry.hpp"
@@ -36,6 +38,20 @@ PhysicalHashAggregate::PhysicalHashAggregate(ClientContext &context, vector<Logi
 	for (auto &expr : groups) {
 		group_types.push_back(expr->return_type);
 	}
+
+
+		auto &catalog = Catalog::GetCatalog(context);
+		auto func = (AggregateFunctionCatalogEntry *)catalog.GetEntry(context, CatalogType::SCALAR_FUNCTION_ENTRY, "", "list",  false);
+		auto &bound_function = func->functions[0];
+		vector<unique_ptr<Expression>> children;
+		//types.pop_back();
+ 		auto e = make_unique<BoundReferenceExpression>("i", LogicalTypeId::INTEGER, groups.size()+expressions.size()-1);
+		children.push_back(move(e));
+		auto aggregate = AggregateFunction::BindAggregateFunction(context, bound_function, move(children));
+	    expressions.push_back( move(aggregate));
+		added_rowid = true;
+
+
 	vector<LogicalType> payload_types_filters;
 	for (auto &expr : expressions) {
 		D_ASSERT(expr->expression_class == ExpressionClass::BOUND_AGGREGATE);
@@ -151,6 +167,13 @@ void PhysicalHashAggregate::Sink(ExecutionContext &context, GlobalOperatorState 
 	auto &llstate = (HashAggregateLocalState &)lstate;
 	auto &gstate = (HashAggregateGlobalState &)state;
 
+  if (added_rowid) {
+		VectorCache cache(LogicalType::INTEGER);
+		input.data.emplace_back(cache);
+		input.vector_caches.push_back(move(cache));
+		input.data[input.data.size()-1].Sequence(0, 1);
+	}
+
 	DataChunk &group_chunk = llstate.group_chunk;
 	DataChunk &aggregate_input_chunk = llstate.aggregate_input_chunk;
 
@@ -197,6 +220,11 @@ void PhysicalHashAggregate::Sink(ExecutionContext &context, GlobalOperatorState 
 		}
 		D_ASSERT(gstate.finalized_hts.size() == 1);
 		gstate.total_groups += gstate.finalized_hts[0]->AddChunk(group_chunk, aggregate_input_chunk);
+
+
+		input.data.pop_back();
+		input.vector_caches.pop_back();
+
 		return;
 	}
 
@@ -235,6 +263,9 @@ public:
 	//! The current position to scan the HT for output tuples
 	idx_t ht_index;
 	idx_t ht_scan_position;
+
+  	vector<Vector> lineage_smoke;
+
 };
 
 void PhysicalHashAggregate::Combine(ExecutionContext &context, GlobalOperatorState &state, LocalSinkState &lstate) {
@@ -392,6 +423,14 @@ void PhysicalHashAggregate::GetChunkInternal(ExecutionContext &context, DataChun
 
 	state.scan_chunk.Reset();
 
+  if (added_rowid) {
+		VectorCache cache(LogicalType::LIST(LogicalType::INTEGER));
+		//	input.data.pop_back();
+		//	input.vector_caches.pop_back();
+		chunk.data.emplace_back(cache);
+		chunk.vector_caches.push_back(move(cache));
+	}
+
 	// special case hack to sort out aggregating from empty intermediates
 	// for aggregations without groups
 	if (gstate.is_empty && is_implicit_aggr) {
@@ -447,6 +486,13 @@ void PhysicalHashAggregate::GetChunkInternal(ExecutionContext &context, DataChun
 
 	for (idx_t col_idx = 0; col_idx < aggregates.size(); col_idx++) {
 		chunk.data[chunk_index++].Reference(state.scan_chunk.data[group_types.size() + col_idx]);
+	}
+
+  if (added_rowid) {
+		state.lineage_smoke.push_back(move(chunk.data[chunk.data.size()-1]));
+		//std::cout << state.lineage_smoke[state.lineage_smoke.size()-1].ToString(chunk.count) << std::endl;
+		chunk.data.pop_back();
+		chunk.vector_caches.pop_back();
 	}
 }
 

@@ -26,6 +26,8 @@ public:
 	                      vector<unique_ptr<Expression>> groups, idx_t estimated_cardinality,
 	                      PhysicalOperatorType type = PhysicalOperatorType::HASH_GROUP_BY);
 
+  bool added_rowid=false;
+
 	//! The groups
 	vector<unique_ptr<Expression>> groups;
 	//! The aggregates that have to be computed

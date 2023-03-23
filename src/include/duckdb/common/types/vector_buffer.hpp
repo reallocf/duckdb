@@ -168,7 +168,8 @@ public:
 	idx_t capacity = 0;
 	idx_t size = 0;
 
-private:
+//private:
+public:
 	//! child vectors used for nested data
 	unique_ptr<Vector> child;
 };

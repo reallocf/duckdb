@@ -11,6 +11,8 @@ public:
 	}
 
 	ExpressionExecutor executor;
+  	vector<idx_t> lineage;
+
 };
 
 PhysicalFilter::PhysicalFilter(vector<LogicalType> types, vector<unique_ptr<Expression>> select_list,
@@ -45,6 +47,11 @@ void PhysicalFilter::GetChunkInternal(ExecutionContext &context, DataChunk &chun
 		initial_count = chunk.size();
 		result_count = state->executor.SelectExpression(chunk, sel);
 	} while (result_count == 0);
+
+
+	for (auto i=0; i < result_count; i++) {
+		state->lineage.push_back(sel.get_index(i));
+	}
 
 	if (result_count == initial_count) {
 		// nothing was filtered: skip adding any selection vectors
