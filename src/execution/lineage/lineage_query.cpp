@@ -98,7 +98,7 @@ void LineageManager::PostProcess(PhysicalOperator *op) {
 					auto payload = (uint64_t*)this_data->Process(0);
 					for (idx_t i = 0; i < res_count; i++) {
 						// Prefetching all buckets
-						__builtin_prefetch(payload + i);
+						__builtin_prefetch(lineage_op->hash_map_agg[payload[i]].get());
 					}
 					for (idx_t i = 0; i < res_count; i++) { // 0.312147 sec
 						auto bucket = payload[i]; // 0.310607 sec
