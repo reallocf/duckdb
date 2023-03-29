@@ -101,13 +101,15 @@ void LineageManager::PostProcess(PhysicalOperator *op) {
 //						__builtin_prefetch(lineage_op->hash_map_agg[payload[i]].get()); // Brings total down to 1.33647 sec
 //					}
 					for (idx_t i = 0; i < res_count; i++) { // 0.312147 sec
-						auto bucket = payload[i]; // 0.310607 sec, after prefetch 0.681284 sec
+						auto bucket = payload[i];
 						if (lineage_op->hash_map_agg[bucket] == nullptr) {
 							lineage_op->hash_map_agg[bucket] = make_shared<vector<SourceAndMaybeData>>();
 						}
-						auto vec = lineage_op->hash_map_agg[bucket]; // 1.27635 sec, after prefetch 1.01545 sec
-						auto add = i + count_so_far; // 1.26737 sec
-						vec->push_back({add, child}); // 1.83351 sec
+						lineage_op->hash_map_agg[bucket]->push_back({i + count_so_far, child});
+//						auto bucket = payload[i]; // 0.310607 sec, after prefetch 0.681284 sec
+//						auto vec = lineage_op->hash_map_agg[bucket]; // 1.27635 sec, after prefetch 1.01545 sec
+//						auto add = i + count_so_far; // 1.26737 sec
+//						vec->push_back({add, child}); // 1.83351 sec
 					} // 2.07938 sec
 					count_so_far += res_count;
 				}
