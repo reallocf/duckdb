@@ -38,30 +38,30 @@ void LineageManager::PostProcess(PhysicalOperator *op) {
 		        + lineage_op->data[LINEAGE_SOURCE][lineage_op->data[LINEAGE_SOURCE].size() - 1].data->Count();
 		lineage_op->hash_map_agg.reserve(total_hash_map_buckets);
 
-//		// Do a first pass over data to figure out how to pre-allocate hash map index: ~215ms
-//		unordered_map<idx_t, idx_t> map_maker;
-//		map_maker.reserve(total_hash_map_buckets);
-//		for (idx_t data_idx = 0; data_idx < lineage_op->data[LINEAGE_SINK].size(); data_idx++) {
-//			shared_ptr<LineageData> this_data = lineage_op->data[LINEAGE_SINK][data_idx].data;
-//			idx_t res_count = this_data->Count();
-//			if (lineage_op->type == PhysicalOperatorType::PERFECT_HASH_GROUP_BY) {
-//				auto payload = (sel_t*)this_data->Process(0);
-//				for (idx_t i = 0; i < res_count; i++) {
-//					map_maker[payload[i]]++;
-//				}
-//			} else {
-//				auto payload = (uint64_t*)this_data->Process(0);
-//				for (idx_t i = 0; i < res_count; i++) {
-//					map_maker[payload[i]]++;
-//				}
-//			}
-//		}
-//
-//		// Pre allocate hash map index: ~100ms
-//		for (auto const& map_maker_elem : map_maker) {
-//			lineage_op->hash_map_agg[map_maker_elem.first] = make_shared<vector<SourceAndMaybeData>>();
-//			lineage_op->hash_map_agg[map_maker_elem.first]->reserve(map_maker_elem.second);
-//		}
+		// Do a first pass over data to figure out how to pre-allocate hash map index: ~215ms
+		unordered_map<idx_t, idx_t> map_maker;
+		map_maker.reserve(total_hash_map_buckets);
+		for (idx_t data_idx = 0; data_idx < lineage_op->data[LINEAGE_SINK].size(); data_idx++) {
+			shared_ptr<LineageData> this_data = lineage_op->data[LINEAGE_SINK][data_idx].data;
+			idx_t res_count = this_data->Count();
+			if (lineage_op->type == PhysicalOperatorType::PERFECT_HASH_GROUP_BY) {
+				auto payload = (sel_t*)this_data->Process(0);
+				for (idx_t i = 0; i < res_count; i++) {
+					map_maker[payload[i]]++;
+				}
+			} else {
+				auto payload = (uint64_t*)this_data->Process(0);
+				for (idx_t i = 0; i < res_count; i++) {
+					map_maker[payload[i]]++;
+				}
+			}
+		}
+
+		// Pre allocate hash map index: ~100ms
+		for (auto const& map_maker_elem : map_maker) {
+			lineage_op->hash_map_agg[map_maker_elem.first] = make_shared<vector<SourceAndMaybeData>>();
+			lineage_op->hash_map_agg[map_maker_elem.first]->reserve(map_maker_elem.second);
+		}
 
 		// Actually fill hash map index: ~1700ms
 		idx_t count_so_far = 0;
@@ -91,41 +91,26 @@ void LineageManager::PostProcess(PhysicalOperator *op) {
 			}
 		} else {
 			if (lineage_op->data[LINEAGE_SINK][0].data->GetChild() != nullptr) {
-				std::cout << "Foo" << std::endl;
 				for (idx_t data_idx = 0; data_idx < lineage_op->data[LINEAGE_SINK].size(); data_idx++) {
-					std::cout << "Foo2" << std::endl;
 					shared_ptr<LineageData> this_data = lineage_op->data[LINEAGE_SINK][data_idx].data;
-					std::cout << "Foo3" << std::endl;
 					idx_t res_count = this_data->Count();
-					std::cout << "Foo4" << std::endl;
 					auto child = this_data->GetChild();
-					std::cout << "Foo5" << std::endl;
 					auto payload = (uint64_t*)this_data->Process(0);
-					std::cout << "Foo6" << std::endl;
 //					for (idx_t i = 0; i < res_count; i++) {
 //						// Prefetching all buckets
 //						__builtin_prefetch(lineage_op->hash_map_agg[payload[i]].get()); // Brings total down to 1.33647 sec
 //					}
 					for (idx_t i = 0; i < res_count; i++) { // 0.312147 sec
-						std::cout << "Foo7" << std::endl;
 						auto bucket = payload[i]; // 0.310607 sec, after prefetch 0.681284 sec
-						std::cout << "Foo8" << std::endl;
-						if (lineage_op->hash_map_agg[bucket] == nullptr) {
-							std::cout << "Foo9" << std::endl;
-							lineage_op->hash_map_agg[bucket] = make_shared<vector<SourceAndMaybeData>>();
-						}
-						std::cout << "Foo10" << std::endl;
+//						if (lineage_op->hash_map_agg[bucket] == nullptr) {
+//							lineage_op->hash_map_agg[bucket] = make_shared<vector<SourceAndMaybeData>>();
+//						}
 						auto vec = lineage_op->hash_map_agg[bucket]; // 1.27635 sec, after prefetch 1.01545 sec
-						std::cout << "Foo11" << std::endl;
 						auto add = i + count_so_far; // 1.26737 sec
-						std::cout << "Foo12" << std::endl;
 						vec->push_back({add, child}); // 1.83351 sec
-						std::cout << "Foo13" << std::endl;
 					} // 2.07938 sec
 					count_so_far += res_count;
-					std::cout << "Foo14" << std::endl;
 				}
-				std::cout << "Foo15" << std::endl;
 			}
 			else {
 				for (idx_t data_idx = 0; data_idx < lineage_op->data[LINEAGE_SINK].size(); data_idx++) {
