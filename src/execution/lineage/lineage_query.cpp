@@ -96,12 +96,16 @@ void LineageManager::PostProcess(PhysicalOperator *op) {
 					idx_t res_count = this_data->Count();
 					auto child = this_data->GetChild();
 					auto payload = (uint64_t*)this_data->Process(0);
+					for (idx_t i = 0; i < res_count; i++) {
+						// Prefetching all buckets
+						__builtin_prefetch(payload + i);
+					}
 					for (idx_t i = 0; i < res_count; i++) { // 0.312147 sec
 						auto bucket = payload[i]; // 0.310607 sec
 						auto vec = lineage_op->hash_map_agg[bucket]; // 1.27635 sec
 						auto add = i + count_so_far; // 1.26737 sec
 						vec->push_back({add, child}); // 1.83351 sec
-					}
+					} // 2.07938 sec
 					count_so_far += res_count;
 				}
 			}
