@@ -106,7 +106,7 @@ void LineageManager::PostProcess(PhysicalOperator *op) {
 //							// Prefetch next bucket
 //							__builtin_prefetch(lineage_op->hash_map_agg[payload[i + 1]].get()); // Brings total down to 1.48435 sec
 //						}
-						auto vec = lineage_op->hash_map_agg[bucket]; // 1.27635 sec
+//						auto vec = lineage_op->hash_map_agg[bucket]; // 1.27635 sec, after prefetch 1.01545 sec
 //						auto add = i + count_so_far; // 1.26737 sec
 //						vec->push_back({add, child}); // 1.83351 sec
 					} // 2.07938 sec
