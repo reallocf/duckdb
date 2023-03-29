@@ -91,26 +91,41 @@ void LineageManager::PostProcess(PhysicalOperator *op) {
 			}
 		} else {
 			if (lineage_op->data[LINEAGE_SINK][0].data->GetChild() != nullptr) {
+				std::cout << "Foo" << std::endl;
 				for (idx_t data_idx = 0; data_idx < lineage_op->data[LINEAGE_SINK].size(); data_idx++) {
+					std::cout << "Foo2" << std::endl;
 					shared_ptr<LineageData> this_data = lineage_op->data[LINEAGE_SINK][data_idx].data;
+					std::cout << "Foo3" << std::endl;
 					idx_t res_count = this_data->Count();
+					std::cout << "Foo4" << std::endl;
 					auto child = this_data->GetChild();
+					std::cout << "Foo5" << std::endl;
 					auto payload = (uint64_t*)this_data->Process(0);
+					std::cout << "Foo6" << std::endl;
 //					for (idx_t i = 0; i < res_count; i++) {
 //						// Prefetching all buckets
 //						__builtin_prefetch(lineage_op->hash_map_agg[payload[i]].get()); // Brings total down to 1.33647 sec
 //					}
 					for (idx_t i = 0; i < res_count; i++) { // 0.312147 sec
+						std::cout << "Foo7" << std::endl;
 						auto bucket = payload[i]; // 0.310607 sec, after prefetch 0.681284 sec
+						std::cout << "Foo8" << std::endl;
 						if (lineage_op->hash_map_agg[bucket] == nullptr) {
+							std::cout << "Foo9" << std::endl;
 							lineage_op->hash_map_agg[bucket] = make_shared<vector<SourceAndMaybeData>>();
 						}
+						std::cout << "Foo10" << std::endl;
 						auto vec = lineage_op->hash_map_agg[bucket]; // 1.27635 sec, after prefetch 1.01545 sec
+						std::cout << "Foo11" << std::endl;
 						auto add = i + count_so_far; // 1.26737 sec
+						std::cout << "Foo12" << std::endl;
 						vec->push_back({add, child}); // 1.83351 sec
+						std::cout << "Foo13" << std::endl;
 					} // 2.07938 sec
 					count_so_far += res_count;
+					std::cout << "Foo14" << std::endl;
 				}
+				std::cout << "Foo15" << std::endl;
 			}
 			else {
 				for (idx_t data_idx = 0; data_idx < lineage_op->data[LINEAGE_SINK].size(); data_idx++) {
