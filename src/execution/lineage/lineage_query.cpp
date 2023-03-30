@@ -143,12 +143,12 @@ void LineageManager::PostProcess(PhysicalOperator *op) {
 			}
 		}
 
-		for (auto const& map_maker_elem : map_maker) {
-			lineage_op->hash_map_agg[map_maker_elem.first] = make_shared<vector<SourceAndMaybeData>>();
-			lineage_op->hash_map_agg[map_maker_elem.first]->reserve(map_maker_elem.second);
-		}
+//		for (auto const& map_maker_elem : map_maker) {
+//			lineage_op->hash_map_agg[map_maker_elem.first] = make_shared<vector<SourceAndMaybeData>>();
+//			lineage_op->hash_map_agg[map_maker_elem.first]->reserve(map_maker_elem.second);
+//		} // 0.583833 sec
 
-		// Sorting!
+		// Sorting! ~700ms
 //		sort(sort_vec.begin(), sort_vec.end(), SortByFirst); // 1.2737 sec
 
 //		for (const pair<idx_t, SourceAndMaybeData>& elem : sort_vec) { // ~150ms after sorting
