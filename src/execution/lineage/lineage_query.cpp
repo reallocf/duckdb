@@ -39,23 +39,23 @@ void LineageManager::PostProcess(PhysicalOperator *op) {
 		lineage_op->hash_map_agg.reserve(total_hash_map_buckets);
 
 		// Do a first pass over data to figure out how to pre-allocate hash map index: ~215ms
-		unordered_map<idx_t, idx_t> map_maker;
-		map_maker.reserve(total_hash_map_buckets);
-		for (idx_t data_idx = 0; data_idx < lineage_op->data[LINEAGE_SINK].size(); data_idx++) {
-			shared_ptr<LineageData> this_data = lineage_op->data[LINEAGE_SINK][data_idx].data;
-			idx_t res_count = this_data->Count();
-			if (lineage_op->type == PhysicalOperatorType::PERFECT_HASH_GROUP_BY) {
-				auto payload = (sel_t*)this_data->Process(0);
-				for (idx_t i = 0; i < res_count; i++) {
-					map_maker[payload[i]]++;
-				}
-			} else {
-				auto payload = (uint64_t*)this_data->Process(0);
-				for (idx_t i = 0; i < res_count; i++) {
-					map_maker[payload[i]]++;
-				}
-			}
-		}
+//		unordered_map<idx_t, idx_t> map_maker;
+//		map_maker.reserve(total_hash_map_buckets);
+//		for (idx_t data_idx = 0; data_idx < lineage_op->data[LINEAGE_SINK].size(); data_idx++) {
+//			shared_ptr<LineageData> this_data = lineage_op->data[LINEAGE_SINK][data_idx].data;
+//			idx_t res_count = this_data->Count();
+//			if (lineage_op->type == PhysicalOperatorType::PERFECT_HASH_GROUP_BY) {
+//				auto payload = (sel_t*)this_data->Process(0);
+//				for (idx_t i = 0; i < res_count; i++) {
+//					map_maker[payload[i]]++;
+//				}
+//			} else {
+//				auto payload = (uint64_t*)this_data->Process(0);
+//				for (idx_t i = 0; i < res_count; i++) {
+//					map_maker[payload[i]]++;
+//				}
+//			}
+//		}
 
 		// Pre allocate hash map index: ~100ms
 //		for (auto const& map_maker_elem : map_maker) {
@@ -73,6 +73,10 @@ void LineageManager::PostProcess(PhysicalOperator *op) {
 					auto child = this_data->GetChild();
 					auto payload = (sel_t *)this_data->Process(0);
 					for (idx_t i = 0; i < res_count; i++) {
+						// Prefetching all buckets
+						__builtin_prefetch(lineage_op->hash_map_agg[payload[i]].get());
+					}
+					for (idx_t i = 0; i < res_count; i++) {
 						auto bucket = payload[i];
 						if (lineage_op->hash_map_agg[bucket] == nullptr) {
 							lineage_op->hash_map_agg[bucket] = make_shared<vector<SourceAndMaybeData>>();
@@ -87,6 +91,10 @@ void LineageManager::PostProcess(PhysicalOperator *op) {
 					shared_ptr<LineageData> this_data = lineage_op->data[LINEAGE_SINK][data_idx].data;
 					idx_t res_count = this_data->Count();
 					auto payload = (sel_t *)this_data->Process(0);
+					for (idx_t i = 0; i < res_count; i++) {
+						// Prefetching all buckets
+						__builtin_prefetch(lineage_op->hash_map_agg[payload[i]].get());
+					}
 					for (idx_t i = 0; i < res_count; i++) {
 						auto bucket = payload[i];
 						if (lineage_op->hash_map_agg[bucket] == nullptr) {
@@ -104,10 +112,10 @@ void LineageManager::PostProcess(PhysicalOperator *op) {
 					idx_t res_count = this_data->Count();
 					auto child = this_data->GetChild();
 					auto payload = (uint64_t*)this_data->Process(0);
-//					for (idx_t i = 0; i < res_count; i++) {
-//						// Prefetching all buckets
-//						__builtin_prefetch(lineage_op->hash_map_agg[payload[i]].get()); // Brings total down to 1.33647 sec
-//					}
+					for (idx_t i = 0; i < res_count; i++) {
+						// Prefetching all buckets
+						__builtin_prefetch(lineage_op->hash_map_agg[payload[i]].get()); // Brings total down to 1.33647 sec
+					}
 					for (idx_t i = 0; i < res_count; i++) { // 0.312147 sec
 						auto bucket = payload[i];
 						if (lineage_op->hash_map_agg[bucket] == nullptr) {
@@ -127,6 +135,10 @@ void LineageManager::PostProcess(PhysicalOperator *op) {
 					shared_ptr<LineageData> this_data = lineage_op->data[LINEAGE_SINK][data_idx].data;
 					idx_t res_count = this_data->Count();
 					auto payload = (uint64_t*)this_data->Process(0);
+					for (idx_t i = 0; i < res_count; i++) {
+						// Prefetching all buckets
+						__builtin_prefetch(lineage_op->hash_map_agg[payload[i]].get());
+					}
 					for (idx_t i = 0; i < res_count; i++) {
 						auto bucket = payload[i];
 						if (lineage_op->hash_map_agg[bucket] == nullptr) {
