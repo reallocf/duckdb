@@ -151,9 +151,9 @@ void LineageManager::PostProcess(PhysicalOperator *op) {
 		// Sorting!
 		sort(sort_vec.begin(), sort_vec.end(), SortByFirst);
 
-		for (const pair<idx_t, SourceAndMaybeData>& elem : sort_vec) {
-			lineage_op->hash_map_agg[elem.first]->push_back(elem.second);
-		}
+//		for (const pair<idx_t, SourceAndMaybeData>& elem : sort_vec) {
+//			lineage_op->hash_map_agg[elem.first]->push_back(elem.second);
+//		} // 1.42068 sec
 
 		// Actually fill hash map index: ~1700ms
 //		idx_t count_so_far = 0;
