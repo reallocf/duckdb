@@ -94,7 +94,7 @@ void LineageManager::PostProcess(PhysicalOperator *op) {
 					auto payload = (sel_t *)this_data->Process(0);
 					for (idx_t i = 0; i < res_count; i++) {
 						// Prefetching all buckets
-						PREFETCH_L2(lineage_op->hash_map_agg[payload[i]].get());
+						__builtin_prefetch(lineage_op->hash_map_agg[payload[i]].get(), 1, 2);
 					}
 					for (idx_t i = 0; i < res_count; i++) {
 						auto bucket = payload[i];
@@ -113,7 +113,7 @@ void LineageManager::PostProcess(PhysicalOperator *op) {
 					auto payload = (sel_t *)this_data->Process(0);
 					for (idx_t i = 0; i < res_count; i++) {
 						// Prefetching all buckets
-						PREFETCH_L2(lineage_op->hash_map_agg[payload[i]].get());
+						__builtin_prefetch(lineage_op->hash_map_agg[payload[i]].get(), 1, 2);
 					}
 					for (idx_t i = 0; i < res_count; i++) {
 						auto bucket = payload[i];
@@ -134,7 +134,7 @@ void LineageManager::PostProcess(PhysicalOperator *op) {
 					auto payload = (uint64_t*)this_data->Process(0);
 					for (idx_t i = 0; i < res_count; i++) {
 						// Prefetching all buckets
-						PREFETCH_L2(lineage_op->hash_map_agg[payload[i]].get()); // Brings total down to 1.33647 sec
+						__builtin_prefetch(lineage_op->hash_map_agg[payload[i]].get(), 1, 2); // Brings total down to 1.33647 sec
 					}
 					for (idx_t i = 0; i < res_count; i++) { // 0.312147 sec
 						auto bucket = payload[i];
@@ -147,8 +147,9 @@ void LineageManager::PostProcess(PhysicalOperator *op) {
 //						auto add = i + count_so_far; // 1.26737 sec
 //						vec->push_back({add, child}); // 1.83351 sec
 					} // 2.07938 sec
-					// With just base prefetching: 1.60623
-					// With just PREFETCH_L1: 1.64161
+					  // With just base prefetching: 1.60623
+					  // With just PREFETCH_L1: 1.64161
+					  // With just PREFETCH_L2: 1.64236
 					count_so_far += res_count;
 				}
 			}
@@ -159,7 +160,7 @@ void LineageManager::PostProcess(PhysicalOperator *op) {
 					auto payload = (uint64_t*)this_data->Process(0);
 					for (idx_t i = 0; i < res_count; i++) {
 						// Prefetching all buckets
-						PREFETCH_L2(lineage_op->hash_map_agg[payload[i]].get());
+						__builtin_prefetch(lineage_op->hash_map_agg[payload[i]].get(), 1, 2);
 					}
 					for (idx_t i = 0; i < res_count; i++) {
 						auto bucket = payload[i];
