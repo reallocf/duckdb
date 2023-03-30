@@ -17,7 +17,27 @@
 
 #include <utility>
 
-#define PROBE_SIZE 10
+/* prefetch
+ * can be disabled, by declaring NO_PREFETCH build macro */
+#if defined(NO_PREFETCH)
+#  define PREFETCH_L1(ptr)  (void)(ptr)  /* disabled */
+#  define PREFETCH_L2(ptr)  (void)(ptr)  /* disabled */
+#else
+#  if defined(_MSC_VER) && (defined(_M_X64) || defined(_M_I86))  /* _mm_prefetch() is not defined outside of x86/x64 */
+#    include <mmintrin.h>   /* https://msdn.microsoft.com/fr-fr/library/84szxsww(v=vs.90).aspx */
+#    define PREFETCH_L1(ptr)  _mm_prefetch((const char*)(ptr), _MM_HINT_T0)
+#    define PREFETCH_L2(ptr)  _mm_prefetch((const char*)(ptr), _MM_HINT_T1)
+#    elif defined(__aarch64__)
+#     define PREFETCH_L1(ptr)  __asm__ __volatile__("prfm pldl1keep, %0" ::"Q"(*(ptr)))
+#     define PREFETCH_L2(ptr)  __asm__ __volatile__("prfm pldl2keep, %0" ::"Q"(*(ptr)))
+#  elif defined(__GNUC__) && ( (__GNUC__ >= 4) || ( (__GNUC__ == 3) && (__GNUC_MINOR__ >= 1) ) )
+#    define PREFETCH_L1(ptr)  __builtin_prefetch((ptr), 0 /* rw==read */, 3 /* locality */)
+#    define PREFETCH_L2(ptr)  __builtin_prefetch((ptr), 0 /* rw==read */, 2 /* locality */)
+#  else
+#    define PREFETCH_L1(ptr) (void)(ptr)  /* disabled */
+#    define PREFETCH_L2(ptr) (void)(ptr)  /* disabled */
+#  endif
+#endif  /* NO_PREFETCH */
 
 namespace duckdb {
 class PhysicalDelimJoin;
@@ -74,7 +94,7 @@ void LineageManager::PostProcess(PhysicalOperator *op) {
 					auto payload = (sel_t *)this_data->Process(0);
 					for (idx_t i = 0; i < res_count; i++) {
 						// Prefetching all buckets
-						__builtin_prefetch(lineage_op->hash_map_agg[payload[i]].get());
+						PREFETCH_L1(lineage_op->hash_map_agg[payload[i]].get());
 					}
 					for (idx_t i = 0; i < res_count; i++) {
 						auto bucket = payload[i];
@@ -93,7 +113,7 @@ void LineageManager::PostProcess(PhysicalOperator *op) {
 					auto payload = (sel_t *)this_data->Process(0);
 					for (idx_t i = 0; i < res_count; i++) {
 						// Prefetching all buckets
-						__builtin_prefetch(lineage_op->hash_map_agg[payload[i]].get());
+						PREFETCH_L1(lineage_op->hash_map_agg[payload[i]].get());
 					}
 					for (idx_t i = 0; i < res_count; i++) {
 						auto bucket = payload[i];
@@ -114,7 +134,7 @@ void LineageManager::PostProcess(PhysicalOperator *op) {
 					auto payload = (uint64_t*)this_data->Process(0);
 					for (idx_t i = 0; i < res_count; i++) {
 						// Prefetching all buckets
-						__builtin_prefetch(lineage_op->hash_map_agg[payload[i]].get()); // Brings total down to 1.33647 sec
+						PREFETCH_L1(lineage_op->hash_map_agg[payload[i]].get()); // Brings total down to 1.33647 sec
 					}
 					for (idx_t i = 0; i < res_count; i++) { // 0.312147 sec
 						auto bucket = payload[i];
@@ -127,6 +147,8 @@ void LineageManager::PostProcess(PhysicalOperator *op) {
 //						auto add = i + count_so_far; // 1.26737 sec
 //						vec->push_back({add, child}); // 1.83351 sec
 					} // 2.07938 sec
+					// With just base prefetching: 1.60623
+					// With just PREFETCH_L1:
 					count_so_far += res_count;
 				}
 			}
@@ -137,7 +159,7 @@ void LineageManager::PostProcess(PhysicalOperator *op) {
 					auto payload = (uint64_t*)this_data->Process(0);
 					for (idx_t i = 0; i < res_count; i++) {
 						// Prefetching all buckets
-						__builtin_prefetch(lineage_op->hash_map_agg[payload[i]].get());
+						PREFETCH_L1(lineage_op->hash_map_agg[payload[i]].get());
 					}
 					for (idx_t i = 0; i < res_count; i++) {
 						auto bucket = payload[i];
