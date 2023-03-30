@@ -43,12 +43,11 @@ namespace duckdb {
 class PhysicalDelimJoin;
 class PhysicalJoin;
 
-// Post Processing to prepare for querying
-
 bool SortByFirst(const pair<idx_t, SourceAndMaybeData> &a, const pair<idx_t, SourceAndMaybeData> &b) {
 	return (a.first < b.first);
 }
 
+// Post Processing to prepare for querying
 void LineageManager::PostProcess(PhysicalOperator *op) {
 	// massage the data to make it easier to query
 	bool should_post_process = op->type == PhysicalOperatorType::HASH_GROUP_BY
@@ -247,7 +246,7 @@ void LineageManager::PostProcess(PhysicalOperator *op) {
 //				}
 //			}
 //		}
-//	}
+	}
 
 	if (op->type == PhysicalOperatorType::DELIM_JOIN) {
 		PostProcess( dynamic_cast<PhysicalDelimJoin *>(op)->children[0].get());
