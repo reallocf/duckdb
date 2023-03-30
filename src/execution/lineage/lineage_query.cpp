@@ -88,8 +88,8 @@ void LineageManager::PostProcess(PhysicalOperator *op) {
 
 		vector<pair<idx_t, SourceAndMaybeData>> sort_vec;
 		sort_vec.reserve(total_hash_map_buckets);
-		unordered_map<idx_t, idx_t> map_maker;
-		map_maker.reserve(total_hash_map_buckets);
+//		unordered_map<idx_t, idx_t> map_maker;
+//		map_maker.reserve(total_hash_map_buckets);
 		idx_t offset = 0;
 		if (lineage_op->data[LINEAGE_SINK][0].data->GetChild() != nullptr) {
 			if (lineage_op->type == PhysicalOperatorType::PERFECT_HASH_GROUP_BY) {
@@ -101,7 +101,7 @@ void LineageManager::PostProcess(PhysicalOperator *op) {
 					for (idx_t i = 0; i < res_count; i++) {
 						auto bucket = payload[i];
 						sort_vec.emplace_back(bucket, SourceAndMaybeData{offset++, child});
-						map_maker[bucket]++;
+//						map_maker[bucket]++;
 					}
 				}
 			} else {
@@ -113,7 +113,7 @@ void LineageManager::PostProcess(PhysicalOperator *op) {
 					for (idx_t i = 0; i < res_count; i++) {
 						auto bucket = payload[i];
 						sort_vec.emplace_back(bucket, SourceAndMaybeData{offset++, child});
-						map_maker[payload[i]]++;
+//						map_maker[payload[i]]++;
 					}
 				}
 			}
@@ -126,7 +126,7 @@ void LineageManager::PostProcess(PhysicalOperator *op) {
 					for (idx_t i = 0; i < res_count; i++) {
 						auto bucket = payload[i];
 						sort_vec.emplace_back(bucket, SourceAndMaybeData{offset++, nullptr});
-						map_maker[bucket]++;
+//						map_maker[bucket]++;
 					}
 				}
 			} else {
@@ -137,23 +137,26 @@ void LineageManager::PostProcess(PhysicalOperator *op) {
 					for (idx_t i = 0; i < res_count; i++) {
 						auto bucket = payload[i];
 						sort_vec.emplace_back(bucket, SourceAndMaybeData{offset++, nullptr});
-						map_maker[payload[i]]++;
+//						map_maker[payload[i]]++;
 					}
 				}
 			}
-		}
+		} // 0.497925 sec
 
-//		for (auto const& map_maker_elem : map_maker) {
+//		for (auto const& map_maker_elem : map_maker) { // ~90ms
 //			lineage_op->hash_map_agg[map_maker_elem.first] = make_shared<vector<SourceAndMaybeData>>();
 //			lineage_op->hash_map_agg[map_maker_elem.first]->reserve(map_maker_elem.second);
 //		} // 0.583833 sec
 
 		// Sorting! ~700ms
-//		sort(sort_vec.begin(), sort_vec.end(), SortByFirst); // 1.2737 sec
+		sort(sort_vec.begin(), sort_vec.end(), SortByFirst); // 1.2737 sec
 
-//		for (const pair<idx_t, SourceAndMaybeData>& elem : sort_vec) { // ~150ms after sorting
-//			lineage_op->hash_map_agg[elem.first]->push_back(elem.second);
-//		} // 1.42068 sec
+		for (const pair<idx_t, SourceAndMaybeData>& elem : sort_vec) { // ~150ms after sorting
+			if (lineage_op->hash_map_agg[elem.first] == nullptr) {
+				lineage_op->hash_map_agg[elem.first] = make_shared<vector<SourceAndMaybeData>>();
+			}
+			lineage_op->hash_map_agg[elem.first]->push_back(elem.second);
+		} // 1.42068 sec
 
 		// Actually fill hash map index: ~1700ms
 //		idx_t count_so_far = 0;
