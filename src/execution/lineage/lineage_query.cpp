@@ -73,7 +73,11 @@ void LineageManager::PostProcess(PhysicalOperator *op) {
 					auto child = this_data->GetChild();
 					auto payload = (sel_t *)this_data->Process(0);
 					for (idx_t i = 0; i < res_count; i++) {
-						lineage_op->hash_map_agg[payload[i]]->push_back({i + count_so_far, child});
+						auto bucket = payload[i];
+						if (lineage_op->hash_map_agg[bucket] == nullptr) {
+							lineage_op->hash_map_agg[bucket] = make_shared<vector<SourceAndMaybeData>>();
+						}
+						lineage_op->hash_map_agg[bucket]->push_back({i + count_so_far, child});
 					}
 					count_so_far += res_count;
 				}
@@ -84,7 +88,11 @@ void LineageManager::PostProcess(PhysicalOperator *op) {
 					idx_t res_count = this_data->Count();
 					auto payload = (sel_t *)this_data->Process(0);
 					for (idx_t i = 0; i < res_count; i++) {
-						lineage_op->hash_map_agg[payload[i]]->push_back({i + count_so_far, nullptr});
+						auto bucket = payload[i];
+						if (lineage_op->hash_map_agg[bucket] == nullptr) {
+							lineage_op->hash_map_agg[bucket] = make_shared<vector<SourceAndMaybeData>>();
+						}
+						lineage_op->hash_map_agg[bucket]->push_back({i + count_so_far, nullptr});
 					}
 					count_so_far += res_count;
 				}
@@ -120,7 +128,11 @@ void LineageManager::PostProcess(PhysicalOperator *op) {
 					idx_t res_count = this_data->Count();
 					auto payload = (uint64_t*)this_data->Process(0);
 					for (idx_t i = 0; i < res_count; i++) {
-						lineage_op->hash_map_agg[payload[i]]->push_back({i + count_so_far, nullptr});
+						auto bucket = payload[i];
+						if (lineage_op->hash_map_agg[bucket] == nullptr) {
+							lineage_op->hash_map_agg[bucket] = make_shared<vector<SourceAndMaybeData>>();
+						}
+						lineage_op->hash_map_agg[bucket]->push_back({i + count_so_far, nullptr});
 					}
 					count_so_far += res_count;
 				}
