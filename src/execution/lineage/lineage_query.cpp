@@ -45,6 +45,10 @@ class PhysicalJoin;
 
 // Post Processing to prepare for querying
 
+bool SortByFirst(const pair<idx_t, SourceAndMaybeData> &a, const pair<idx_t, SourceAndMaybeData> &b) {
+	return (a.first < b.first);
+}
+
 void LineageManager::PostProcess(PhysicalOperator *op) {
 	// massage the data to make it easier to query
 	bool should_post_process = op->type == PhysicalOperatorType::HASH_GROUP_BY
@@ -83,97 +87,167 @@ void LineageManager::PostProcess(PhysicalOperator *op) {
 //			lineage_op->hash_map_agg[map_maker_elem.first]->reserve(map_maker_elem.second);
 //		}
 
-		// Actually fill hash map index: ~1700ms
-		idx_t count_so_far = 0;
-		if (lineage_op->type == PhysicalOperatorType::PERFECT_HASH_GROUP_BY) {
-			if (lineage_op->data[LINEAGE_SINK][0].data->GetChild() != nullptr) {
+		vector<pair<idx_t, SourceAndMaybeData>> sort_vec;
+		sort_vec.reserve(total_hash_map_buckets);
+		unordered_map<idx_t, idx_t> map_maker;
+		map_maker.reserve(total_hash_map_buckets);
+		idx_t offset = 0;
+		if (lineage_op->data[LINEAGE_SINK][0].data->GetChild() != nullptr) {
+			if (lineage_op->type == PhysicalOperatorType::PERFECT_HASH_GROUP_BY) {
 				for (idx_t data_idx = 0; data_idx < lineage_op->data[LINEAGE_SINK].size(); data_idx++) {
 					shared_ptr<LineageData> this_data = lineage_op->data[LINEAGE_SINK][data_idx].data;
 					idx_t res_count = this_data->Count();
 					auto child = this_data->GetChild();
-					auto payload = (sel_t *)this_data->Process(0);
-					for (idx_t i = 0; i < res_count; i++) {
-						// Prefetching all buckets
-						__builtin_prefetch(lineage_op->hash_map_agg[payload[i]].get(), 1, 2);
-					}
+					auto payload = (sel_t*)this_data->Process(0);
 					for (idx_t i = 0; i < res_count; i++) {
 						auto bucket = payload[i];
-						if (lineage_op->hash_map_agg[bucket] == nullptr) {
-							lineage_op->hash_map_agg[bucket] = make_shared<vector<SourceAndMaybeData>>();
-						}
-						lineage_op->hash_map_agg[bucket]->push_back({i + count_so_far, child});
+						sort_vec.emplace_back(bucket, SourceAndMaybeData{offset++, child});
+						map_maker[bucket]++;
 					}
-					count_so_far += res_count;
 				}
-			}
-			else {
+			} else {
 				for (idx_t data_idx = 0; data_idx < lineage_op->data[LINEAGE_SINK].size(); data_idx++) {
 					shared_ptr<LineageData> this_data = lineage_op->data[LINEAGE_SINK][data_idx].data;
 					idx_t res_count = this_data->Count();
-					auto payload = (sel_t *)this_data->Process(0);
-					for (idx_t i = 0; i < res_count; i++) {
-						// Prefetching all buckets
-						__builtin_prefetch(lineage_op->hash_map_agg[payload[i]].get(), 1, 2);
-					}
+					auto child = this_data->GetChild();
+					auto payload = (uint64_t*)this_data->Process(0);
 					for (idx_t i = 0; i < res_count; i++) {
 						auto bucket = payload[i];
-						if (lineage_op->hash_map_agg[bucket] == nullptr) {
-							lineage_op->hash_map_agg[bucket] = make_shared<vector<SourceAndMaybeData>>();
-						}
-						lineage_op->hash_map_agg[bucket]->push_back({i + count_so_far, nullptr});
+						sort_vec.emplace_back(bucket, SourceAndMaybeData{offset++, child});
+						map_maker[payload[i]]++;
 					}
-					count_so_far += res_count;
 				}
 			}
 		} else {
-			if (lineage_op->data[LINEAGE_SINK][0].data->GetChild() != nullptr) {
+			if (lineage_op->type == PhysicalOperatorType::PERFECT_HASH_GROUP_BY) {
 				for (idx_t data_idx = 0; data_idx < lineage_op->data[LINEAGE_SINK].size(); data_idx++) {
 					shared_ptr<LineageData> this_data = lineage_op->data[LINEAGE_SINK][data_idx].data;
 					idx_t res_count = this_data->Count();
-					auto child = this_data->GetChild();
-					auto payload = (uint64_t*)this_data->Process(0);
+					auto payload = (sel_t*)this_data->Process(0);
 					for (idx_t i = 0; i < res_count; i++) {
-						// Prefetching all buckets
-						__builtin_prefetch(lineage_op->hash_map_agg[payload[i]].get(), 1, 2); // Brings total down to 1.33647 sec
-					}
-					for (idx_t i = 0; i < res_count; i++) { // 0.312147 sec
 						auto bucket = payload[i];
-						if (lineage_op->hash_map_agg[bucket] == nullptr) {
-							lineage_op->hash_map_agg[bucket] = make_shared<vector<SourceAndMaybeData>>();
-						}
-						lineage_op->hash_map_agg[bucket]->push_back({i + count_so_far, child});
-//						auto bucket = payload[i]; // 0.310607 sec, after prefetch 0.681284 sec
-//						auto vec = lineage_op->hash_map_agg[bucket]; // 1.27635 sec, after prefetch 1.01545 sec
-//						auto add = i + count_so_far; // 1.26737 sec
-//						vec->push_back({add, child}); // 1.83351 sec
-					} // 2.07938 sec
-					  // With just base prefetching: 1.60623
-					  // With just PREFETCH_L1: 1.64161
-					  // With just PREFETCH_L2: 1.64236
-					count_so_far += res_count;
+						sort_vec.emplace_back(bucket, SourceAndMaybeData{offset++, nullptr});
+						map_maker[bucket]++;
+					}
 				}
-			}
-			else {
+			} else {
 				for (idx_t data_idx = 0; data_idx < lineage_op->data[LINEAGE_SINK].size(); data_idx++) {
 					shared_ptr<LineageData> this_data = lineage_op->data[LINEAGE_SINK][data_idx].data;
 					idx_t res_count = this_data->Count();
 					auto payload = (uint64_t*)this_data->Process(0);
 					for (idx_t i = 0; i < res_count; i++) {
-						// Prefetching all buckets
-						__builtin_prefetch(lineage_op->hash_map_agg[payload[i]].get(), 1, 2);
-					}
-					for (idx_t i = 0; i < res_count; i++) {
 						auto bucket = payload[i];
-						if (lineage_op->hash_map_agg[bucket] == nullptr) {
-							lineage_op->hash_map_agg[bucket] = make_shared<vector<SourceAndMaybeData>>();
-						}
-						lineage_op->hash_map_agg[bucket]->push_back({i + count_so_far, nullptr});
+						sort_vec.emplace_back(bucket, SourceAndMaybeData{offset++, nullptr});
+						map_maker[payload[i]]++;
 					}
-					count_so_far += res_count;
 				}
 			}
 		}
-	}
+
+		for (auto const& map_maker_elem : map_maker) {
+			lineage_op->hash_map_agg[map_maker_elem.first] = make_shared<vector<SourceAndMaybeData>>();
+			lineage_op->hash_map_agg[map_maker_elem.first]->reserve(map_maker_elem.second);
+		}
+
+		// Sorting!
+		sort(sort_vec.begin(), sort_vec.end(), SortByFirst);
+
+		for (const pair<idx_t, SourceAndMaybeData>& elem : sort_vec) {
+			lineage_op->hash_map_agg[elem.first]->push_back(elem.second);
+		}
+
+		// Actually fill hash map index: ~1700ms
+//		idx_t count_so_far = 0;
+//		if (lineage_op->type == PhysicalOperatorType::PERFECT_HASH_GROUP_BY) {
+//			if (lineage_op->data[LINEAGE_SINK][0].data->GetChild() != nullptr) {
+//				for (idx_t data_idx = 0; data_idx < lineage_op->data[LINEAGE_SINK].size(); data_idx++) {
+//					shared_ptr<LineageData> this_data = lineage_op->data[LINEAGE_SINK][data_idx].data;
+//					idx_t res_count = this_data->Count();
+//					auto child = this_data->GetChild();
+//					auto payload = (sel_t *)this_data->Process(0);
+//					for (idx_t i = 0; i < res_count; i++) {
+//						// Prefetching all buckets
+//						__builtin_prefetch(lineage_op->hash_map_agg[payload[i]].get(), 1, 2);
+//					}
+//					for (idx_t i = 0; i < res_count; i++) {
+//						auto bucket = payload[i];
+//						if (lineage_op->hash_map_agg[bucket] == nullptr) {
+//							lineage_op->hash_map_agg[bucket] = make_shared<vector<SourceAndMaybeData>>();
+//						}
+//						lineage_op->hash_map_agg[bucket]->push_back({i + count_so_far, child});
+//					}
+//					count_so_far += res_count;
+//				}
+//			}
+//			else {
+//				for (idx_t data_idx = 0; data_idx < lineage_op->data[LINEAGE_SINK].size(); data_idx++) {
+//					shared_ptr<LineageData> this_data = lineage_op->data[LINEAGE_SINK][data_idx].data;
+//					idx_t res_count = this_data->Count();
+//					auto payload = (sel_t *)this_data->Process(0);
+////					for (idx_t i = 0; i < res_count; i++) {
+////						// Prefetching all buckets
+////						__builtin_prefetch(lineage_op->hash_map_agg[payload[i]].get(), 1, 2);
+////					}
+//					for (idx_t i = 0; i < res_count; i++) {
+//						auto bucket = payload[i];
+//						if (lineage_op->hash_map_agg[bucket] == nullptr) {
+//							lineage_op->hash_map_agg[bucket] = make_shared<vector<SourceAndMaybeData>>();
+//						}
+//						lineage_op->hash_map_agg[bucket]->push_back({i + count_so_far, nullptr});
+//					}
+//					count_so_far += res_count;
+//				}
+//			}
+//		} else {
+//			if (lineage_op->data[LINEAGE_SINK][0].data->GetChild() != nullptr) {
+//				for (idx_t data_idx = 0; data_idx < lineage_op->data[LINEAGE_SINK].size(); data_idx++) {
+//					shared_ptr<LineageData> this_data = lineage_op->data[LINEAGE_SINK][data_idx].data;
+//					idx_t res_count = this_data->Count();
+//					auto child = this_data->GetChild();
+//					auto payload = (uint64_t*)this_data->Process(0);
+////					for (idx_t i = 0; i < res_count; i++) {
+////						// Prefetching all buckets
+////						__builtin_prefetch(lineage_op->hash_map_agg[payload[i]].get(), 1, 2); // Brings total down to 1.33647 sec
+////					}
+//					for (idx_t i = 0; i < res_count; i++) { // 0.312147 sec
+//						auto bucket = payload[i];
+//						if (lineage_op->hash_map_agg[bucket] == nullptr) {
+//							lineage_op->hash_map_agg[bucket] = make_shared<vector<SourceAndMaybeData>>();
+//						}
+//						lineage_op->hash_map_agg[bucket]->push_back({i + count_so_far, child});
+////						auto bucket = payload[i]; // 0.310607 sec, after prefetch 0.681284 sec
+////						auto vec = lineage_op->hash_map_agg[bucket]; // 1.27635 sec, after prefetch 1.01545 sec
+////						auto add = i + count_so_far; // 1.26737 sec
+////						vec->push_back({add, child}); // 1.83351 sec
+//					} // 2.07938 sec
+//					  // With just base prefetching: 1.60623
+//					  // With just PREFETCH_L1: 1.64161
+//					  // With just PREFETCH_L2: 1.64236
+//					  // With just PREFETCH_L2 with write bit set: 1.65191
+//					count_so_far += res_count;
+//				}
+//			}
+//			else {
+//				for (idx_t data_idx = 0; data_idx < lineage_op->data[LINEAGE_SINK].size(); data_idx++) {
+//					shared_ptr<LineageData> this_data = lineage_op->data[LINEAGE_SINK][data_idx].data;
+//					idx_t res_count = this_data->Count();
+//					auto payload = (uint64_t*)this_data->Process(0);
+////					for (idx_t i = 0; i < res_count; i++) {
+////						// Prefetching all buckets
+////						__builtin_prefetch(lineage_op->hash_map_agg[payload[i]].get(), 1, 2);
+////					}
+//					for (idx_t i = 0; i < res_count; i++) {
+//						auto bucket = payload[i];
+//						if (lineage_op->hash_map_agg[bucket] == nullptr) {
+//							lineage_op->hash_map_agg[bucket] = make_shared<vector<SourceAndMaybeData>>();
+//						}
+//						lineage_op->hash_map_agg[bucket]->push_back({i + count_so_far, nullptr});
+//					}
+//					count_so_far += res_count;
+//				}
+//			}
+//		}
+//	}
 
 	if (op->type == PhysicalOperatorType::DELIM_JOIN) {
 		PostProcess( dynamic_cast<PhysicalDelimJoin *>(op)->children[0].get());
