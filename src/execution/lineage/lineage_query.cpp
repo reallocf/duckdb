@@ -149,15 +149,14 @@ void LineageManager::PostProcess(PhysicalOperator *op) {
 //		} // 0.583833 sec
 
 		// Sorting! ~700ms
-		sort(sort_vec.begin(), sort_vec.end(), SortByFirst); // 1.2737 sec
+//		sort(sort_vec.begin(), sort_vec.end(), SortByFirst); // 1.2737 sec, 0.837872 sec w/o pre-allocation
 
-//		for (const pair<idx_t, SourceAndMaybeData>& elem : sort_vec) { // ~150ms after sorting
+//		for (const pair<idx_t, SourceAndMaybeData>& elem : sort_vec) { // ~150ms after sorting, ~320ms w/o pre-allocation
 //			if (lineage_op->hash_map_agg[elem.first] == nullptr) {
 //				lineage_op->hash_map_agg[elem.first] = make_shared<vector<SourceAndMaybeData>>();
 //			}
 //			lineage_op->hash_map_agg[elem.first]->push_back(elem.second);
-//		} // 1.42068 sec
-		// 1.15396 sec w/o pre-allocation
+//		} // 1.42068 sec, 1.15396 sec w/o pre-allocation
 
 		// Actually fill hash map index: ~1700ms
 //		idx_t count_so_far = 0;
