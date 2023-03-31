@@ -92,6 +92,7 @@ void LineageManager::PostProcess(PhysicalOperator *op) {
 //		map_maker.reserve(total_hash_map_buckets);
 		idx_t offset = 0;
 		if (lineage_op->data[LINEAGE_SINK][0].data->GetChild() != nullptr) {
+			std::cout << "Building gb index " << PhysicalOperatorToString(lineage_op->type) << lineage_op->opid << std::endl;
 			if (lineage_op->type == PhysicalOperatorType::PERFECT_HASH_GROUP_BY) {
 				for (idx_t data_idx = 0; data_idx < lineage_op->data[LINEAGE_SINK].size(); data_idx++) {
 					shared_ptr<LineageData> this_data = lineage_op->data[LINEAGE_SINK][data_idx].data;
@@ -99,8 +100,7 @@ void LineageManager::PostProcess(PhysicalOperator *op) {
 					auto child = this_data->GetChild();
 					auto payload = (sel_t*)this_data->Process(0);
 					for (idx_t i = 0; i < res_count; i++) {
-						auto bucket = payload[i];
-						sort_vec.emplace_back(bucket, SourceAndMaybeData{offset++, child});
+						sort_vec.emplace_back(payload[i], SourceAndMaybeData{offset++, child});
 //						map_maker[bucket]++;
 					}
 				}
@@ -111,8 +111,7 @@ void LineageManager::PostProcess(PhysicalOperator *op) {
 					auto child = this_data->GetChild();
 					auto payload = (uint64_t*)this_data->Process(0);
 					for (idx_t i = 0; i < res_count; i++) {
-						auto bucket = payload[i];
-						sort_vec.emplace_back(bucket, SourceAndMaybeData{offset++, child});
+						sort_vec.emplace_back(payload[i], SourceAndMaybeData{offset++, child});
 //						map_maker[payload[i]]++;
 					}
 				}
@@ -124,8 +123,7 @@ void LineageManager::PostProcess(PhysicalOperator *op) {
 					idx_t res_count = this_data->Count();
 					auto payload = (sel_t*)this_data->Process(0);
 					for (idx_t i = 0; i < res_count; i++) {
-						auto bucket = payload[i];
-						sort_vec.emplace_back(bucket, SourceAndMaybeData{offset++, nullptr});
+						sort_vec.emplace_back(payload[i], SourceAndMaybeData{offset++, nullptr});
 //						map_maker[bucket]++;
 					}
 				}
@@ -135,28 +133,27 @@ void LineageManager::PostProcess(PhysicalOperator *op) {
 					idx_t res_count = this_data->Count();
 					auto payload = (uint64_t*)this_data->Process(0);
 					for (idx_t i = 0; i < res_count; i++) {
-						auto bucket = payload[i];
-						sort_vec.emplace_back(bucket, SourceAndMaybeData{offset++, nullptr});
+						sort_vec.emplace_back(payload[i], SourceAndMaybeData{offset++, nullptr});
 //						map_maker[payload[i]]++;
 					}
 				}
 			}
-		} // 0.497925 sec
+		} // 0.497925 sec, 0.203138 sec w/o filling map_maker
 
 //		for (auto const& map_maker_elem : map_maker) { // ~90ms
 //			lineage_op->hash_map_agg[map_maker_elem.first] = make_shared<vector<SourceAndMaybeData>>();
 //			lineage_op->hash_map_agg[map_maker_elem.first]->reserve(map_maker_elem.second);
 //		} // 0.583833 sec
 
-		// Sorting! ~700ms
-//		sort(sort_vec.begin(), sort_vec.end(), SortByFirst); // 1.2737 sec, 0.837872 sec w/o pre-allocation
+		// Sorting! ~700ms, ~630ms w/o pre-allocation
+		sort(sort_vec.begin(), sort_vec.end(), SortByFirst); // 1.2737 sec, 0.837872 sec w/o pre-allocation
 
-//		for (const pair<idx_t, SourceAndMaybeData>& elem : sort_vec) { // ~150ms after sorting, ~320ms w/o pre-allocation
-//			if (lineage_op->hash_map_agg[elem.first] == nullptr) {
-//				lineage_op->hash_map_agg[elem.first] = make_shared<vector<SourceAndMaybeData>>();
-//			}
-//			lineage_op->hash_map_agg[elem.first]->push_back(elem.second);
-//		} // 1.42068 sec, 1.15396 sec w/o pre-allocation
+		for (const pair<idx_t, SourceAndMaybeData>& elem : sort_vec) { // ~150ms after sorting, ~320ms w/o pre-allocation
+			if (lineage_op->hash_map_agg[elem.first] == nullptr) {
+				lineage_op->hash_map_agg[elem.first] = make_shared<vector<SourceAndMaybeData>>();
+			}
+			lineage_op->hash_map_agg[elem.first]->push_back(elem.second);
+		} // 1.42068 sec, 1.15396 sec w/o pre-allocation
 
 		// Actually fill hash map index: ~1700ms
 //		idx_t count_so_far = 0;
