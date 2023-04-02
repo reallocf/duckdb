@@ -64,6 +64,8 @@ void LineageManager::PostProcess(PhysicalOperator *op) {
 		// Fill per chunk hash tables
 		vector<unique_ptr<unordered_map<idx_t, shared_ptr<vector<SourceAndMaybeData>>>>> per_chunk_hash_maps;
 		per_chunk_hash_maps.reserve(lineage_op->data[LINEAGE_SOURCE].size());
+		unordered_map<idx_t, idx_t> map_maker;
+		map_maker.reserve(total_hash_map_buckets);
 		idx_t offset = 0;
 		if (lineage_op->data[LINEAGE_SINK][0].data->GetChild() != nullptr) {
 			if (lineage_op->type == PhysicalOperatorType::PERFECT_HASH_GROUP_BY) {
@@ -80,6 +82,7 @@ void LineageManager::PostProcess(PhysicalOperator *op) {
 							(*chunk_hash_map)[bucket] = make_shared<vector<SourceAndMaybeData>>();
 						}
 						(*chunk_hash_map)[bucket]->push_back(SourceAndMaybeData{offset, child});
+						map_maker[bucket]++;
 					}
 					per_chunk_hash_maps.push_back(move(chunk_hash_map));
 					offset += res_count;
@@ -98,6 +101,7 @@ void LineageManager::PostProcess(PhysicalOperator *op) {
 							(*chunk_hash_map)[bucket] = make_shared<vector<SourceAndMaybeData>>();
 						}
 						(*chunk_hash_map)[bucket]->push_back(SourceAndMaybeData{offset, child});
+						map_maker[bucket]++;
 					}
 					per_chunk_hash_maps.push_back(move(chunk_hash_map));
 					offset += res_count;
@@ -117,6 +121,7 @@ void LineageManager::PostProcess(PhysicalOperator *op) {
 							(*chunk_hash_map)[bucket] = make_shared<vector<SourceAndMaybeData>>();
 						}
 						(*chunk_hash_map)[bucket]->push_back(SourceAndMaybeData{offset, nullptr});
+						map_maker[bucket]++;
 					}
 					per_chunk_hash_maps.push_back(move(chunk_hash_map));
 					offset += res_count;
@@ -134,6 +139,7 @@ void LineageManager::PostProcess(PhysicalOperator *op) {
 							(*chunk_hash_map)[bucket] = make_shared<vector<SourceAndMaybeData>>();
 						}
 						(*chunk_hash_map)[bucket]->push_back(SourceAndMaybeData{offset, nullptr});
+						map_maker[bucket]++;
 					}
 					per_chunk_hash_maps.push_back(move(chunk_hash_map));
 					offset += res_count;
@@ -142,21 +148,21 @@ void LineageManager::PostProcess(PhysicalOperator *op) {
 		}
 
 		// Final pass to merge hash tables
-//		for (idx_t i = 0; i < per_chunk_hash_maps.size(); i++) {
-//			auto per_chunk_hash_map = move(per_chunk_hash_maps[i]);
-//			for (auto const& elem : *per_chunk_hash_map) {
-//				if (lineage_op->hash_map_agg[elem.first] == nullptr) {
-//					lineage_op->hash_map_agg[elem.first] = elem.second;
-//				} else {
-//					lineage_op->hash_map_agg[elem.first]->reserve(lineage_op->hash_map_agg[elem.first]->size() + elem.second->size());
-//					lineage_op->hash_map_agg[elem.first]->insert(
-//					    lineage_op->hash_map_agg[elem.first]->end(),
-//					    elem.second->begin(),
-//					    elem.second->end()
-//					);
-//				}
-//			}
-//		} // 5.75522 sec
+		for (idx_t i = 0; i < per_chunk_hash_maps.size(); i++) {
+			auto per_chunk_hash_map = move(per_chunk_hash_maps[i]);
+			for (auto const& elem : *per_chunk_hash_map) {
+				if (lineage_op->hash_map_agg[elem.first] == nullptr) {
+					lineage_op->hash_map_agg[elem.first] = elem.second;
+					lineage_op->hash_map_agg[elem.first]->reserve(map_maker[elem.first]);
+				} else {
+					lineage_op->hash_map_agg[elem.first]->insert(
+					    lineage_op->hash_map_agg[elem.first]->end(),
+					    elem.second->begin(),
+					    elem.second->end()
+					);
+				}
+			}
+		} // 5.75522 sec
 
 		// Do a first pass over data to figure out how to pre-allocate hash map index: ~215ms
 //		unordered_map<idx_t, idx_t> map_maker;
