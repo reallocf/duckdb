@@ -19,9 +19,9 @@ void OperatorLineage::Capture(const shared_ptr<LineageData>& datum, idx_t lineag
 	idx_t child_offset = pipeline_lineage->GetChildChunkOffset(lineage_idx);
 	idx_t this_offset = GetThisOffset(lineage_idx);
 	if (lineage_idx == LINEAGE_COMBINE) {
-		data[lineage_idx].push_back(LineageDataWithOffset{datum, thread_id, this_offset});
+		data[lineage_idx].push_back(LineageDataWithOffset{datum, this_offset, thread_id});
 	} else {
-		data[lineage_idx].push_back(LineageDataWithOffset{datum, (int)child_offset, this_offset});
+		data[lineage_idx].push_back(LineageDataWithOffset{datum, this_offset, (int)child_offset});
 	}
 
 	// Add to index
