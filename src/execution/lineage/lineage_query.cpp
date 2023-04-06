@@ -44,6 +44,18 @@ void LineageManager::PostProcess(PhysicalOperator *op, bool should_index) {
 			if (skip_this_sel_vec) {
 				continue;
 			}
+			if (op->type == PhysicalOperatorType::HASH_GROUP_BY
+			    || op->type == PhysicalOperatorType::PERFECT_HASH_GROUP_BY) {
+				std::cout << "Postprocess " << PhysicalOperatorToString(op->type) << std::endl;
+				auto this_op = op->lineage_op[-1];
+				auto last_sink = this_op->data[LINEAGE_SINK][this_op->data[LINEAGE_SINK].size() - 1];
+				idx_t val_count = last_sink.this_offset + last_sink.data->Count();
+				auto last_source = this_op->data[LINEAGE_SOURCE][this_op->data[LINEAGE_SOURCE].size() - 1];
+				idx_t bucket_count = last_source.this_offset + last_source.data->Count();
+				std::cout << "Number of vals: " << val_count << std::endl;
+				std::cout << "Number of buckets: " << bucket_count << std::endl;
+				std::cout << "Ratio of vals/bucket: " << ((double) val_count) / bucket_count << std::endl;
+			}
 			// for hash join, build hash table on the build side that map the address to id
 			// for group by, build hash table on the unique groups
 			for (auto const& lineage_op : op->lineage_op) {
