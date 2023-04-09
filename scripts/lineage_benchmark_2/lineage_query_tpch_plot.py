@@ -20,17 +20,20 @@ print(data)
 
 legend = theme_bw() + theme(**{
     "legend.background": element_blank(), #element_rect(fill=esc("#f7f7f7")),
-    "legend.justification":"c(1,0)",
-    # "legend.position":"c(1,0)",
+    # "legend.justification":"c(1,0)",
+    "legend.position":"c(-0.08,-0.12)",
     "legend.key" : element_blank(),
     "legend.title":element_blank(),
-    "text": element_text(colour = "'#333333'", size=11, family = "'Arial'"),
-    "axis.text": element_text(colour = "'#333333'", size=11),
+    "text": element_text(colour = "'#333333'", size=8, family = "'Arial'"),
+    "axis.text": element_text(colour = "'#333333'", size=8),
     # "plot.background": element_blank(),
     # "panel.border": element_rect(color=esc("#e0e0e0")),
     # "strip.background": element_rect(fill=esc("#efefef"), color=esc("#e0e0e0")),
     "strip.text": element_text(color=esc("#333333")),
-    "legend.position": esc("bottom"),
+    # "legend.position": esc("top"),
+    "legend.margin": margin(t = 0, r = 0, b = 0, l = 0, unit = esc("pt")),
+    "legend.text": element_text(colour = "'#333333'", size=6, family = "'Arial'"),
+    "legend.key.size": unit(6, esc('pt')),
 })
 
 p = ggplot(data, aes(x='Query', y='Runtime', condition='system', color='system', fill='system', group='system')) \
@@ -38,7 +41,7 @@ p = ggplot(data, aes(x='Query', y='Runtime', condition='system', color='system',
     + scale_y_log10(name=esc("Runtime (log)"), breaks=[1, 10, 100, 1000], labels=[esc('1ms'), esc('10ms'), esc('100ms'), esc('1000ms')]) \
     + scale_x_continuous(breaks=[i for i in range(1, 23)], minor_breaks='NULL') \
     + legend
-ggsave("querying_tpch_sf1.png", p, width=6, height=3)
+ggsave("querying_tpch_sf1.png", p, width=4, height=1.5)
 # + scale_x_discrete(labels=[esc(f'{i}') for i in range(1, 23)]) \
 # + ggtitle(esc('TPC-H SF=1 Lineage Querying')) \
 # + axis_labels('Query', 'Runtime (log)', 'discrete', 'log10') \

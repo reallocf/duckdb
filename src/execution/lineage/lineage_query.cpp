@@ -47,6 +47,29 @@ bool SortByFirst(const pair<idx_t, SourceAndMaybeData> &a, const pair<idx_t, Sou
 	return (a.first < b.first);
 }
 
+// Query 1: 5916591 / 4 = 1.47915e+06														0.294628s
+// Query 2: 158960 / 117422 = 1.35375 and 642 / 460 = 1.39565								0.022586s
+// Query 3: 30519 / 11620 = 2.62642															0.003437s
+// Query 4: 52523 / 5 = 10504.6																0.002094s
+// Query 5: 7243 / 5 = 1448.6																0.000368s
+// Query 6: N/A
+// Query 7: 5924 / 4 = 1481																	0.001426s
+// Query 8: 2603 / 2 = 1301.5																0.000179s
+// Query 9: 319404 / 175 = 1825.17															0.018501s
+// Query 10: 114705 / 37967 = 3.02118														0.016004s
+// Query 11: 31680 / 29818 = 1.06245														0.006911s
+// Query 12: 30988 / 2 = 15494																0.001343s
+// Query 13: 150000 / 42 = 3571.43 and 150000 / 150000 = 10.2262							0.366758s
+// Query 14: N/A
+// Query 15: 225954 / 10000 = 22.5954 and 225954 / 10000 = 22.5954							0.01248s
+// Query 16: 118274 / 18314 = 6.45812														0.01248s
+// Query 17: 6001215 / 200000 = 30.0061 and 6088 / 204 = 29.8431							1.79422s
+// Query 18: 399 / 57 = 7 and 6001215 / 1500000 = 4.00081									0.580364s
+// Query 19: N/A
+// Query 20: 909455 / 543210 = 1.67422 and 8508 / 8508 = 1									0.324264s
+// Query 21: 4141 / 411 = 10.0754 and 75871 / 75864 = 1.00009 and 73089 / 73082 = 1.0001	0.024272s
+// Query 22: 6384 / 7 = 912																	0.000314s
+
 // Post Processing to prepare for querying
 void LineageManager::PostProcess(PhysicalOperator *op) {
 	// massage the data to make it easier to query

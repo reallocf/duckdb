@@ -52,16 +52,16 @@ legend = theme_bw() + theme(**{
     # "legend.position":"c(1,0)",
     "legend.key" : element_blank(),
     "legend.title":element_blank(),
-    "text": element_text(colour = "'#333333'", size=9, family = "'Arial'"),
-    "axis.text": element_text(colour = "'#333333'", size=9),
+    "text": element_text(colour = "'#333333'", size=8, family = "'Arial'"),
+    "axis.text": element_text(colour = "'#333333'", size=8),
     # "plot.background": element_blank(),
     # "panel.border": element_rect(color=esc("#e0e0e0")),
     # "strip.background": element_rect(fill=esc("#efefef"), color=esc("#e0e0e0")),
     "strip.text": element_text(color=esc("#333333")),
-    "legend.position": esc("bottom"),
+    "legend.position":"c(0.3,-0.7)",
     "legend.margin": margin(t = 0, r = 0, b = 0, l = 0, unit = esc("pt")),
-    "legend.text": element_text(colour = "'#333333'", size=9, family = "'Arial'"),
-    "legend.key.size": unit(8, esc('pt')),
+    "legend.text": element_text(colour = "'#333333'", size=6, family = "'Arial'"),
+    "legend.key.size": unit(6, esc('pt')),
 })
 
 condition_labels = [esc('No Indexes'), esc('Zone Maps'), esc('Group By Indexes'), esc('Group By Postprocess')]
@@ -70,10 +70,10 @@ p = ggplot(data, aes(x='Query', y='Runtime', condition='ablation', color='ablati
     + geom_bar(stat=esc('identity'), alpha=0.8, position=position_dodge(width=0.6), width=0.5) \
     + scale_y_log10(name=esc("Runtime (log)"), breaks=[1, 10, 100, 1000, 10000], labels=[esc('1ms'), esc('10ms'), esc('100ms'), esc('1000ms'), esc('10000ms')]) \
     + scale_x_continuous(breaks=[i for i in range(len(query_list))], labels=[esc(f'{q}') for q in query_list], minor_breaks='NULL') \
-    + scale_color_discrete(guide=guide_legend(ncol=2), labels=condition_labels) \
+    + scale_color_discrete(labels=condition_labels) \
     + scale_fill_discrete(labels=condition_labels) \
     + legend
-ggsave("ablation_figure.png", p, width=3, height=3)
+ggsave("ablation_figure.png", p, width=2.5, height=1)
 # + scale_x_discrete(labels=[esc(f'{i}') for i in range(1, 23)]) \
 # + ggtitle(esc('TPC-H SF=1 Lineage Querying')) \
 # + axis_labels('Query', 'Runtime (log)', 'discrete', 'log10') \

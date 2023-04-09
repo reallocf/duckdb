@@ -57,8 +57,8 @@ legend = theme_bw() + theme(**{
     # "legend.position":"c(1,0)",
     # "legend.key" : element_blank(),
     # "legend.title":element_blank(),
-    "text": element_text(colour = "'#333333'", size=9, family = "'Arial'"),
-    "axis.text": element_text(colour = "'#333333'", size=9),
+    "text": element_text(colour = "'#333333'", size=8, family = "'Arial'"),
+    "axis.text": element_text(colour = "'#333333'", size=8),
     # "plot.background": element_blank(),
     # "panel.border": element_rect(color=esc("#e0e0e0")),
     # "strip.background": element_rect(fill=esc("#efefef"), color=esc("#e0e0e0")),
@@ -78,6 +78,6 @@ p = ggplot(data, aes(x='Base_Query_Chunk_Count', y='Runtime', condition='op', co
     ) \
     + geom_line() \
     + legend
-ggsave("big_base_query.png", p, width=3, height=2)
+ggsave("big_base_query.png", p, width=2.3, height=1)
 #stat=esc('identity'), alpha=0.8, position=position_dodge(width=0.6), width=0.5) \
 # + scale_y_log10() + scale_x_log10() \
