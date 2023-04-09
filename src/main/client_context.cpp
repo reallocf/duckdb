@@ -182,6 +182,7 @@ shared_ptr<PreparedStatementData> ClientContext::CreatePreparedStatement(ClientC
 		auto info = *((PragmaStatement &)*statement->parent_pragma).info;
 		if (info.name == "lineage_query") {
 			FunctionParameters parameters {info.parameters, info.named_parameters};
+			clock_t start = clock();
 			string q = parameters.values[0].ToString();
 			string lineage_ids_str = parameters.values[1].GetValue<string>();
 			string mode = parameters.values[2].ToString();
@@ -227,6 +228,8 @@ shared_ptr<PreparedStatementData> ClientContext::CreatePreparedStatement(ClientC
 			result->types.resize(final_plan->types.size());
  			copy(final_plan->types.begin(), final_plan->types.end(), result->types.begin());
  			result->plan = move(final_plan);
+			clock_t end = clock();
+			std::cout << "Parsing input time: " << ((float) end - start) / CLOCKS_PER_SEC << " sec" << std::endl;
  		}
 	}
 
