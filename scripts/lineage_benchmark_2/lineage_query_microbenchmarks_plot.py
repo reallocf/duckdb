@@ -1,8 +1,59 @@
 import pandas as pd
 from pygg import *
 
+"""
+Notes for On Time study while it's downloading:
+Columns to query: FlightDate <date>, Origin <lat, long>, DepDelay <departure delay>, Reporting_Airline <carrier>
+Load in data - anfy gotchas here?
+Confirm that there are exactly 8100 buckets with values in them:
+with
+cte as (
+    select distinct
+        FlightDate,
+        Origin,
+        DepDelay,
+        Reporting_Airline
+    from ontime
+)
+
+select
+    count(*)
+from cte
+
+Execute study.
+1. Execute sql from cte and put resulting quads into a list.
+1.5. Sample 10k buckets.
+2. Execute the following queries while capturing lineage && capturing time:
+select
+    FlightDate,
+    count(*)
+from ontime
+Swap in Origin, DepDelay, and Reporting_Airline for FlightDate
+3. Execute lineage query for each individual row id && capture time:
+lineage_query('select FlightDate, count(*) from ontime', 0...N, 'LIN', 0)
+Swap in Origin, DepDelay, and Reporting_Airline for FlightDate
+4. Execute 3 aggregations with filters for each of the 8100 results && capture time
+select
+    Origin,
+    count(*)
+from data
+where rowid in (<result from FlightDate lineage query>)
+select
+    DepDelay,
+    count(*)
+from data
+where rowid in (<result from FlightDate lineage query>)
+select
+    Reporting_Airline,
+    count(*)
+from data
+where rowid in (<result from FlightDate lineage query>)
+5. Clear lineage
+5. Repeat 2 through 5 four more times (5 total)
+"""
+
 # for each query,
-lq_micro = pd.read_csv('lineage_ops_3_19_2023.csv')
+lq_micro = pd.read_csv('lineage_ops_4_9_2023_with_rand_and_skew.csv')
 data = lq_micro
 
 print(data)
@@ -47,6 +98,22 @@ print(data)
 #
 # print(new_data)
 
+ops = {
+    'groupby',
+    'filter',
+    'perfgroupby',
+    'hashjoin',
+    'mergejoin',
+    'nljoin',
+    'hashagg',
+    'simpleagg',
+    'orderby',
+}
+
+data = data[data['avg_parse_time'] != 0]
+data = data[['oids', 'avg_duration', 'op']]
+data = data[data['op'].isin(ops)]
+
 data['avg_duration'] = data['avg_duration'].mul(1000)
 data = data.rename(columns={'oids': 'Queried_ID_Count', 'avg_duration': 'Runtime'})
 
@@ -62,14 +129,14 @@ legend = theme_bw() + theme(**{
     # "panel.border": element_rect(color=esc("#e0e0e0")),
     # "strip.background": element_rect(fill=esc("#efefef"), color=esc("#e0e0e0")),
     "strip.text": element_text(color=esc("#333333")),
-    "legend.position":"c(0.33,0.7)",
+    "legend.position":"c(0.33,0.67)",
     "legend.margin": margin(t = 0, r = 0, b = 0, l = 0, unit = esc("pt")),
     "legend.text": element_text(colour = "'#333333'", size=8, family = "'Arial'"),
     "legend.key.size": unit(6, esc('pt')),
 })
 
 p = ggplot(data, aes(x='Queried_ID_Count', y='Runtime', condition='op', color='op', fill='op', group='op'))\
-    + scale_y_continuous(breaks=[0.25, 0.5, 0.75, 1, 1.25], labels=[esc('0.25ms'), esc('0.5ms'), esc('0.75ms'), esc('1ms'), esc('1.25ms')]) \
+    + scale_y_continuous(breaks=[0.5, 1.0, 1.5, 2.0, 2.5], labels=[esc('0.5ms'), esc('1ms'), esc('1.5ms'), esc('2ms'), esc('2.5ms')]) \
     + scale_x_log10(name=esc('Queried ID Count (log)')) \
     + geom_line() \
     + legend
