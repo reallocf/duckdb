@@ -1348,6 +1348,20 @@ static void Scan(PhysicalWindowOperatorState &state, DataChunk &chunk) {
 	state.position += STANDARD_VECTOR_SIZE;
 }
 
+
+// for all input chunks from the child operator:
+// lstate_chunks =  Append(lstate_chunks, input, i, j)
+// over_chunk = MaterializeOverWindow(input) // 1:1
+// lstate_counts = resize(lstate_partition_count)
+// lstate.hash_collection = Append(lstate.hash_collection, hash_chunk, i, j);
+// lstate.over_collection = Append( lstate.over_collection , over_chunk, i, j);
+//  gstate_counts  =  lstate_counts,
+//  gstate_chunks =  lstate_chunks
+// gstate.hash_collection = lstate.hash_collection
+// gstate.over_collection = lstate.over_collection
+
+// getchunkinternal:
+// 	state_position, state_chunks, state_partitions, state_next_part, state_parallel_state
 void PhysicalWindow::GetChunkInternal(ExecutionContext &context, DataChunk &chunk,
                                       PhysicalOperatorState *state_p) const {
 	auto &state = *reinterpret_cast<PhysicalWindowOperatorState *>(state_p);
@@ -1410,6 +1424,11 @@ void PhysicalWindow::GetChunkInternal(ExecutionContext &context, DataChunk &chun
 	D_ASSERT(chunk.size() == 0);
 }
 
+// lstate_chunks =  Append(lstate_chunks, input, i, j)
+// over_chunk = MaterializeOverWindow(input) // 1:1
+// lstate_counts = resize(lstate_partition_count)
+// lstate.hash_collection = Append(lstate.hash_collection, hash_chunk, i, j);
+// lstate.over_collection = Append( lstate.over_collection , over_chunk, i, j);
 void PhysicalWindow::Sink(ExecutionContext &context, GlobalOperatorState &state, LocalSinkState &lstate_p,
                           DataChunk &input) const {
 	auto &lstate = (WindowLocalState &)lstate_p;
