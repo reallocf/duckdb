@@ -42,7 +42,7 @@ class Vector {
 	friend struct StringVector;
 	friend struct StructVector;
 	friend struct SequenceVector;
-
+	friend struct LineageVector;
 	friend class DataChunk;
 	friend class VectorCacheBuffer;
 
@@ -118,6 +118,10 @@ public:
 	//! Turn the vector into a sequence vector
 	void Sequence(int64_t start, int64_t increment);
 
+#ifdef LINEAGE
+	//! Construct a lineage vector
+	void LineageReference();
+#endif
 	//! Verify that the Vector is in a consistent, not corrupt state. DEBUG
 	//! FUNCTION ONLY!
 	void Verify(idx_t count);

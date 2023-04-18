@@ -781,6 +781,17 @@ void Vector::Sequence(int64_t start, int64_t increment) {
 	auxiliary.reset();
 }
 
+#ifdef LINEAGE
+// implement getvalue
+// and materialize data
+//
+void Vector::LineageReference() {
+	this->vector_type = VectorType::LINEAGE_VECTOR;
+	// whatever we want to store
+	this->buffer = make_buffer<VectorBuffer>(sizeof(int64_t) * 2);
+}
+#endif
+
 void Vector::Serialize(idx_t count, Serializer &serializer) {
 	auto &type = GetType();
 
