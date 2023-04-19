@@ -391,10 +391,11 @@ idx_t LineageManager::CreateLineageTables(PhysicalOperator *op) {
 		}
 		auto binder = Binder::CreateBinder(context);
 		auto bound_create_info = binder->BindCreateTableInfo(move(info));
-		bound_create_info->isLineageTable = true;
 		auto &catalog = Catalog::GetCatalog(context);
 		TableCatalogEntry *table =
 			dynamic_cast<TableCatalogEntry *>(catalog.CreateTable(context, bound_create_info.get()));
+		table->isLineageTable = true;
+		table->opLineage = op->lineage_op.at(-1);
 
 
 //		//Create Index
@@ -430,13 +431,6 @@ idx_t LineageManager::CreateLineageTables(PhysicalOperator *op) {
 //		dataTable->AddIndex(move(index), exps);
 //
 //
-
-
-
-
-
-
-		table->opLineage = op->lineage_op.at(-1);
 
 		/*// Persist Data
 		DataChunk insert_chunk;

@@ -25,6 +25,10 @@ public:
 	vector<string> names;
 	//! The table filters
 	unique_ptr<TableFilterSet> table_filters;
+#ifdef LINEAGE
+  idx_t finished_idx;
+  shared_ptr<OperatorLineage> opLineage;
+#endif
 
 public:
 	string GetName() const override;

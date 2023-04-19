@@ -37,48 +37,35 @@ PhysicalLineageScan::PhysicalLineageScan(vector<LogicalType> types, TableFunctio
     : PhysicalOperator(PhysicalOperatorType::LINEAGE_SCAN, move(types), estimated_cardinality),
       function(move(function_p)), bind_data(move(bind_data_p)), column_ids(move(column_ids_p)), names(move(names_p)),
       table_filters(move(table_filters_p)) {
+	TableScanBindData* tbldata = dynamic_cast<TableScanBindData *>(bind_data.get());
+	DataTable* tbl = tbldata->table->storage.get();
+	shared_ptr<DataTableInfo> info = tbl->info;
+	opLineage = tbldata->table->opLineage;
+	string st = info->table.substr(info->table.length()-1);
+	finished_idx = stoi(st);
 }
 
 void PhysicalLineageScan::GetChunkInternal(ExecutionContext &context, DataChunk &chunk, PhysicalOperatorState *state_p) const {
 	auto &state = (PhysicalLineageTableScanOperatorState &)*state_p;
+	TableScanBindData* tbldata = dynamic_cast<TableScanBindData*>(bind_data.get());
+	auto types = tbldata->table->GetTypes();
 
-	TableScanBindData* tbldata = dynamic_cast<TableScanBindData *>(this->bind_data.get());
-	DataTable* tbl = tbldata->table->storage.get();
-	shared_ptr<DataTableInfo> info = tbl->info;
-	TableCatalogEntry * table = Catalog::GetCatalog(context.client).GetEntry<TableCatalogEntry>(context.client,  DEFAULT_SCHEMA, info->table);
+	DataChunk base_chunk;
+	base_chunk.Initialize(types);
 
-
-	shared_ptr<OperatorLineage> opLineage = table->opLineage;
-	string st = info->table.substr(info->table.length()-1);
-	idx_t finished_idx = stoi(st);
-	if(state.lineageProcessStruct == nullptr) {
-		LineageProcessStruct lps = opLineage->Process(this->column_ids, table->GetTypes(), 0, chunk, 0, -1, 0, finished_idx);
+	if (state.lineageProcessStruct == nullptr) {
+		LineageProcessStruct lps = opLineage->Process(types, 0, base_chunk, 0, -1, 0, finished_idx);
 		state.lineageProcessStruct = std::make_shared<LineageProcessStruct>(lps);
-		return;
+	} else {
+		LineageProcessStruct lps = opLineage->Process(types, state.lineageProcessStruct->count_so_far, base_chunk, state.lineageProcessStruct->size_so_far, -1, state.lineageProcessStruct->data_idx, state.lineageProcessStruct->finished_idx);
+		state.lineageProcessStruct = std::make_shared<LineageProcessStruct>(lps);
 	}
 
-	LineageProcessStruct lps = opLineage->Process(this->column_ids, table->GetTypes(), state.lineageProcessStruct->count_so_far, chunk, state.lineageProcessStruct->size_so_far, -1, state.lineageProcessStruct->data_idx, state.lineageProcessStruct->finished_idx);
-	state.lineageProcessStruct = std::make_shared<LineageProcessStruct>(lps);
-
-
-	// Iterate through all the filters (unordered set idx VS (Constant, ExpresssionType, column_idx)) apply the relevant conditions with values on the column_idx
-
-
-/*	// populate chunk
-	chunk.SetValue(0,0,0);
-	chunk.SetValue(0,1,1);
-	chunk.SetValue(0,2,2);
-
-	chunk.SetValue(1,0,0);
-	chunk.SetValue(1,1,1);
-	chunk.SetValue(1,2,1999);
-
-	chunk.SetValue(2,0,0);
-	chunk.SetValue(2,1,1);
-	chunk.SetValue(2,2,2);
-
-	chunk.SetCardinality(3);*/
-
+	// Apply projection list
+	chunk.SetCardinality(base_chunk.size());
+	for (uint i=0; i < column_ids.size(); ++i) {
+		chunk.data[i].Reference(base_chunk.data[column_ids[i]]);
+	}
 }
 
 string PhysicalLineageScan::GetName() const {
@@ -98,18 +85,6 @@ string PhysicalLineageScan::ParamsToString() const {
 					result += "\n";
 				}
 				result += names[column_ids[i]];
-			}
-		}
-	}
-	if (function.filter_pushdown && table_filters) {
-		result += "\n[INFOSEPARATOR]\n";
-		result += "Filters: ";
-		for (auto &f : table_filters->filters) {
-			auto &column_index = f.first;
-			auto &filter = f.second;
-			if (column_index < names.size()) {
-				result += filter->ToString(names[column_ids[column_index]]);
-				result += "\n";
 			}
 		}
 	}

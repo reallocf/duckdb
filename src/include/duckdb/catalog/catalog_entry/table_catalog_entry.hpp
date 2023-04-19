@@ -54,6 +54,8 @@ public:
 public:
 #ifdef LINEAGE
 	void Persist(TableCatalogEntry &table, ClientContext &context, DataChunk &chunk);
+	std::shared_ptr<OperatorLineage> opLineage;
+	bool isLineageTable = false;
 #endif
 	unique_ptr<CatalogEntry> AlterEntry(ClientContext &context, AlterInfo *info) override;
 	//! Returns whether or not a column with the given name exists
@@ -83,7 +85,6 @@ public:
 	//! If if_exists is false, throws an exception
 	idx_t GetColumnIndex(string &name, bool if_exists = false);
 
-	std::shared_ptr<OperatorLineage> opLineage;
 private:
 	unique_ptr<CatalogEntry> RenameColumn(ClientContext &context, RenameColumnInfo &info);
 	unique_ptr<CatalogEntry> AddColumn(ClientContext &context, AddColumnInfo &info);
