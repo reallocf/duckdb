@@ -14,6 +14,8 @@ SelectBinder::SelectBinder(Binder &binder, ClientContext &context, BoundSelectNo
     : ExpressionBinder(binder, context), inside_window(false), node(node), info(info) {
 }
 
+// what is group_index?
+// what is depth?
 BindResult SelectBinder::BindExpression(unique_ptr<ParsedExpression> *expr_ptr, idx_t depth, bool root_expression) {
 	auto &expr = **expr_ptr;
 	// check if the expression binds to one of the groups
@@ -60,6 +62,7 @@ idx_t SelectBinder::TryBindGroup(ParsedExpression &expr, idx_t depth) {
 
 BindResult SelectBinder::BindGroup(ParsedExpression &expr, idx_t depth, idx_t group_index) {
 	auto &group = node.groups[group_index];
+	std::cout << "ColumnBinding: " << node.group_index << " " << group_index << std::endl;
 	return BindResult(make_unique<BoundColumnRefExpression>(expr.GetName(), group->return_type,
 	                                                        ColumnBinding(node.group_index, group_index), depth));
 }

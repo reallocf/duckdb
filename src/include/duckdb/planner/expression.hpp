@@ -26,6 +26,7 @@ public:
 	unique_ptr<BaseStatistics> stats;
 
 public:
+	string GetColumnBindings() const;
 	bool IsAggregate() const override;
 	bool IsWindow() const override;
 	bool HasSubquery() const override;

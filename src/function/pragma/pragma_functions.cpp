@@ -285,6 +285,26 @@ static void PragmaTraceLineage(ClientContext &context, const FunctionParameters 
   }
 	std::cout << "PragmaTraceLineage " << context.trace_lineage << std::endl;
 }
+
+
+
+static void PragmaCollectColumn(ClientContext &context, const FunctionParameters &parameters) {
+	string query = parameters.values[0].ToString();
+	auto op = context.query_to_plan[query].get();
+	if (op == nullptr) {
+		throw std::logic_error("Querying non-existent lineage");
+	}
+	// traverse teh query plan and get column binding for each one
+	std::cout << "get columns for " << query << std::endl;
+	std::unordered_map<PhysicalOperator*, vector<vector<string>>> bindings;
+	context.lineage_manager->GetColumns(op, bindings);
+	for (const auto& entry : bindings) {
+		std::cout << entry.first->GetName() << std::endl;
+		for (auto col : entry.second) {
+			std::cout << " out col: " << col[0] << " in cols: " << col[1] << " alias: " << col[2] << std::endl;
+		}
+	}
+}
 #endif
 
 void PragmaFunctions::RegisterFunction(BuiltinFunctions &set) {
@@ -367,6 +387,7 @@ void PragmaFunctions::RegisterFunction(BuiltinFunctions &set) {
 
 	set.AddFunction(PragmaFunction::PragmaStatement("debug_many_free_list_blocks", PragmaDebugManyFreeListBlocks));
 #ifdef LINEAGE
+    set.AddFunction(PragmaFunction::PragmaAssignment("prepcolumns", PragmaCollectColumn, LogicalType::VARCHAR));
   set.AddFunction(PragmaFunction::PragmaAssignment("trace_lineage", PragmaTraceLineage, LogicalType::VARCHAR));
 #endif
 }

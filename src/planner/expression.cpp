@@ -14,6 +14,29 @@ Expression::Expression(ExpressionType type, ExpressionClass expression_class, Lo
 Expression::~Expression() {
 }
 
+string Expression::GetColumnBindings() const {
+	string columns = "";
+	if (IsScalar()) {
+		return "";
+	} else {
+		bool has_children = false;
+		ExpressionIterator::EnumerateChildren(*this, [&](const Expression &child) {
+			has_children = true;
+			auto child_col = child.GetColumnBindings();
+			if (columns.size() > 0)  columns += ",";
+			columns +=  child_col;
+		});
+		if (expression_class == ExpressionClass::BOUND_COLUMN_REF) {
+			auto &colRef = (BoundColumnRefExpression &)*this;
+			columns += ( std::to_string(colRef.binding.column_index) );
+		} else if (expression_class == ExpressionClass::BOUND_REF) {
+			auto &colRef = (BoundReferenceExpression &)*this;
+			columns += ( std::to_string(colRef.index)  );
+		}
+	}
+	return columns ;
+}
+
 bool Expression::IsAggregate() const {
 	bool is_aggregate = false;
 	ExpressionIterator::EnumerateChildren(*this, [&](const Expression &child) { is_aggregate |= child.IsAggregate(); });

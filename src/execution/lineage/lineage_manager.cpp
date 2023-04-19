@@ -8,6 +8,9 @@
 #include "duckdb/planner/parsed_data/bound_create_table_info.hpp"
 #include "duckdb/parser/parsed_data/create_index_info.hpp"
 #include "duckdb/execution/operator/join/physical_delim_join.hpp"
+#include "duckdb/execution/operator/aggregate/physical_hash_aggregate.hpp"
+#include "duckdb/execution/operator/projection/physical_projection.hpp"
+
 #include "duckdb/execution/operator/join/physical_join.hpp"
 #include "duckdb/catalog/catalog_entry/index_catalog_entry.hpp"
 #include "duckdb/storage/data_table.hpp"
@@ -194,6 +197,44 @@ void LineageManager::CreateOperatorLineage(PhysicalOperator *op, int thd_id, boo
 	    should_index
 	);
 	op->lineage_op[thd_id]->trace_lineage = trace_lineage;
+}
+
+void LineageManager::GetColumns(PhysicalOperator *op, std::unordered_map<PhysicalOperator*, vector<vector<string>>> &bindings) {
+	std::cout << op->ToString() << std::endl;
+	// joins:
+	// 		for hash join, get the right projection map; all columns in left is included
+	// 		nlj, cross, bnlj, merge ?
+	//		index join
+	//		delim join
+	// does filter apply early projection?
+	// Scan does, so track bindings for it
+	// order?
+	vector<vector<string>> column_list;
+	if (op->type == PhysicalOperatorType::PROJECTION) {
+		auto p = dynamic_cast<PhysicalProjection *>(op);
+		auto i = 0;
+		for (auto &expr : p->select_list) {
+			auto cols = expr->GetColumnBindings();
+			column_list.push_back({std::to_string(i++), cols, expr->alias});
+		}
+	} else if (op->type == PhysicalOperatorType::HASH_GROUP_BY) {
+		auto gb = dynamic_cast<PhysicalHashAggregate *>(op);
+		auto i = 0;
+		for (auto &expr : gb->groups) {
+			//auto &bound_ref_expr = (BoundReferenceExpression &)*expr;
+			auto cols = expr->GetColumnBindings();
+			column_list.push_back({std::to_string(i++), cols, expr->alias});
+		}
+		auto j = 0;
+		for (auto &aggr : gb->bindings) {
+			auto cols = aggr->GetColumnBindings();
+			column_list.push_back({std::to_string(i+ j++), cols, aggr->alias});
+		}
+	}
+	bindings[op] = column_list;
+	for (idx_t i = 0; i < op->children.size(); i++) {
+		GetColumns(op->children[i].get(), bindings);
+	}
 }
 
 // Iterate through in Postorder to ensure that children have PipelineLineageNodes set before parents

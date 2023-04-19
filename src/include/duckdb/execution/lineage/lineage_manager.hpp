@@ -41,7 +41,7 @@ public:
 	void LogQuery(const string& input_query, idx_t lineage_size=0);
 	static shared_ptr<PipelineLineage> GetPipelineLineageNodeForOp(PhysicalOperator *op, int thd_id=-1);
 	static void CreateOperatorLineage(PhysicalOperator *op, int thd_id=-1, bool trace_lineage=true, bool should_index=true);
-
+	void GetColumns(PhysicalOperator *op, std::unordered_map<PhysicalOperator*, vector<vector<string>>> &bindings);
 private:
 	ClientContext &context;
 	idx_t query_id = 0;
