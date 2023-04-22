@@ -1,0 +1,74 @@
+# name: test/sql/lineage/hash_join/test_hash_join_edges.test
+# description: Test Hash Joins Edge Cases
+# group: [hash_join_edges]
+
+statement ok
+CREATE TABLE t1(i INTEGER);
+
+statement ok
+INSERT INTO t1 VALUES (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0);
+INSERT INTO t1 SELECT i FROM range(1030,1040) tbl(i);
+INSERT INTO t1 VALUES (0);
+
+statement ok
+CREATE TABLE t2(i INTEGER);
+
+statement ok
+INSERT INTO t2 SELECT i FROM range(0,1030) tbl(i);
+INSERT INTO t2 SELECT i FROM range(0,1030) tbl(i);
+INSERT INTO t2 SELECT i FROM range(0,1030) tbl(i);
+
+statement ok
+PRAGMA trace_lineage = "ON"
+
+# test chunk merging
+statement ok
+create table q1 as select ROW_NUMBER() OVER (ORDER BY (SELECT 1)) as out_index, t1.rowid as t1_rowid, t2.rowid as t2_rowid, t1.i, t2.i from t1 inner join t2 on (t1.i = t2.i) where t1.i + t2.i = 0
+
+
+# test chunk splitting
+statement ok
+create table q2 as select ROW_NUMBER() OVER (ORDER BY (SELECT 1)) as out_index, l.rowid as l_rowid, r.rowid as r_rowid, l.i, r.i from t1 as l inner join t1 as r on (l.i = r.i) where l.i + r.i = 0
+
+
+# test chunk splitting
+statement ok
+create table q3 as select ROW_NUMBER() OVER (ORDER BY (SELECT 1)) as out_index, l.rowid as l_rowid, r.rowid as r_rowid, t2.rowid as t2_rowid, l.i, r.i from t1 as l inner join t1 as r on (l.i = r.i)  join t2 on (r.i=t2.i)
+
+statement ok
+PRAGMA trace_lineage = "OFF";
+
+statement ok
+create table lineage_q1 as (select f.out_index+1 as out_index, sink.in_index as t2_rowid, probe.rhs_index as t1_rowid
+from LINEAGE_1_HASH_JOIN_2_1 AS probe
+join LINEAGE_1_HASH_JOIN_2_0 AS sink ON sink.out_address = probe.lhs_address
+join LINEAGE_1_FILTER_3_0 as f ON probe.out_index=f.in_index
+order by f.out_index asc)
+
+statement ok
+create table lineage_q2 as (select f.out_index+1 as out_index, sink.in_index as r_rowid, probe.rhs_index as l_rowid
+from LINEAGE_2_HASH_JOIN_2_1 AS probe
+join LINEAGE_2_HASH_JOIN_2_0 AS sink ON sink.out_address = probe.lhs_address
+join LINEAGE_2_FILTER_3_0 as f ON probe.out_index=f.in_index
+order by f.out_index asc)
+
+
+statement ok
+create table lineage_q3 as (select probe2.out_index+1 as out_index, sink1.in_index as r_rowid, probe1.rhs_index as l_rowid, sink2.in_index as t2_rowid
+from LINEAGE_3_HASH_JOIN_2_1 AS probe1
+join LINEAGE_3_HASH_JOIN_2_0 AS sink1 ON sink1.out_address = probe1.lhs_address
+join LINEAGE_3_HASH_JOIN_4_1 AS probe2 ON probe1.out_index=probe2.rhs_index
+join LINEAGE_3_HASH_JOIN_4_0 AS sink2 ON sink2.out_address = probe2.lhs_address
+order by probe2.out_index asc)
+
+query IIIIIIII
+select * from q1 join lineage_q1 on (q1.out_index=lineage_q1.out_index) where q1.t2_rowid<>lineage_q1.t2_rowid or q1.t1_rowid<>lineage_q1.t1_rowid
+----
+
+query IIIIIIII
+select * from q2 join lineage_q2 on (q2.out_index=lineage_q2.out_index) where q2.l_rowid<>lineage_q2.l_rowid or q2.r_rowid<>lineage_q2.r_rowid
+----
+
+query IIIIIIIIII
+select * from q3 join lineage_q3 on (q3.out_index=lineage_q3.out_index) where q3.l_rowid<>lineage_q3.l_rowid or q3.r_rowid<>lineage_q3.r_rowid or q3.t2_rowid<>lineage_q3.t2_rowid
+----

@@ -1,0 +1,55 @@
+# name: test/sql/lineage/hash_join_variants_lineage/test_mark_hash_join.test
+# description: Test Mark Hash Joins
+# group: [hash_join_variants_lineage]
+
+
+require tpch
+
+statement ok
+CALL dbgen(sf=0.01);
+
+statement ok
+PRAGMA trace_lineage = "ON";
+
+query IIII
+SELECT p_brand, p_type, p_size, count(DISTINCT ps_suppkey) AS supplier_cnt FROM partsupp, part WHERE p_partkey = ps_partkey AND p_brand <> 'Brand#45' AND p_type NOT LIKE 'MEDIUM POLISHED%'  AND p_size IN (49, 14, 23, 45, 19, 3, 36, 9) AND ps_suppkey NOT IN ( SELECT  s_suppkey   FROM supplier    WHERE  s_comment LIKE '%Customer%Complaints%') GROUP BY p_brand, p_type, p_size ORDER BY supplier_cnt DESC, p_brand, p_type, p_size LIMIT 1;
+----
+Brand#14	PROMO BRUSHED STEEL	9	8
+
+statement ok
+PRAGMA trace_lineage = "OFF";
+
+query I
+pragma show_tables;
+----
+LINEAGE_1_FILTER_11_0
+LINEAGE_1_FILTER_4_0
+LINEAGE_1_FILTER_8_0
+LINEAGE_1_HASH_GROUP_BY_14_0
+LINEAGE_1_HASH_GROUP_BY_14_1
+LINEAGE_1_HASH_GROUP_BY_14_2
+LINEAGE_1_HASH_JOIN_10_0
+LINEAGE_1_HASH_JOIN_10_1
+LINEAGE_1_HASH_JOIN_3_0
+LINEAGE_1_HASH_JOIN_3_1
+LINEAGE_1_HASH_JOIN_6_0
+LINEAGE_1_HASH_JOIN_6_1
+LINEAGE_1_LIMIT_16_0
+LINEAGE_1_ORDER_BY_15_0
+LINEAGE_1_SEQ_SCAN_0_0
+LINEAGE_1_SEQ_SCAN_1_0
+LINEAGE_1_SEQ_SCAN_7_0
+customer
+lineitem
+nation
+orders
+part
+partsupp
+queries_list
+region
+supplier
+
+query IIII
+select * from LINEAGE_1_HASH_JOIN_3_1 where lhs_address=0 limit 1
+----
+0	0	0	-1

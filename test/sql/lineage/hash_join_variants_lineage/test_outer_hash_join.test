@@ -1,0 +1,48 @@
+# name: test/sql/lineage/hash_join_variants_lineage/test_outer_hash_join.test
+# description: Test Outer Hash Joins
+# group: [hash_join_variants_lineage]
+
+statement ok
+CREATE TABLE t1(i INTEGER, j INTEGER);
+
+statement ok
+INSERT INTO t1 VALUES (3, 1),   (10, 3)
+
+statement ok
+CREATE TABLE t2(i INTEGER, k VARCHAR(10));
+
+statement ok
+INSERT INTO t2 VALUES (3, 'A'),   (2, 'B'), (3, 'C'), (1, 'D'), (3, 'E')
+
+statement ok
+PRAGMA trace_lineage = "ON"
+
+query IIIII
+select t1.rowid, t2.rowid, i, j, k from t1 full join t2 using(i)
+----
+0	4	3	1	E
+0	2	3	1	C
+0	0	3	1	A
+1	NULL	10	3	NULL
+NULL	1	2	NULL	B
+NULL	3	1	NULL	D
+
+
+statement ok
+PRAGMA trace_lineage = "OFF"
+
+query II
+select query_id, query from queries_list;
+----
+0	PRAGMA trace_lineage = "ON"
+1	select t1.rowid, t2.rowid, i, j, k from t1 full join t2 using(i)
+
+query III
+select sink.in_index as build_index, rhs_index as probe_index, probe.out_index from LINEAGE_1_HASH_JOIN_2_1 AS probe left join LINEAGE_1_HASH_JOIN_2_0 AS sink ON (out_address=lhs_address) order by probe.out_index;
+----
+4	0	0
+2	0	1
+0	0	2
+NULL	1	3
+1	NULL	4
+3	NULL	5

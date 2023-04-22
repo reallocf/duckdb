@@ -1,0 +1,113 @@
+# name: test/sql/lineage/tpch_lineage/test_tpch_lineage.test
+# description: Test TPCH Q01 Lineage
+# group: [tpch_lineage_q01]
+
+require tpch
+
+statement ok
+CALL dbgen(sf=0.01);
+
+statement ok
+PRAGMA enable_profiling;
+PRAGMA trace_lineage = "ON";
+
+statement ok
+create table q1 as (SELECT
+                        cntrycode,
+                        count(*) AS numcust,
+                        sum(c_acctbal) AS totacctbal
+                    FROM (
+                        SELECT
+                            substring(c_phone FROM 1 FOR 2) AS cntrycode,
+                            c_acctbal
+                        FROM
+                            customer
+                        WHERE
+                            substring(c_phone FROM 1 FOR 2) IN ('13', '31', '23', '29', '30', '18', '17')
+                            AND c_acctbal > (
+                                SELECT
+                                    avg(c_acctbal)
+                                FROM
+                                    customer
+                                WHERE
+                                    c_acctbal > 0.00
+                                    AND substring(c_phone FROM 1 FOR 2) IN ('13', '31', '23', '29', '30', '18', '17'))
+                                AND NOT EXISTS (
+                                    SELECT
+                                        *
+                                    FROM
+                                        orders
+                                    WHERE
+                                        o_custkey = c_custkey)) AS custsale
+                    GROUP BY
+                        cntrycode
+                    ORDER BY
+                        cntrycode
+)
+
+statement ok
+PRAGMA trace_lineage = "OFF";
+PRAGMA disable_profiling;
+
+#query I
+#pragma show_tables;
+#----
+
+query III
+SELECT LINEAGE_1_HASH_JOIN_2_0.in_index as chunkscan_rowid_1,
+        LINEAGE_1_HASH_JOIN_2_1.rhs_index as customer_rowid_0,
+        temp_opio14.chunkscan_rowid_6, temp_opio14.customer_rowid_5
+FROM LINEAGE_1_ORDER_BY_21_0, LINEAGE_1_HASH_GROUP_BY_20_1,
+     LINEAGE_1_HASH_GROUP_BY_20_0, LINEAGE_1_HASH_JOIN_17_1,
+     LINEAGE_1_PIECEWISE_MERGE_JOIN_15_1, LINEAGE_1_FILTER_3_0,
+     LINEAGE_1_HASH_JOIN_2_1
+     left join LINEAGE_1_HASH_JOIN_2_0
+     on (LINEAGE_1_HASH_JOIN_2_0.out_address=LINEAGE_1_HASH_JOIN_2_1.lhs_address),
+    (SELECT temp_opio11.*, 0 as opio14_out_index from LINEAGE_1_LIMIT_12_0,
+            (SELECT group_concat(LINEAGE_1_HASH_JOIN_7_0.in_index) as chunkscan_rowid_6,
+                    group_concat(LINEAGE_1_SEQ_SCAN_5_0.in_index) as customer_rowid_5, 0 as opio11_out_index
+             from LINEAGE_1_FILTER_8_0, LINEAGE_1_HASH_JOIN_7_1
+                  left join LINEAGE_1_HASH_JOIN_7_0
+                  on (LINEAGE_1_HASH_JOIN_7_0.out_address=LINEAGE_1_HASH_JOIN_7_1.lhs_address),
+                  LINEAGE_1_SEQ_SCAN_5_0
+              where LINEAGE_1_HASH_JOIN_7_1.out_index=LINEAGE_1_FILTER_8_0.in_index
+                and LINEAGE_1_HASH_JOIN_7_1.rhs_index=LINEAGE_1_SEQ_SCAN_5_0.out_index
+           ) as temp_opio11
+      where temp_opio11.opio11_out_index=LINEAGE_1_LIMIT_12_0.in_index
+    ) as temp_opio14
+  WHERE LINEAGE_1_HASH_GROUP_BY_20_1.out_index=LINEAGE_1_ORDER_BY_21_0.in_index
+    and LINEAGE_1_HASH_GROUP_BY_20_1.in_index=LINEAGE_1_HASH_GROUP_BY_20_0.out_index
+    and LINEAGE_1_HASH_JOIN_17_1.out_index=LINEAGE_1_HASH_GROUP_BY_20_0.in_index
+    and LINEAGE_1_HASH_JOIN_17_1.rhs_index=LINEAGE_1_PIECEWISE_MERGE_JOIN_15_1.out_index
+    and LINEAGE_1_PIECEWISE_MERGE_JOIN_15_1.lhs_index=LINEAGE_1_FILTER_3_0.out_index
+    and LINEAGE_1_HASH_JOIN_2_1.out_index=LINEAGE_1_FILTER_3_0.in_index
+    and LINEAGE_1_PIECEWISE_MERGE_JOIN_15_1.rhs_index=temp_opio14.opio14_out_index
+AND LINEAGE_1_ORDER_BY_21_0.out_index = 6
+----
+
+
+query III
+select partsupp_rowid, lineitem_rowid, orders_rowid from lineage_q1 where out_index = 100
+----
+1845	107	27
+
+query III
+select partsupp_rowid, lineitem_rowid, orders_rowid from lineage_q1 where out_index = 2000
+----
+5405	1847	462
+
+statement ok
+create table lineage_q1_l1 as select out_index+1 as out_index, partsupp_rowid_1 as partsupp_rowid,  lineitem_rowid_0 as lineitem_rowid from (SELECT LINEAGE_1_HASH_JOIN_2_1.rhs_index as lineitem_rowid_0,
+       LINEAGE_1_HASH_JOIN_2_0.in_index as partsupp_rowid_1,
+       LINEAGE_1_HASH_JOIN_2_1.rhs_index as out_index
+FROM LINEAGE_1_HASH_JOIN_2_1,
+    LINEAGE_1_HASH_JOIN_2_0
+WHERE  LINEAGE_1_HASH_JOIN_2_0.out_address=LINEAGE_1_HASH_JOIN_2_1.lhs_address)
+
+query IIIIIIIIIIIIIIIIIIIIIIII
+select * from lineitem, partsupp, lineage_q1_l1 where lineage_q1_l1.lineitem_rowid=lineitem.rowid and lineage_q1_l1.partsupp_rowid=partsupp.rowid and  ps_suppkey<>l_suppkey and ps_partkey<>l_partkey
+----
+
+query IIIIIIIIIIIIII
+select * from q1 join lineage_q1 on (lineage_q1.out_index=q1.out_index) where q1.lineitem_rowid<>lineage_q1.lineitem_rowid or  q1.partsupp_rowid<>lineage_q1.partsupp_rowid or  q1.orders_rowid<>lineage_q1.orders_rowid
+----

@@ -1,0 +1,66 @@
+# name: test/sql/lineage/inmemory_lineage_query/test_bw_order_by_lineage.test
+# description: Test Order By Lineage
+# group: [inmemory_lineage_query]
+
+statement ok
+PRAGMA explain_output = PHYSICAL_ONLY;
+
+statement ok
+CREATE TABLE t1(i INTEGER);
+
+statement ok
+INSERT INTO t1 VALUES (1), (3), (8), (0), (2), (4), (NULL), (3);
+
+statement ok
+PRAGMA trace_lineage = "ON";
+
+query II
+select rowid, i from t1 order by i;
+----
+6	NULL
+3	0
+0	1
+4	2
+1	3
+7	3
+5	4
+2	8
+
+statement ok
+PRAGMA trace_lineage = "OFF";
+
+query I
+PRAGMA lineage_query('select rowid, i from t1 order by i;', 7, 'LIN', 0)
+----
+2
+
+query I
+PRAGMA lineage_query('select rowid, i from t1 order by i;', 0, 'LIN', 0)
+----
+6
+
+# Run with more than 1 input chunk
+statement ok
+INSERT INTO t1 SELECT i FROM range(10,2000) tbl(i);
+INSERT INTO t1 VALUES (0), (0), (-1);
+
+statement ok
+PRAGMA trace_lineage = "ON";
+
+statement ok
+select rowid, i from t1 as t2 order by i;
+
+query I
+PRAGMA lineage_query('select rowid, i from t1 as t2 order by i;', 0, 'LIN', 0)
+----
+6
+
+query I
+PRAGMA lineage_query('select rowid, i from t1 as t2 order by i;', 1, 'LIN', 0)
+----
+2000
+
+query I
+PRAGMA lineage_query('select rowid, i from t1 as t2 order by i;', 2000, 'LIN', 0)
+----
+1997

@@ -1,0 +1,104 @@
+# name: test/sql/lineage/limit_lineage/test_limit_lineage.test
+# description: Test Limit Lineage
+# group: [limit_lineage]
+
+
+statement ok
+PRAGMA explain_output = PHYSICAL_ONLY;
+
+statement ok
+CREATE TABLE t1(i INTEGER);
+
+statement ok
+INSERT INTO t1 SELECT i FROM range(0,1030) tbl(i);
+
+statement ok
+PRAGMA trace_lineage = "ON";
+
+query I
+select * from t1 where i > 1020 limit 5 offset 1
+----
+1022
+1023
+1024
+1025
+1026
+
+query I
+select * from t1 limit 5
+----
+0
+1
+2
+3
+4
+
+query I
+select * from t1 offset 1020
+----
+1020
+1021
+1022
+1023
+1024
+1025
+1026
+1027
+1028
+1029
+
+statement ok
+PRAGMA trace_lineage = "OFF";
+
+query III
+SELECT * FROM queries_list;
+----
+0	PRAGMA trace_lineage = "ON";	0
+1	select * from t1 where i > 1020 limit 5 offset 1	0
+2	select * from t1 limit 5	0
+3	select * from t1 offset 1020	0
+
+query II
+select out_index, in_index from LINEAGE_1_LIMIT_1_0
+----
+0	1
+1	2
+2	3
+3	4
+4	5
+
+query II
+select out_index, in_index from LINEAGE_1_SEQ_SCAN_0_0
+----
+0	1021
+1	1022
+2	1023
+3	1024
+4	1025
+5	1026
+6	1027
+7	1028
+8	1029
+
+query II
+select out_index, in_index from LINEAGE_2_LIMIT_1_0
+----
+0	0
+1	1
+2	2
+3	3
+4	4
+
+query II
+select out_index, in_index from LINEAGE_3_LIMIT_1_0
+----
+0	1020
+1	1021
+2	1022
+3	1023
+4	1024
+5	1025
+6	1026
+7	1027
+8	1028
+9	1029

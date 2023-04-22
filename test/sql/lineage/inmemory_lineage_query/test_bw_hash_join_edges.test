@@ -1,0 +1,69 @@
+# name: test/sql/lineage/inmemory_lineage_query/test_bw_hash_join_edges.test
+# description: Test Hash Joins Edge Cases
+# group: [inmemory_lineage_query]
+
+statement ok
+CREATE TABLE t1(i INTEGER);
+
+statement ok
+INSERT INTO t1 VALUES (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0), (0);
+INSERT INTO t1 SELECT i FROM range(1030,1040) tbl(i);
+INSERT INTO t1 VALUES (0);
+
+statement ok
+CREATE TABLE t2(i INTEGER);
+
+statement ok
+INSERT INTO t2 SELECT i FROM range(0,1030) tbl(i);
+INSERT INTO t2 SELECT i FROM range(0,1030) tbl(i);
+INSERT INTO t2 SELECT i FROM range(0,1030) tbl(i);
+
+statement ok
+CREATE TABLE t3(i INTEGER);
+
+statement ok
+INSERT INTO t3 SELECT i FROM range(0,2) tbl(i);
+
+statement ok
+PRAGMA trace_lineage = "ON"
+
+# test chunk merging
+statement ok
+select t1.rowid as t1_rowid, t2.rowid as t2_rowid, t1.i, t2.i from t1 inner join t2 on (t1.i = t2.i) where t1.i + t2.i = 0
+
+
+# test chunk splitting
+statement ok
+select l.rowid as l_rowid, r.rowid as r_rowid, l.i, r.i from t1 as l inner join t1 as r on (l.i = r.i) where l.i + r.i = 0
+
+# test nested hash join
+statement ok
+select a.i, b.i, c.i from t3 as a, t3 as b, t3 as c where a.i = b.i and b.i = c.i
+
+statement ok
+PRAGMA trace_lineage = "OFF";
+
+query I
+PRAGMA lineage_query('select t1.rowid as t1_rowid, t2.rowid as t2_rowid, t1.i, t2.i from t1 inner join t2 on (t1.i = t2.i) where t1.i + t2.i = 0', 0, 'LIN', 0)
+----
+[0, 43]
+
+query I
+PRAGMA lineage_query('select t1.rowid as t1_rowid, t2.rowid as t2_rowid, t1.i, t2.i from t1 inner join t2 on (t1.i = t2.i) where t1.i + t2.i = 0', 101, 'LIN', 0)
+----
+[2060, 0]
+
+query I
+PRAGMA lineage_query('select l.rowid as l_rowid, r.rowid as r_rowid, l.i, r.i from t1 as l inner join t1 as r on (l.i = r.i) where l.i + r.i = 0', 33, 'LIN', 0)
+----
+[43, 43]
+
+query I
+PRAGMA lineage_query('select l.rowid as l_rowid, r.rowid as r_rowid, l.i, r.i from t1 as l inner join t1 as r on (l.i = r.i) where l.i + r.i = 0', 1155, 'LIN', 0)
+----
+[43, 0]
+
+query I
+PRAGMA lineage_query('select a.i, b.i, c.i from t3 as a, t3 as b, t3 as c where a.i = b.i and b.i = c.i', 0, 'LIN', 0)
+----
+[0, 0, 0]

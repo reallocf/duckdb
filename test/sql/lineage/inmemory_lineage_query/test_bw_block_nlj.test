@@ -1,0 +1,42 @@
+# name: test/sql/lineage/inmemory_lineage_query/test_bw_block_nlj.test
+# description: Test Block Nested Loop Join
+# group: [inmemory_lineage_query]
+# plan_joinref.cpp has details on when this physical operator is used
+
+statement ok
+CREATE TABLE t1(i INTEGER, j INTEGER);
+
+statement ok
+CREATE TABLE t2(i INTEGER);
+
+statement ok
+INSERT INTO t1 SELECT i+1, i FROM range(0,3072) tbl(i);
+INSERT INTO t2 VALUES (1), (1025), (3070)
+
+statement ok
+PRAGMA trace_lineage = "ON"
+
+# standalone limit
+query IIIII
+select t1.rowid, t2.rowid, t1.i, t1.j, t2.i from t1, t2 where t1.j == t2.i or t1.i == t2.i
+----
+0	0	1	0	1
+1	0	2	1	1
+1024	1	1025	1024	1025
+1025	1	1026	1025	1025
+3069	2	3070	3069	3070
+3070	2	3071	3070	3070
+
+
+statement ok
+PRAGMA trace_lineage = "OFF";
+
+query I
+PRAGMA lineage_query('select t1.rowid, t2.rowid, t1.i, t1.j, t2.i from t1, t2 where t1.j == t2.i or t1.i == t2.i', 0, 'LIN', 0)
+----
+[0, 0]
+
+query I
+PRAGMA lineage_query('select t1.rowid, t2.rowid, t1.i, t1.j, t2.i from t1, t2 where t1.j == t2.i or t1.i == t2.i', 5, 'LIN', 0)
+----
+[3070, 2]

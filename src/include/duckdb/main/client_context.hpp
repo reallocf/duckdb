@@ -23,7 +23,9 @@
 #include "duckdb/transaction/transaction_context.hpp"
 #include <random>
 #include "duckdb/common/atomic.hpp"
-
+#ifdef LINEAGE
+#include "duckdb/execution/lineage/lineage_manager.hpp"
+#endif
 namespace duckdb {
 class Appender;
 class Catalog;
@@ -38,7 +40,6 @@ class QueryProfilerHistory;
 class ClientContextLock;
 struct CreateScalarFunctionInfo;
 class ScalarFunctionCatalogEntry;
-
 //! The ClientContext holds information relevant to the current client session
 //! during execution
 class ClientContext : public std::enable_shared_from_this<ClientContext> {

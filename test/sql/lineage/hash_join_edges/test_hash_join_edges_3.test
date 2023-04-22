@@ -1,0 +1,44 @@
+# name: test/sql/lineage/hash_join/test_hash_join_edges_3.test
+# group: [hash_join_edges]
+
+require tpch
+
+statement ok
+CALL dbgen(sf=0.01);
+
+statement ok
+PRAGMA trace_lineage = "ON";
+
+statement ok
+create table q1 as SELECT ROW_NUMBER() OVER (ORDER BY (SELECT 1)) as out_index, partsupp.rowid as partsupp_rowid, lineitem.rowid as lineitem_rowid, orders.rowid as orders_rowid, ps_suppkey, l_suppkey, ps_partkey, l_partkey, o_orderkey, l_orderkey FROM lineitem, partsupp,  orders WHERE ps_suppkey = l_suppkey AND ps_partkey = l_partkey AND o_orderkey = l_orderkey
+
+statement ok
+PRAGMA trace_lineage = "OFF";
+
+statement ok
+create table lineage_q1 as select out_index+1 as out_index, partsupp_rowid_1 as partsupp_rowid, orders_rowid_3 as orders_rowid, lineitem_rowid_0 as lineitem_rowid from (SELECT LINEAGE_1_HASH_JOIN_2_1.rhs_index as lineitem_rowid_0,
+       LINEAGE_1_HASH_JOIN_2_0.in_index as partsupp_rowid_1,
+       LINEAGE_1_HASH_JOIN_4_0.in_index as orders_rowid_3,
+       LINEAGE_1_HASH_JOIN_4_1.out_index
+FROM LINEAGE_1_HASH_JOIN_4_1,
+     LINEAGE_1_HASH_JOIN_4_0, LINEAGE_1_HASH_JOIN_2_1,
+    LINEAGE_1_HASH_JOIN_2_0
+WHERE LINEAGE_1_HASH_JOIN_4_0.out_address=LINEAGE_1_HASH_JOIN_4_1.lhs_address
+and LINEAGE_1_HASH_JOIN_4_1.rhs_index=LINEAGE_1_HASH_JOIN_2_1.out_index
+and LINEAGE_1_HASH_JOIN_2_0.out_address=LINEAGE_1_HASH_JOIN_2_1.lhs_address)
+
+statement ok
+create table lineage_q1_l1 as select out_index+1 as out_index, partsupp_rowid_1 as partsupp_rowid,  lineitem_rowid_0 as lineitem_rowid from (SELECT LINEAGE_1_HASH_JOIN_2_1.rhs_index as lineitem_rowid_0,
+       LINEAGE_1_HASH_JOIN_2_0.in_index as partsupp_rowid_1,
+       LINEAGE_1_HASH_JOIN_2_1.rhs_index as out_index
+FROM LINEAGE_1_HASH_JOIN_2_1,
+    LINEAGE_1_HASH_JOIN_2_0
+WHERE  LINEAGE_1_HASH_JOIN_2_0.out_address=LINEAGE_1_HASH_JOIN_2_1.lhs_address)
+
+query IIIIIIIIIIIIIIIIIIIIIIII
+select * from lineitem, partsupp, lineage_q1_l1 where lineage_q1_l1.lineitem_rowid=lineitem.rowid and lineage_q1_l1.partsupp_rowid=partsupp.rowid and  ps_suppkey<>l_suppkey and ps_partkey<>l_partkey
+----
+
+query IIIIIIIIIIIIII
+select * from q1 join lineage_q1 on (lineage_q1.out_index=q1.out_index) where q1.lineitem_rowid<>lineage_q1.lineitem_rowid or  q1.partsupp_rowid<>lineage_q1.partsupp_rowid or  q1.orders_rowid<>lineage_q1.orders_rowid
+----
