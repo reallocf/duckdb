@@ -100,6 +100,15 @@ public:
 	//! The schema search path, in order by which entries are searched if no schema entry is provided
 	vector<string> catalog_search_path = {TEMP_SCHEMA, DEFAULT_SCHEMA, "pg_catalog"};
 
+#ifdef LINEAGE
+	//! Whether or not lineage is currently being captured
+	bool trace_lineage = false;
+	//! The lineage manager
+	unique_ptr<LineageManager> lineage_manager;
+	//! in_memory storage of physical query plan per query
+	std::unordered_map<string, std::unique_ptr<PhysicalOperator>> query_to_plan;
+#endif
+
 public:
 	DUCKDB_API Transaction &ActiveTransaction() {
 		return transaction.ActiveTransaction();
