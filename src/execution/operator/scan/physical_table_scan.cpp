@@ -5,7 +5,9 @@
 #include "duckdb/parallel/task_context.hpp"
 #include "duckdb/planner/expression/bound_conjunction_expression.hpp"
 #include "duckdb/transaction/transaction.hpp"
-
+#ifdef LINEAGE
+#include "duckdb/main/client_context.hpp"
+#endif
 #include <utility>
 
 namespace duckdb {
@@ -38,7 +40,7 @@ void PhysicalTableScan::GetChunkInternal(ExecutionContext &context, DataChunk &c
 		return;
 	}
 #ifdef LINEAGE
-    context.SetCurrentLineageOp(lineage_op.at(context.task.thread_id));
+    context.client.SetCurrentLineageOp(lineage_op.at(context.task.thread_id));
 #endif
 	if (!state.initialized) {
 		state.parallel_state = nullptr;
@@ -66,11 +68,7 @@ void PhysicalTableScan::GetChunkInternal(ExecutionContext &context, DataChunk &c
 	}
 	if (!state.parallel_state) {
 		// sequential scan
-#ifdef LINEAGE
-		function.function(context, bind_data.get(), state.operator_data.get(), nullptr, chunk);
-#else
 		function.function(context.client, bind_data.get(), state.operator_data.get(), nullptr, chunk);
-#endif
 		if (chunk.size() != 0) {
 			return;
 		}
@@ -78,19 +76,11 @@ void PhysicalTableScan::GetChunkInternal(ExecutionContext &context, DataChunk &c
 		// parallel scan
 		do {
 			if (function.parallel_function) {
-#ifdef LINEAGE
-				function.parallel_function(context, bind_data.get(), state.operator_data.get(), nullptr, chunk,
-				                           state.parallel_state);
-#else
 				function.parallel_function(context.client, bind_data.get(), state.operator_data.get(), nullptr, chunk,
 				                           state.parallel_state);
-#endif
 			} else {
-#ifdef LINEAGE
-				function.function(context, bind_data.get(), state.operator_data.get(), nullptr, chunk);
-#else
+
 				function.function(context.client, bind_data.get(), state.operator_data.get(), nullptr, chunk);
-#endif
 			}
 
 			if (chunk.size() == 0) {

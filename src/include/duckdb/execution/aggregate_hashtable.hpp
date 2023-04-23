@@ -9,6 +9,11 @@
 #pragma once
 
 #include "duckdb/execution/base_aggregate_hashtable.hpp"
+#ifdef LINEAGE
+#include "duckdb/execution/execution_context.hpp"
+#include "duckdb/execution/lineage/lineage_data.hpp"
+#include "duckdb/execution/lineage/operator_lineage.hpp"
+#endif
 
 namespace duckdb {
 class BlockHandle;
@@ -74,8 +79,11 @@ public:
 	//! Scan the HT starting from the scan_position until the result and group
 	//! chunks are filled. scan_position will be updated by this function.
 	//! Returns the amount of elements found.
+#ifdef LINEAGE
+	idx_t Scan(idx_t &scan_position, DataChunk &result, shared_ptr<OperatorLineage> lineage_op);
+#else
 	idx_t Scan(idx_t &scan_position, DataChunk &result);
-
+#endif
 	//! Fetch the aggregates for specific groups from the HT and place them in the result
 	void FetchAggregates(DataChunk &groups, DataChunk &result);
 
@@ -106,6 +114,11 @@ public:
 	//! The hash table load factor, when a resize is triggered
 	constexpr static float LOAD_FACTOR = 1.5;
 	constexpr static uint8_t HASH_WIDTH = sizeof(hash_t);
+
+#ifdef LINEAGE
+	unique_ptr<LineageData> lineage_data;
+	vector<unique_ptr<LineageData>> combine_lineage_data;
+#endif
 
 private:
 	HtEntryType entry_type;

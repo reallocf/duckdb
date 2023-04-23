@@ -13,6 +13,8 @@ string PhysicalOperatorToString(PhysicalOperatorType type) {
 		return "CHUNK_SCAN";
 	case PhysicalOperatorType::DELIM_SCAN:
 		return "DELIM_SCAN";
+	case PhysicalOperatorType::LINEAGE_SCAN:
+		return "LINEAGE_SCAN";
 	case PhysicalOperatorType::ORDER_BY:
 		return "ORDER_BY";
 	case PhysicalOperatorType::LIMIT:

@@ -27,7 +27,13 @@ public:
 	void Combine(PerfectAggregateHashTable &other);
 
 	//! Scan the HT starting from the scan_position
+#ifdef LINEAGE
+	void Scan(idx_t &scan_position, DataChunk &result, shared_ptr<OperatorLineage> lineage_op);
+	// Used to map input to groups
+	shared_ptr<LineageSelVec> sink_per_chunk_lineage;
+#else
 	void Scan(idx_t &scan_position, DataChunk &result);
+#endif
 
 protected:
 	Vector addresses;

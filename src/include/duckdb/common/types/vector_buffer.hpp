@@ -69,6 +69,7 @@ public:
 
 protected:
 	VectorBufferType buffer_type;
+public:
 	unique_ptr<data_t[]> data;
 };
 

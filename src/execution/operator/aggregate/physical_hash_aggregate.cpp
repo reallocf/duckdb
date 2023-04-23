@@ -11,6 +11,9 @@
 #include "duckdb/planner/expression/bound_constant_expression.hpp"
 #include "duckdb/common/atomic.hpp"
 
+#ifdef LINEAGE
+#include "duckdb/parallel/task_context.hpp"
+#endif
 namespace duckdb {
 
 PhysicalHashAggregate::PhysicalHashAggregate(ClientContext &context, vector<LogicalType> types,
@@ -197,8 +200,14 @@ void PhysicalHashAggregate::Sink(ExecutionContext &context, GlobalOperatorState 
 		}
 		D_ASSERT(gstate.finalized_hts.size() == 1);
 		gstate.total_groups += gstate.finalized_hts[0]->AddChunk(group_chunk, aggregate_input_chunk);
+#ifdef LINEAGE
+		// TODO: don't use gstate
+		lineage_op.at(context.task.thread_id)->Capture(move(gstate.finalized_hts[0]->lineage_data), LINEAGE_SINK);
+#endif
 		return;
 	}
+
+  // TODO: handle parallel execution
 
 	D_ASSERT(all_combinable);
 	D_ASSERT(!any_distinct);
@@ -215,6 +224,15 @@ void PhysicalHashAggregate::Sink(ExecutionContext &context, GlobalOperatorState 
 	gstate.total_groups +=
 	    llstate.ht->AddChunk(group_chunk, aggregate_input_chunk,
 	                         gstate.total_groups > radix_limit && gstate.partition_info.n_partitions > 1);
+#ifdef LINEAGE
+	if (!llstate.ht->IsPartitioned()) {
+		lineage_op.at(context.task.thread_id)->Capture(move(llstate.ht->unpartitioned_hts.back()->lineage_data), LINEAGE_SINK);
+	} else {
+		// handle radix_partitioned_hts case
+		// persist: sel_vectors[partition]  radix_partitioned_hts[partition]->lineage_data
+	}
+
+#endif
 }
 
 class PhysicalHashAggregateState : public PhysicalOperatorState {
@@ -267,7 +285,9 @@ void PhysicalHashAggregate::Combine(ExecutionContext &context, GlobalOperatorSta
 
 	// we will never add new values to these HTs so we can drop the first part of the HT
 	llstate.ht->Finalize();
-
+#ifdef LINEAGE
+	llstate.ht->thread_id = context.task.thread_id;
+#endif
 	// at this point we just collect them the PhysicalHashAggregateFinalizeTask (below) will merge them in parallel
 	gstate.intermediate_hts.push_back(move(llstate.ht));
 }
@@ -284,6 +304,9 @@ public:
 		for (auto &pht : gstate.intermediate_hts) {
 			for (auto &ht : pht->GetPartition(radix)) {
 				gstate.finalized_hts[radix]->Combine(*ht);
+#ifdef LINEAGE
+				gstate.finalized_hts[radix]->combine_lineage_data.clear();
+#endif
 				ht.reset();
 			}
 		}
@@ -338,6 +361,7 @@ bool PhysicalHashAggregate::FinalizeInternal(ClientContext &context, unique_ptr<
 		}
 	}
 
+  // TODO: check how lineage would change if this path was taken
 	if (any_partitioned) {
 		// if one is partitioned, all have to be
 		// this should mostly have already happened in Combine, but if not we do it here
@@ -376,6 +400,12 @@ bool PhysicalHashAggregate::FinalizeInternal(ClientContext &context, unique_ptr<
 			for (auto &unpartitioned_ht : unpartitioned) {
 				D_ASSERT(unpartitioned_ht);
 				gstate.finalized_hts[0]->Combine(*unpartitioned_ht);
+#ifdef LINEAGE
+				for (idx_t i=0; gstate.finalized_hts[0]->combine_lineage_data.size(); ++i) {
+				  lineage_op.begin()->second->Capture(move(gstate.finalized_hts[0]->combine_lineage_data[i]), LINEAGE_COMBINE, pht->thread_id);
+				  gstate.finalized_hts[0]->combine_lineage_data.clear();
+				}
+#endif
 				unpartitioned_ht.reset();
 			}
 			unpartitioned.clear();
@@ -391,7 +421,6 @@ void PhysicalHashAggregate::GetChunkInternal(ExecutionContext &context, DataChun
 	auto &state = (PhysicalHashAggregateState &)*state_p;
 
 	state.scan_chunk.Reset();
-
 	// special case hack to sort out aggregating from empty intermediates
 	// for aggregations without groups
 	if (gstate.is_empty && is_implicit_aggr) {
@@ -424,7 +453,11 @@ void PhysicalHashAggregate::GetChunkInternal(ExecutionContext &context, DataChun
 			state.finished = true;
 			return;
 		}
+#ifdef LINEAGE
+		elements_found = gstate.finalized_hts[state.ht_index]->Scan(state.ht_scan_position, state.scan_chunk, lineage_op.at(context.task.thread_id));
+#else
 		elements_found = gstate.finalized_hts[state.ht_index]->Scan(state.ht_scan_position, state.scan_chunk);
+#endif
 
 		if (elements_found > 0) {
 			break;

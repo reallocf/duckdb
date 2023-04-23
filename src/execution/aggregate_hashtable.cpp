@@ -340,7 +340,10 @@ idx_t GroupedAggregateHashTable::AddChunk(DataChunk &groups, Vector &group_hashe
 		payload_idx += aggr.child_count;
 		VectorOperations::AddInPlace(addresses, aggr.payload_size, payload.size());
 	}
-
+#ifdef LINEAGE
+	// this maps input to groups, we can use it later to map output to input
+	lineage_data = make_unique<LineageDataArray<data_t>>(move(addresses.GetBuffer()->data),  groups.size());
+#endif
 	Verify();
 	return new_group_count;
 }
@@ -409,7 +412,6 @@ idx_t GroupedAggregateHashTable::FindOrCreateGroupsInternal(DataChunk &groups, V
 
 	// we start out with all entries [0, 1, 2, ..., groups.size()]
 	const SelectionVector *sel_vector = &FlatVector::INCREMENTAL_SELECTION_VECTOR;
-
 	idx_t remaining_entries = groups.size();
 
 	// make a chunk that references the groups and the hashes
@@ -548,8 +550,13 @@ void GroupedAggregateHashTable::FlushMove(Vector &source_addresses, Vector &sour
 	SelectionVector new_groups_sel(STANDARD_VECTOR_SIZE);
 
 	FindOrCreateGroups(groups, source_hashes, group_addresses, new_groups_sel);
-
 	RowOperations::CombineStates(layout, source_addresses, group_addresses, count);
+
+#ifdef LINEAGE
+	auto source_lineage = make_unique<LineageDataArray<data_t>>(move(source_addresses.GetBuffer()->data),  count);
+	auto new_lineage =  make_unique<LineageDataArray<data_t>>(move(group_addresses.GetBuffer()->data),  count);
+	combine_lineage_data.push_back(make_unique<LineageBinary>(move(source_lineage), move(new_lineage)));
+#endif
 }
 
 void GroupedAggregateHashTable::Combine(GroupedAggregateHashTable &other) {
@@ -581,6 +588,10 @@ void GroupedAggregateHashTable::Combine(GroupedAggregateHashTable &other) {
 		group_idx++;
 		if (group_idx == STANDARD_VECTOR_SIZE) {
 			FlushMove(addresses, hashes, group_idx);
+#ifdef LINEAGE
+			addresses.Initialize();
+			addresses_ptr = FlatVector::GetData<data_ptr_t>(addresses);
+#endif
 			group_idx = 0;
 		}
 	});
@@ -637,7 +648,12 @@ void GroupedAggregateHashTable::Partition(vector<GroupedAggregateHashTable *> &p
 	D_ASSERT(total_count == entries);
 }
 
+#ifdef LINEAGE
+idx_t GroupedAggregateHashTable::Scan(idx_t &scan_position, DataChunk &result, shared_ptr<OperatorLineage> lineage_op) {
+	Vector addresses(LogicalType::POINTER);
+#else
 idx_t GroupedAggregateHashTable::Scan(idx_t &scan_position, DataChunk &result) {
+#endif
 	auto data_pointers = FlatVector::GetData<data_ptr_t>(addresses);
 
 	auto remaining = entries - scan_position;
@@ -660,6 +676,7 @@ idx_t GroupedAggregateHashTable::Scan(idx_t &scan_position, DataChunk &result) {
 		}
 	}
 
+
 	result.SetCardinality(this_n);
 	// fetch the group columns (ignoring the final hash column
 	const auto group_cols = layout.ColumnCount() - 1;
@@ -671,7 +688,11 @@ idx_t GroupedAggregateHashTable::Scan(idx_t &scan_position, DataChunk &result) {
 	}
 
 	RowOperations::FinalizeStates(layout, addresses, result, group_cols);
-
+#ifdef LINEAGE
+	// this maps output to groups
+	auto scan_lineage = make_unique<LineageDataArray<data_t>>(move(addresses.GetBuffer()->data),  result.size());
+	lineage_op->Capture(move(scan_lineage), LINEAGE_SOURCE);
+#endif
 	scan_position += this_n;
 	return this_n;
 }

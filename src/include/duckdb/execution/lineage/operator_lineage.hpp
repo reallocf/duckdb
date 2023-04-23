@@ -17,6 +17,7 @@
 #include "duckdb/execution/lineage/lineage_data.hpp"
 #include "duckdb/execution/lineage/pipeline_lineage.hpp"
 #include "lineage_top.h"
+#include "duckdb/parallel/task_context.hpp"
 
 #include <iostream>
 #include <utility>

@@ -108,9 +108,19 @@ public:
 	unique_ptr<LineageManager> lineage_manager;
 	//! in_memory storage of physical query plan per query
 	std::unordered_map<string, std::unique_ptr<PhysicalOperator>> query_to_plan;
+	shared_ptr<OperatorLineage> current_lop;
 #endif
 
 public:
+#ifdef LINEAGE
+	void SetCurrentLineageOp(shared_ptr<OperatorLineage> lop) {
+		current_lop = lop;
+	}
+
+	shared_ptr<OperatorLineage> GetCurrentLineageOp() {
+		return current_lop;
+	}
+#endif
 	DUCKDB_API Transaction &ActiveTransaction() {
 		return transaction.ActiveTransaction();
 	}

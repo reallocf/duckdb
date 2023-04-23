@@ -2,8 +2,7 @@
 //                         DuckDB
 //
 // duckdb/execution/lineage_data.hpp
-//
-//
+// Wrapper specialized for lineage artifact data types
 //===----------------------------------------------------------------------===//
 
 #ifdef LINEAGE
@@ -20,118 +19,67 @@
 #include <utility>
 
 namespace duckdb {
-// TODO get templating working like before - that would be better
-class LineageDataRowVector : public LineageData {
-public:
-	LineageDataRowVector(vector<row_t> vec_p, idx_t count) : vec(move(vec_p)), count(count) {
-#ifdef LINEAGE_DEBUG
-		Debug();
-#endif
-	}
 
-	idx_t Count() override;
-	void Debug() override;
-	data_ptr_t Process(idx_t offset) override;
-	void SetChild(shared_ptr<LineageDataWithOffset> c) override;
-	shared_ptr<LineageDataWithOffset> GetChild() override;
-	idx_t Size() override;
-	idx_t Backward(idx_t) override;
+template<typename T>
+class LineageDataArray : public LineageData {
+public:
+	LineageDataArray(unique_ptr<T[]> data, idx_t count) : LineageData(count), data(move(data)), processed(false) {}
+
+	void Debug() override {
+		std::cout << "LineageDataArray<" << typeid(T).name() << "> "  << " isProcessed: " << processed << std::endl;
+		for (idx_t i = 0; i < count; i++) {
+			std::cout << " (" << i << " -> " << data[i] << ") ";
+		}
+		std::cout << std::endl;
+	}
+	data_ptr_t Process(idx_t offset) override {
+		if (processed == false) {
+			for (idx_t i = 0; i < count; i++) {
+				data[i] += offset;
+			}
+			processed = true;
+		}
+		return (data_ptr_t)data.get();
+	}
+	idx_t Backward(idx_t source) override {
+		// TODO: return null/-1 if source out of range
+		return (idx_t)data[source];
+	}
+	idx_t Size() override { return count * sizeof(T); }
 
 private:
-	vector<row_t> vec;
-	idx_t count;
-	shared_ptr<LineageDataWithOffset> child;
+	unique_ptr<T[]> data;
+	bool processed;
 };
 
-class LineageDataVectorBufferArray : public LineageData {
-public:
-	LineageDataVectorBufferArray(unique_ptr<data_t[]> vec_p, idx_t count) : vec(move(vec_p)), count(count) {
-#ifdef LINEAGE_DEBUG
-		Debug();
-#endif
-	}
+// 	LineageDataVectorBufferArray ;
+//using LineageDataUIntPtrArray = LineageDataArray<uintptr_t>; // -> unique_ptr<uintptr_t[]> vec
+//using LineageDataUInt32Array = LineageDataArray<uint32_t>; // -> 	unique_ptr<uint32_t[]> vec
+//using LineageDataVectorBufferArray = LineageDataArray<data_t>; // -> unique_ptr<data_t[]> vec
 
-	idx_t Count() override;
-	void Debug() override;
-	data_ptr_t Process(idx_t offset) override;
-	void SetChild(shared_ptr<LineageDataWithOffset> c) override;
-	shared_ptr<LineageDataWithOffset> GetChild() override;
-	idx_t Size() override;
-	idx_t Backward(idx_t) override;
-
-private:
-	unique_ptr<data_t[]> vec;
-	idx_t count;
-	shared_ptr<LineageDataWithOffset> child;
-};
-
-class LineageDataUIntPtrArray : public LineageData {
-public:
-	LineageDataUIntPtrArray(unique_ptr<uintptr_t[]> vec_p, idx_t count) : vec(move(vec_p)), count(count) {
-#ifdef LINEAGE_DEBUG
-		Debug();
-#endif
-	}
-
-	idx_t Count() override;
-	void Debug() override;
-	data_ptr_t Process(idx_t offset) override;
-	void SetChild(shared_ptr<LineageDataWithOffset> c) override;
-	shared_ptr<LineageDataWithOffset> GetChild() override;
-	idx_t Size() override;
-	idx_t Backward(idx_t) override;
-
-private:
-	unique_ptr<uintptr_t[]> vec;
-	idx_t count;
-	shared_ptr<LineageDataWithOffset> child;
-};
-
-class LineageDataUInt32Array : public LineageData {
-public:
-	LineageDataUInt32Array(unique_ptr<uint32_t[]>vec_p, idx_t count) : vec(move(vec_p)), count(count) {
-#ifdef LINEAGE_DEBUG
-		Debug();
-#endif
-	}
-
-	idx_t Count() override;
-	void Debug() override;
-	data_ptr_t Process(idx_t offset) override;
-	void SetChild(shared_ptr<LineageDataWithOffset> c) override;
-	shared_ptr<LineageDataWithOffset> GetChild() override;
-	idx_t Size() override;
-	idx_t Backward(idx_t) override;
-
-private:
-	unique_ptr<uint32_t[]> vec;
-	idx_t count;
-	shared_ptr<LineageDataWithOffset> child;
-};
+// LineageDataRowVector -> vector<row_t> vec;
+using LineageDataRowVector = LineageDataArray<vector<row_t>>;
 
 class LineageSelVec : public LineageData {
 public:
-	LineageSelVec(const SelectionVector& vec_p, idx_t count, idx_t in_offset=0) : vec(vec_p), count(count), in_offset(in_offset) {
+	LineageSelVec(const SelectionVector& vec_p, idx_t count, idx_t in_offset=0) : LineageData(count), vec(vec_p), in_offset(in_offset) {
 #ifdef LINEAGE_DEBUG
 		Debug();
 #endif
 	}
 
-	idx_t Count() override;
 	void Debug() override;
 	data_ptr_t Process(idx_t offset) override;
-	void SetChild(shared_ptr<LineageDataWithOffset> c) override;
-	shared_ptr<LineageDataWithOffset> GetChild() override;
-	idx_t Size() override;
+	idx_t Size() override {
+		return count * sizeof(vec.get_index(0));
+	}
 	idx_t Backward(idx_t) override;
 
-	// TODO should this be a func shared across all LineageData?
+	// TODO: should this be a func shared across all LineageData?
 	vector<LineageDataWithOffset> Divide();
 
 private:
 	SelectionVector vec;
-	idx_t count;
-	shared_ptr<LineageDataWithOffset> child;
 	idx_t in_offset;
 };
 
@@ -139,56 +87,60 @@ private:
 // used to quickly capture Limits
 class LineageRange : public LineageData {
 public:
-	LineageRange(idx_t start, idx_t end) : start(start), end(end) {
+	LineageRange(idx_t start, idx_t end) : LineageData(end-start), start(start), end(end) {
 #ifdef LINEAGE_DEBUG
 		Debug();
 #endif
 	}
-
-	idx_t Count() override;
-	void Debug() override;
-	data_ptr_t Process(idx_t offset) override;
-	void SetChild(shared_ptr<LineageDataWithOffset> c) override;
-	shared_ptr<LineageDataWithOffset> GetChild() override;
-	idx_t Size() override;
-	idx_t Backward(idx_t) override;
+	void Debug() override {
+		std::cout << "LineageRange - Start: " << start << " End: " << end << std::endl;
+	}
+	data_ptr_t Process(idx_t offset) override {
+		throw std::logic_error("LineageRange shouldn't decompress its data");
+	}
+	idx_t Size() override {
+		return 2 * sizeof(idx_t);
+	}
+	idx_t Backward(idx_t source) override {
+		// TODO: check this logic
+		return source;
+	}
 
 private:
 	idx_t start;
 	idx_t end;
-	vector<sel_t> vec;
-	shared_ptr<LineageDataWithOffset> child;
 };
 
 // Constant Value
 class LineageConstant : public LineageData {
 public:
-	LineageConstant(idx_t value, idx_t count) : value(value), count(count) {
+	LineageConstant(idx_t value, idx_t count) : LineageData(count), value(value) {
 #ifdef LINEAGE_DEBUG
 		Debug();
 #endif
 	}
-
-	idx_t Count() override;
-	void Debug() override;
-	data_ptr_t Process(idx_t offset) override;
-	void SetChild(shared_ptr<LineageDataWithOffset> c) override;
-	shared_ptr<LineageDataWithOffset> GetChild() override;
-	idx_t Size() override;
-	idx_t Backward(idx_t) override;
+	void Debug() override {
+		std::cout << "LineageConstant - value: " << value << " Count: " << count << std::endl;
+	}
+	data_ptr_t Process(idx_t offset) override {
+		throw std::logic_error("LineageConstant shouldn't decompress its data");
+	}
+	idx_t Size() override {
+		return 1*sizeof(value);
+	}
+	idx_t Backward(idx_t) override {
+		return value;
+	}
 
 private:
 	idx_t value;
-	idx_t count;
-	vector<int> vec;
-	shared_ptr<LineageDataWithOffset> child;
 };
 
 // Captures two lineage data of the same side - used for Joins
 class LineageBinary : public LineageData {
 public:
 	LineageBinary(unique_ptr<LineageData> lhs, unique_ptr<LineageData> rhs) :
-	      left(move(lhs)), right(move(rhs)) {
+	      LineageData(0), left(move(lhs)), right(move(rhs)) {
 #ifdef LINEAGE_DEBUG
 		Debug();
 #endif
@@ -197,42 +149,48 @@ public:
 	idx_t Count() override;
 	void Debug() override;
 	data_ptr_t Process(idx_t offset) override;
-	void SetChild(shared_ptr<LineageDataWithOffset> c) override;
-	shared_ptr<LineageDataWithOffset> GetChild() override;
 	idx_t Size() override;
-	idx_t Backward(idx_t) override;
+	idx_t Backward(idx_t) override {
+		throw std::logic_error("Can't call backward directly on LineageBinary");
+	}
 
 	unique_ptr<LineageData> left;
 	unique_ptr<LineageData> right;
 private:
 	bool switch_on_left = true;
-	shared_ptr<LineageDataWithOffset> child;
 };
 
 class LineageNested : public LineageData {
 public:
-	LineageNested() {
+	LineageNested() : LineageData(0)  {
 #ifdef LINEAGE_DEBUG
 		Debug();
 #endif
 	}
 
-	explicit LineageNested(const shared_ptr<LineageDataWithOffset>& lineage_data) : lineage({lineage_data}) {
-		count = lineage_data->data->Count();
+	explicit LineageNested(const shared_ptr<LineageDataWithOffset>& lineage_data) :
+	      LineageData(lineage_data->data->Count()), lineage({lineage_data}) {
 		size = lineage_data->data->Size();
 		index.push_back(count);
 #ifdef LINEAGE_DEBUG
 		Debug();
 #endif
 	}
-
-	idx_t Count() override;
 	void Debug() override;
-	data_ptr_t Process(idx_t offset) override;
-	void SetChild(shared_ptr<LineageDataWithOffset> c) override;
-	shared_ptr<LineageDataWithOffset> GetChild() override;
-	idx_t Size() override;
-	idx_t Backward(idx_t) override;
+	data_ptr_t Process(idx_t offset) override {
+		throw std::logic_error("Can't call process on LineageNested");
+	}
+	// Do nothing since the children are set on the internal LineageData
+	void SetChild(shared_ptr<LineageDataWithOffset> c) override {}
+	shared_ptr<LineageDataWithOffset> GetChild() override {
+		throw std::logic_error("Can't call GetChild on LineageNested");
+	}
+	idx_t Size() override {
+		return size;
+	}
+	idx_t Backward(idx_t) override {
+		throw std::logic_error("Can't call backward directly on LineageNested");
+	}
 
 	void AddLineage(const shared_ptr<LineageDataWithOffset>& lineage_data);
 	shared_ptr<LineageDataWithOffset> GetInternal();
@@ -244,7 +202,6 @@ public:
 private:
 	vector<shared_ptr<LineageDataWithOffset>> lineage = {};
 	idx_t ret_idx = 0;
-	idx_t count = 0;
 	idx_t size = 0;
 	vector<idx_t> index;
 };

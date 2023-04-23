@@ -2,11 +2,6 @@
 #include "duckdb/execution/lineage/lineage_manager.hpp"
 
 #include "duckdb/main/client_context.hpp"
-#include "duckdb/parser/parsed_data/create_table_info.hpp"
-#include "duckdb/parser/statement/create_statement.hpp"
-#include "duckdb/planner/binder.hpp"
-#include "duckdb/planner/parsed_data/bound_create_table_info.hpp"
-#include "duckdb/parser/parsed_data/create_index_info.hpp"
 #include "duckdb/execution/operator/join/physical_delim_join.hpp"
 #include "duckdb/execution/operator/join/physical_join.hpp"
 

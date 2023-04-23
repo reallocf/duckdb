@@ -7,6 +7,8 @@
 #include "duckdb/execution/physical_plan_generator.hpp"
 #include "duckdb/planner/operator/logical_get.hpp"
 #include "duckdb/function/table/table_scan.hpp"
+#include <duckdb/execution/operator/scan/physical_lineage_scan.hpp>
+
 
 namespace duckdb {
 

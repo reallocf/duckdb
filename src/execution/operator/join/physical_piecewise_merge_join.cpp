@@ -276,6 +276,11 @@ void PhysicalPiecewiseMergeJoin::ResolveComplexJoin(ExecutionContext &context, D
 			// found matches: output them
 			chunk.Slice(state->child_chunk, left_info.result, result_count);
 			chunk.Slice(right_chunk, right_info.result, result_count, state->child_chunk.ColumnCount());
+#ifdef LINEAGE
+			auto lhs_lineage = make_unique<LineageSelVec>(move(left_info.result), result_count);
+			auto rhs_lineage = make_unique<LineageSelVec>(move(right_info.result), result_count, state->right_chunk_index*STANDARD_VECTOR_SIZE);
+			lineage_op.at(context.task.thread_id)->Capture(make_shared<LineageBinary>(move(lhs_lineage), move(rhs_lineage)), LINEAGE_PROBE);
+#endif
 		}
 	} while (chunk.size() == 0);
 }
