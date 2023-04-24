@@ -1,0 +1,41 @@
+# name: test/sql/lineage_v2/l_aggs/test_hash_agg.test
+# description: Test Hash Aggregate Lineage
+# group: [l_aggs]
+
+
+statement ok
+PRAGMA explain_output = PHYSICAL_ONLY;
+
+
+statement ok
+CREATE TABLE t1(i VARCHAR(10), j INTEGER);
+
+statement ok
+INSERT INTO t1 VALUES ('Haneen', 2),  ('Omar', 2), ('Haneen', 4), ('Mohammed', 1), ('Omar', 1), ('Haneen', 3), ('Mohammed', 2), ('Omar', 1)
+
+statement ok
+PRAGMA trace_lineage = "ON";
+
+# standalone limit
+query II
+select t1.i, avg(t1.j) from t1 GROUP BY t1.i
+----
+Haneen	3.000000
+Omar	1.333333
+Mohammed	1.500000
+
+statement ok
+PRAGMA trace_lineage = "OFF";
+
+query III
+SELECT * FROM queries_list;
+----
+0	PRAGMA trace_lineage = "ON";	0
+1	select t1.i, avg(t1.j) from t1 GROUP BY t1.i	0
+
+
+statement ok
+select * from LINEAGE_1_HASH_GROUP_BY_2_0
+
+statement ok
+select * from LINEAGE_1_HASH_GROUP_BY_2_1

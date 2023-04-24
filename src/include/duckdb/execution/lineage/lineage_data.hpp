@@ -70,7 +70,10 @@ public:
 		Debug();
 #endif
 	}
-
+	virtual Vector GetVecRef(LogicalType t, idx_t offset) override {
+		Vector vec(t, Process(offset));
+		return vec;
+	}
 	void Debug() override;
 	data_ptr_t Process(idx_t offset) override;
 	idx_t Size() override {
@@ -96,6 +99,13 @@ public:
 		Debug();
 #endif
 	}
+
+	virtual Vector GetVecRef(LogicalType t, idx_t offset) override {
+		Vector vec(t, count);
+		vec.Sequence(start+offset, 1);
+		return vec;
+	}
+
 	void Debug() override {
 		std::cout << "LineageRange - Start: " << start << " End: " << end << std::endl;
 	}

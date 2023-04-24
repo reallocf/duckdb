@@ -89,13 +89,8 @@ unique_ptr<PhysicalOperator> PhysicalPlanGenerator::CreatePlan(LogicalGet &op) {
 		projection->children.push_back(move(node));
 		return move(projection);
 	} else {
-		TableScanBindData* tbldata = dynamic_cast<TableScanBindData *>(op.bind_data.get());
-
-		context.lineage_manager->table_lineage_op[tbldata->table->name];
-		auto map = context.lineage_manager->table_lineage_op;
-		auto lineage_op = map.count(tbldata->table->name) ? map[tbldata->table->name] : nullptr;
-		if (lineage_op) {
-			return make_unique<PhysicalLineageScan>(lineage_op, op.types, op.function, move(op.bind_data), op.column_ids, op.names,
+		if (op.lineage_op) {
+			return make_unique<PhysicalLineageScan>(op.lineage_op, op.types, op.function, move(op.bind_data), op.column_ids, op.names,
 			                                        move(table_filters), op.estimated_cardinality);
 		}
 		return make_unique<PhysicalTableScan>(op.types, op.function, move(op.bind_data), op.column_ids, op.names,

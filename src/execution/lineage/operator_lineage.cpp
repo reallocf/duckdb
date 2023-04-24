@@ -121,17 +121,12 @@ LineageProcessStruct OperatorLineage::Process(const vector<LogicalType>& types, 
 			LineageDataWithOffset this_data = data[LINEAGE_UNARY][data_idx];
 			idx_t res_count = this_data.data->Count();
 
-
 			insert_chunk.Reset();
 			insert_chunk.SetCardinality(res_count);
 			insert_chunk.data[0].Sequence(count_so_far, 1);
 
-			if (this_data.data->Type() == "LineageRange") {
-				insert_chunk.data[1].Sequence(dynamic_cast<LineageRange&>(*this_data.data).start+this_data.child_offset, 1);
-			} else {
-				Vector in_index(types[1], this_data.data->Process(this_data.child_offset));
-				insert_chunk.data[1].Reference(in_index);
-			}
+			Vector vec = this_data.data->GetVecRef(types[1], this_data.child_offset);
+			insert_chunk.data[1].Reference(vec);
 
 			insert_chunk.data[2].Sequence(count_so_far, 1);
 			insert_chunk.data[3].Reference(thread_id_vec);

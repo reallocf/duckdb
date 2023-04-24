@@ -45,16 +45,6 @@ public:
 	//! The vectors owned by the DataChunk.
 	vector<Vector> data;
 
-	//! Lineage Hack
-	unique_ptr<vector<shared_ptr<vector<SourceAndMaybeData>>>> lineage_agg_data = make_unique<vector<shared_ptr<vector<SourceAndMaybeData>>>>();
-	idx_t inner_agg_idx = 0;
-	idx_t outer_agg_idx = 0;
-	unique_ptr<vector<shared_ptr<vector<SourceAndMaybeData>>>> next_lineage_agg_data = make_unique<vector<shared_ptr<vector<SourceAndMaybeData>>>>();
-	shared_ptr<vector<LineageDataWithOffset>> lineage_simple_agg_data = make_shared<vector<LineageDataWithOffset>>();
-	idx_t inner_simple_agg_idx = 0;
-	idx_t outer_simple_agg_idx = 0;
-	shared_ptr<vector<LineageDataWithOffset>> next_lineage_simple_agg_data = make_shared<vector<LineageDataWithOffset>>();
-
 public:
 	DUCKDB_API idx_t size() const {
 		return count;

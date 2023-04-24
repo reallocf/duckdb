@@ -17,8 +17,13 @@ struct LineageDataWithOffset;
 class LineageData {
 public:
 	LineageData(idx_t count) : count(count), type("LineageData") {}
+
 	virtual idx_t Count() {
 		return count;
+	}
+	virtual Vector GetVecRef(LogicalType t, idx_t) {
+		Vector vec(t, count);
+		return vec;
 	}
 	virtual string Type() {
 		return type;

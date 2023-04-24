@@ -13,6 +13,9 @@
 #include "duckdb/parser/tableref/table_function_ref.hpp"
 #include "duckdb/main/config.hpp"
 
+#ifdef LINEAGE
+#include "duckdb/main/client_context.hpp"
+#endif
 namespace duckdb {
 
 unique_ptr<BoundTableRef> Binder::Bind(BaseTableRef &ref) {
@@ -95,9 +98,19 @@ unique_ptr<BoundTableRef> Binder::Bind(BaseTableRef &ref) {
 			table_names.push_back(col.name);
 		}
 		table_names = BindContext::AliasColumnNames(alias, table_names, ref.column_name_alias);
+		string table_name_upper = ref.table_name;
+		for (char& c : table_name_upper) {
+			c = toupper(c);
+		}
+
+ 		auto map = context.lineage_manager->table_lineage_op;
+		shared_ptr<OperatorLineage> lineage_op = nullptr;
+		if (map.find(table_name_upper) != map.end()) {
+			lineage_op = map[table_name_upper];
+		}
 
 		auto logical_get =
-		    make_unique<LogicalGet>(table_index, scan_function, move(bind_data), table_types, table_names);
+		    make_unique<LogicalGet>(table_index, scan_function, move(bind_data), table_types, table_names, lineage_op);
 		bind_context.AddBaseTable(table_index, alias, table_names, table_types, *logical_get);
 		return make_unique_base<BoundTableRef, BoundBaseTableRef>(table, move(logical_get));
 	}

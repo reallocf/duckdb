@@ -6,12 +6,19 @@
 #include "duckdb/common/string_util.hpp"
 
 namespace duckdb {
-
+LogicalGet::LogicalGet(idx_t table_index, TableFunction function, unique_ptr<FunctionData> bind_data,
+                       vector<LogicalType> returned_types, vector<string> returned_names, shared_ptr<OperatorLineage> lineage_op)
+    : LogicalOperator(LogicalOperatorType::LOGICAL_GET), lineage_op(lineage_op), table_index(table_index), function(move(function)),
+      bind_data(move(bind_data)), returned_types(move(returned_types)), names(move(returned_names)) {
+}
+#ifdef LINEAGE
+#else
 LogicalGet::LogicalGet(idx_t table_index, TableFunction function, unique_ptr<FunctionData> bind_data,
                        vector<LogicalType> returned_types, vector<string> returned_names)
     : LogicalOperator(LogicalOperatorType::LOGICAL_GET), table_index(table_index), function(move(function)),
       bind_data(move(bind_data)), returned_types(move(returned_types)), names(move(returned_names)) {
 }
+#endif
 
 string LogicalGet::GetName() const {
 	return StringUtil::Upper(function.name);
