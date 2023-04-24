@@ -3,6 +3,10 @@
 #include "duckdb/planner/expression/bound_conjunction_expression.hpp"
 #include "duckdb/parallel/thread_context.hpp"
 
+#ifdef LINEAGE
+#include "duckdb/parallel/task_context.hpp"
+#endif
+
 namespace duckdb {
 
 class PhysicalFilterState : public PhysicalOperatorState {
@@ -47,15 +51,16 @@ void PhysicalFilter::GetChunkInternal(ExecutionContext &context, DataChunk &chun
 		result_count = state->executor.SelectExpression(chunk, sel);
 	} while (result_count == 0);
 
+	if (result_count == initial_count) {
+		// nothing was filtered: skip adding any selection vectors
+		lineage_op.at(context.task.thread_id)->Capture( make_shared<LineageRange>(0, result_count), LINEAGE_UNARY);
+		return;
+	}
+
 #ifdef LINEAGE
-	// Capture lineage regardless of if anything was filtered out or not - TODO optimize by removing if nothing filtered?
 	lineage_op.at(context.task.thread_id)->Capture(make_shared<LineageSelVec>(sel, result_count), LINEAGE_UNARY);
 #endif
 
-	if (result_count == initial_count) {
-		// nothing was filtered: skip adding any selection vectors
-		return;
-	}
 	chunk.Slice(sel, result_count);
 }
 

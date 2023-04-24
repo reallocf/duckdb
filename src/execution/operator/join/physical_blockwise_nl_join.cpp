@@ -4,6 +4,11 @@
 #include "duckdb/execution/expression_executor.hpp"
 #include "duckdb/execution/operator/join/physical_comparison_join.hpp"
 
+
+#ifdef LINEAGE
+#include "duckdb/parallel/task_context.hpp"
+#endif
+
 namespace duckdb {
 
 PhysicalBlockwiseNLJoin::PhysicalBlockwiseNLJoin(LogicalOperator &op, unique_ptr<PhysicalOperator> left,

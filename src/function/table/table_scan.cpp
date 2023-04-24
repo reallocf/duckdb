@@ -80,8 +80,7 @@ static void TableScanFunc(ClientContext &context, const FunctionData *bind_data_
 		scan_lop->Capture(move(state.scan_state.row_group_scan_state.scan_lineage_data), LINEAGE_UNARY);
 	} else {
 		if (output.size() > 0) {
-			idx_t start = state.scan_state.row_group_scan_state.chunk_id*STANDARD_VECTOR_SIZE;
-			scan_lop->Capture( make_shared<LineageRange>(start, start+output.size()), LINEAGE_UNARY);
+			scan_lop->Capture( make_shared<LineageRange>(0, output.size()), LINEAGE_UNARY);
 		}
 	}
 #endif

@@ -23,7 +23,9 @@ namespace duckdb {
 template<typename T>
 class LineageDataArray : public LineageData {
 public:
-	LineageDataArray(unique_ptr<T[]> data, idx_t count) : LineageData(count), data(move(data)), processed(false) {}
+	LineageDataArray(unique_ptr<T[]> data, idx_t count) : LineageData(count), data(move(data)), processed(false) {
+		type = "LineageDataArray";
+	}
 
 	void Debug() override {
 		std::cout << "LineageDataArray<" << typeid(T).name() << "> "  << " isProcessed: " << processed << std::endl;
@@ -63,6 +65,7 @@ using LineageDataRowVector = LineageDataArray<vector<row_t>>;
 class LineageSelVec : public LineageData {
 public:
 	LineageSelVec(const SelectionVector& vec_p, idx_t count, idx_t in_offset=0) : LineageData(count), vec(vec_p), in_offset(in_offset) {
+		type = "LineageSelVec";
 #ifdef LINEAGE_DEBUG
 		Debug();
 #endif
@@ -88,6 +91,7 @@ private:
 class LineageRange : public LineageData {
 public:
 	LineageRange(idx_t start, idx_t end) : LineageData(end-start), start(start), end(end) {
+		type = "LineageRange";
 #ifdef LINEAGE_DEBUG
 		Debug();
 #endif
@@ -106,7 +110,7 @@ public:
 		return source;
 	}
 
-private:
+public:
 	idx_t start;
 	idx_t end;
 };
@@ -115,6 +119,7 @@ private:
 class LineageConstant : public LineageData {
 public:
 	LineageConstant(idx_t value, idx_t count) : LineageData(count), value(value) {
+		type = "LineageConstant";
 #ifdef LINEAGE_DEBUG
 		Debug();
 #endif
@@ -141,6 +146,7 @@ class LineageBinary : public LineageData {
 public:
 	LineageBinary(unique_ptr<LineageData> lhs, unique_ptr<LineageData> rhs) :
 	      LineageData(0), left(move(lhs)), right(move(rhs)) {
+		type = "LineageBinary";
 #ifdef LINEAGE_DEBUG
 		Debug();
 #endif
@@ -163,6 +169,7 @@ private:
 class LineageNested : public LineageData {
 public:
 	LineageNested() : LineageData(0)  {
+		type = "LineageNested";
 #ifdef LINEAGE_DEBUG
 		Debug();
 #endif
@@ -172,6 +179,7 @@ public:
 	      LineageData(lineage_data->data->Count()), lineage({lineage_data}) {
 		size = lineage_data->data->Size();
 		index.push_back(count);
+		type = "LineageNested";
 #ifdef LINEAGE_DEBUG
 		Debug();
 #endif

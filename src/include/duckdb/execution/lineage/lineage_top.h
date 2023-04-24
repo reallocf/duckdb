@@ -16,9 +16,12 @@ struct LineageDataWithOffset;
 
 class LineageData {
 public:
-	LineageData(idx_t count) : count(count) {}
+	LineageData(idx_t count) : count(count), type("LineageData") {}
 	virtual idx_t Count() {
 		return count;
+	}
+	virtual string Type() {
+		return type;
 	}
 	virtual void Debug() = 0;
 	virtual data_ptr_t Process(idx_t offset) = 0;
@@ -34,6 +37,7 @@ public:
 public:
 	idx_t count;
 	shared_ptr<LineageDataWithOffset> child;
+	string type;
 };
 
 struct LineageDataWithOffset {

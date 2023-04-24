@@ -1,0 +1,44 @@
+# name: test/sql/lineage_v2/l_filter/test_filter.test
+# description: Test Filter Lineage
+# group: [l_filter]
+
+
+statement ok
+PRAGMA explain_output = PHYSICAL_ONLY;
+
+statement ok
+CREATE TABLE t1(i INTEGER);
+
+statement ok
+INSERT INTO t1 SELECT i FROM range(0,2000) tbl(i);
+
+statement ok
+PRAGMA trace_lineage = "ON";
+
+statement ok
+select * from t1 where 2 > i  OR i > 1998
+
+statement ok
+select * from t1 where i > 2000 OR i > 1998
+
+statement ok
+select * from t1 where i < 2000 OR i > 1998
+
+statement ok
+PRAGMA trace_lineage = "OFF";
+
+query III
+SELECT rowid, out_index, in_index FROM LINEAGE_1_FILTER_1_0
+----
+0	0	0
+1	1	1
+2	2	1999
+
+query III
+SELECT rowid, out_index, in_index FROM LINEAGE_2_FILTER_1_0
+----
+0	0	1999
+
+query III
+SELECT rowid, out_index, in_index FROM LINEAGE_3_FILTER_1_0 where out_index!=in_index and out_index!=rowid
+----

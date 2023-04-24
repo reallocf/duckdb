@@ -141,6 +141,7 @@ idx_t LineageManager::CreateLineageTables(PhysicalOperator *op) {
 		auto bound_create_info = binder->BindCreateTableInfo(move(info));
 		auto &catalog = Catalog::GetCatalog(context);
 		catalog.CreateTable(context, bound_create_info.get());
+		table_lineage_op[table_name] = op->lineage_op.at(-1);
 	}
 
 	if (op->type == PhysicalOperatorType::DELIM_JOIN) {
