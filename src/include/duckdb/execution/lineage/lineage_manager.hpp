@@ -47,6 +47,7 @@ private:
 	idx_t query_id = 0;
 public:
 	unordered_map<string, shared_ptr<OperatorLineage>> table_lineage_op;
+	unordered_map<string, PhysicalOperator*> base_tables;
 };
 
 

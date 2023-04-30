@@ -26,7 +26,10 @@ public:
 	LineageDataArray(unique_ptr<T[]> data, idx_t count) : LineageData(count), data(move(data)), processed(false) {
 		type = "LineageDataArray";
 	}
-
+	virtual Vector GetVecRef(LogicalType t, idx_t offset) override {
+		Vector vec(t, Process(offset));
+		return vec;
+	}
 	void Debug() override {
 		std::cout << "LineageDataArray<" << typeid(T).name() << "> "  << " isProcessed: " << processed << std::endl;
 		for (idx_t i = 0; i < count; i++) {

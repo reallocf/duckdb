@@ -47,8 +47,8 @@ void fillBaseChunk(DataChunk &insert_chunk, idx_t res_count, Vector &lhs_payload
 }
 
 LineageProcessStruct OperatorLineage::Process(const vector<LogicalType>& types, idx_t count_so_far,
-                                              DataChunk &insert_chunk, idx_t size_so_far, int thread_id, idx_t data_idx, idx_t finished_idx) {
-	if (data[finished_idx].size() > data_idx) {
+                                              DataChunk &insert_chunk, idx_t size_so_far, int thread_id, idx_t data_idx, idx_t stage_idx) {
+	if (data[stage_idx].size() > data_idx) {
 		Vector thread_id_vec(Value::INTEGER(thread_id));
 		switch (this->type) {
 		case PhysicalOperatorType::BLOCKWISE_NL_JOIN: {
@@ -116,20 +116,17 @@ LineageProcessStruct OperatorLineage::Process(const vector<LogicalType>& types, 
 		case PhysicalOperatorType::LIMIT:
 		case PhysicalOperatorType::TABLE_SCAN: {
 			// Seq Scan, Filter, Limit, etc...
-			// schema: [INTEGER in_index, INTEGER out_index]
+			// schema: [INTEGER in_index, INTEGER out_index, INTEGER thread_id]
 
 			LineageDataWithOffset this_data = data[LINEAGE_UNARY][data_idx];
 			idx_t res_count = this_data.data->Count();
 
 			insert_chunk.Reset();
 			insert_chunk.SetCardinality(res_count);
-			insert_chunk.data[0].Sequence(count_so_far, 1);
-
-			Vector vec = this_data.data->GetVecRef(types[1], this_data.child_offset);
-			insert_chunk.data[1].Reference(vec);
-
-			insert_chunk.data[2].Sequence(count_so_far, 1);
-			insert_chunk.data[3].Reference(thread_id_vec);
+			Vector in_index = this_data.data->GetVecRef(types[0], this_data.child_offset);
+ 			insert_chunk.data[0].Reference(in_index);
+			insert_chunk.data[1].Sequence(count_so_far, 1); // out_index
+			insert_chunk.data[2].Reference(thread_id_vec); // thread_id
 
 			count_so_far += res_count;
  			size_so_far += this_data.data->Size();
@@ -137,7 +134,7 @@ LineageProcessStruct OperatorLineage::Process(const vector<LogicalType>& types, 
 		}
 		case PhysicalOperatorType::HASH_JOIN: {
 			// Hash Join - other joins too?
-			if (finished_idx == LINEAGE_BUILD) {
+			if (stage_idx == LINEAGE_BUILD) {
 				// schema1: [INTEGER in_index, INTEGER out_address] TODO remove this one now that no chunking?
 
 				LineageDataWithOffset this_data = data[LINEAGE_BUILD][data_idx];
@@ -224,21 +221,23 @@ LineageProcessStruct OperatorLineage::Process(const vector<LogicalType>& types, 
 		case PhysicalOperatorType::HASH_GROUP_BY:
 		case PhysicalOperatorType::PERFECT_HASH_GROUP_BY: {
 			// Hash Aggregate / Perfect Hash Aggregate
-			// schema for both: [INTEGER in_index, INTEGER out_index]
-			if (finished_idx == LINEAGE_SINK) {
+			// sink schema: [INTEGER in_index, INTEGER out_index, INTEGER thread_id]
+			if (stage_idx == LINEAGE_SINK) {
+				// in_index | LogicalType::INTEGER, out_index|LogicalType::BIGINT, thread_id|LogicalType::INTEGER
 				LineageDataWithOffset this_data = data[LINEAGE_SINK][data_idx];
 				idx_t res_count = this_data.data->Count();
 
-				Vector payload(types[1], this_data.data->Process(0));
+				Vector out_index = this_data.data->GetVecRef(types[1], 0);
 
 				insert_chunk.SetCardinality(res_count);
 				insert_chunk.data[0].Sequence(count_so_far, 1);
-				insert_chunk.data[1].Reference(payload);
+				insert_chunk.data[1].Reference(out_index);
+				std::cout << "sink " << insert_chunk.data[1].ToString(res_count) << std::endl;
 				insert_chunk.data[2].Reference(thread_id_vec);
 
 				count_so_far += res_count;
 				size_so_far += this_data.data->Size();
-			} else if (finished_idx == LINEAGE_COMBINE) {
+			} else if (stage_idx == LINEAGE_COMBINE) {
 				LineageDataWithOffset this_data = data[LINEAGE_COMBINE][data_idx];
 				idx_t res_count = this_data.data->Count();
 
@@ -255,15 +254,18 @@ LineageProcessStruct OperatorLineage::Process(const vector<LogicalType>& types, 
 				count_so_far += res_count;
 				size_so_far += this_data.data->Size();
 			} else {
+				// in_index|LogicalType::BIGINT, out_index|LogicalType::INTEGER, thread_id| LogicalType::INTEGER
 				// TODO: can we remove this one for Hash Aggregate?
 				LineageDataWithOffset this_data = data[LINEAGE_SOURCE][data_idx];
 				idx_t res_count = this_data.data->Count();
 
-				Vector payload(types[0], this_data.data->Process(0));
-
+				//Vector in_index(types[0], this_data.data->Process(0));
+				Vector in_index = this_data.data->GetVecRef(types[0], 0);
 				insert_chunk.SetCardinality(res_count);
-				insert_chunk.data[0].Sequence(count_so_far, 1);
-				insert_chunk.data[1].Reference(payload);
+				insert_chunk.data[0].Reference(in_index);
+				insert_chunk.data[1].Sequence(count_so_far, 1); // out_index
+				insert_chunk.data[2].Reference(thread_id_vec);
+				std::cout << "scan " << insert_chunk.data[0].ToString(res_count) << std::endl;
 
 				//insert_chunk.data[2].Sequence(count_so_far, 1);
 				count_so_far += res_count;
@@ -277,7 +279,7 @@ LineageProcessStruct OperatorLineage::Process(const vector<LogicalType>& types, 
 		}
 	}
 	data_idx++;
-	return LineageProcessStruct{ count_so_far, size_so_far, data_idx, finished_idx, data[finished_idx].size() > data_idx };
+	return LineageProcessStruct{ count_so_far, size_so_far, data_idx, stage_idx, data[stage_idx].size() > data_idx };
 }
 
 void OperatorLineage::SetChunkId(idx_t idx) {

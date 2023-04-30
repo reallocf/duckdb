@@ -1,6 +1,7 @@
 #ifdef LINEAGE
 #include "duckdb/execution/lineage/lineage_manager.hpp"
 
+#include "duckdb/function/table/table_scan.hpp"
 #include "duckdb/main/client_context.hpp"
 #include "duckdb/parser/parsed_data/create_table_info.hpp"
 #include "duckdb/parser/statement/create_statement.hpp"
@@ -9,13 +10,14 @@
 #include "duckdb/parser/parsed_data/create_index_info.hpp"
 #include "duckdb/execution/operator/join/physical_delim_join.hpp"
 #include "duckdb/execution/operator/join/physical_join.hpp"
-#include "duckdb/storage/data_table.hpp"
+#include "duckdb/execution/operator/scan/physical_table_scan.hpp"
 #include "duckdb/catalog/catalog_entry/table_catalog_entry.hpp"
 #include <utility>
 
 namespace duckdb {
 class PhysicalDelimJoin;
 class PhysicalJoin;
+class PhysicalTableScan;
 
 // Get the column types for this operator
 // Returns 1 vector of ColumnDefinitions for each table that must be created
@@ -26,23 +28,22 @@ vector<vector<ColumnDefinition>> LineageManager::GetTableColumnTypes(PhysicalOpe
 	case PhysicalOperatorType::FILTER:
 	case PhysicalOperatorType::TABLE_SCAN:
 	case PhysicalOperatorType::ORDER_BY: {
-		// schema: [INTEGER in_index, INTEGER out_index]
+		// schema: [INTEGER in_index, INTEGER out_index, INTEGER thread_id]
 		vector<ColumnDefinition> table_columns;
-		table_columns.emplace_back("rowid", LogicalType::INTEGER);
 		table_columns.emplace_back("in_index", LogicalType::INTEGER);
 		table_columns.emplace_back("out_index", LogicalType::INTEGER);
-		table_columns.emplace_back("Thread_id", LogicalType::INTEGER);
+		table_columns.emplace_back("thread_id", LogicalType::INTEGER);
 		res.emplace_back(move(table_columns));
 		break;
 	}
 	case PhysicalOperatorType::PERFECT_HASH_GROUP_BY: {
-		// sink schema: [INTEGER in_index, INTEGER out_index]
+		// sink schema: [INTEGER in_index, INTEGER out_index, INTEGER thread_id]
 		vector<ColumnDefinition> sink_table_columns;
 		sink_table_columns.emplace_back("in_index", LogicalType::INTEGER);
 		sink_table_columns.emplace_back("out_index", LogicalType::INTEGER);
 		sink_table_columns.emplace_back("thread_id", LogicalType::INTEGER);
 		res.emplace_back(move(sink_table_columns));
-		// source schema: [INTEGER in_index, INTEGER out_index]
+		// source schema: [INTEGER in_index, INTEGER out_index, INTEGER thread_id]
 		vector<ColumnDefinition> source_table_columns;
 		source_table_columns.emplace_back("in_index", LogicalType::INTEGER);
 		source_table_columns.emplace_back("out_index", LogicalType::INTEGER);
@@ -137,6 +138,16 @@ idx_t LineageManager::CreateLineageTables(PhysicalOperator *op) {
 		for (idx_t col_i = 0; col_i < table_column_types[i].size(); col_i++) {
 			info->columns.push_back(move(table_column_types[i][col_i]));
 		}
+		if (op->type == PhysicalOperatorType::TABLE_SCAN) {
+			base_tables[table_name] = op;
+			auto &phy_tbl_scan = (PhysicalTableScan &)*op;
+			auto &bind_tbl = (TableScanBindData &)*phy_tbl_scan.bind_data;
+			for (idx_t i=0; i < bind_tbl.table->columns.size(); ++i) {
+				info->columns.push_back(bind_tbl.table->columns[i].Copy());
+			}
+
+		}
+
 		auto binder = Binder::CreateBinder(context);
 		auto bound_create_info = binder->BindCreateTableInfo(move(info));
 		auto &catalog = Catalog::GetCatalog(context);
