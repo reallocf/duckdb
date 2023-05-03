@@ -28,18 +28,18 @@ statement ok
 PRAGMA trace_lineage = "OFF";
 
 
-query IIII
-SELECT rowid, out_index, in_index, i FROM LINEAGE_1_SEQ_SCAN_0_0 WHERE i!=in_index OR in_index!=out_index OR in_index!=rowid
+query III
+SELECT rowid, out_index, in_index FROM LINEAGE_1_SEQ_SCAN_0_0 WHERE in_index!=out_index OR in_index!=rowid
 ----
 
 
-query IIII
-SELECT rowid, out_index, in_index, i FROM LINEAGE_2_SEQ_SCAN_0_0 WHERE i!=in_index OR in_index!=out_index OR in_index!=rowid
+query III
+SELECT rowid, out_index, in_index FROM LINEAGE_2_SEQ_SCAN_0_0 WHERE in_index!=out_index OR in_index!=rowid
 ----
 
 
-query IIII
-SELECT rowid, out_index, in_index, i FROM LINEAGE_3_SEQ_SCAN_0_0 WHERE i!=in_index OR in_index!=out_index OR in_index!=rowid
+query III
+SELECT rowid, out_index, in_index FROM LINEAGE_3_SEQ_SCAN_0_0 WHERE in_index!=out_index OR in_index!=rowid
 ----
 
 query III

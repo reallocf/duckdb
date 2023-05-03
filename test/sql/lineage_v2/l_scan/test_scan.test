@@ -44,18 +44,18 @@ SELECT rowid, in_index, out_index FROM LINEAGE_2_SEQ_SCAN_0_0
 3	200001	3
 
 
-query IIII
-SELECT rowid, in_index, out_index, i FROM LINEAGE_1_SEQ_SCAN_0_0 where in_index!=out_index and rowid!=out_index
+query III
+SELECT rowid, in_index, out_index FROM LINEAGE_1_SEQ_SCAN_0_0 where in_index!=out_index and rowid!=out_index
 ----
 
 
-query IIII
-SELECT rowid,  in_index, out_index, i FROM LINEAGE_3_SEQ_SCAN_0_0
+query III
+SELECT rowid,  in_index, out_index FROM LINEAGE_3_SEQ_SCAN_0_0
 ----
-0	199996	0	199996
-1	199997	1	199997
-2	199998	2	199998
-3	199999	3	199999
+0	199996	0
+1	199997	1
+2	199998	2
+3	199999	3
 
 query III
 SELECT rowid, in_index, out_index FROM LINEAGE_4_SEQ_SCAN_0_0

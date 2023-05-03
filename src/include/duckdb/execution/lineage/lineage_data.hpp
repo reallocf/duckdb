@@ -85,7 +85,7 @@ public:
 	idx_t Backward(idx_t) override;
 
 	// TODO: should this be a func shared across all LineageData?
-	vector<LineageDataWithOffset> Divide();
+	vector<LineageDataWithOffset> Divide(idx_t child_offset);
 
 private:
 	SelectionVector vec;
@@ -136,6 +136,13 @@ public:
 #ifdef LINEAGE_DEBUG
 		Debug();
 #endif
+	}
+	Vector lhs_payload();
+
+	Vector GetVecRef(LogicalType t, idx_t offset) override {
+		// adjust value based on type
+		Vector vec(Value::Value::INTEGER(value + offset));
+		return vec;
 	}
 	void Debug() override {
 		std::cout << "LineageConstant - value: " << value << " Count: " << count << std::endl;

@@ -25,7 +25,7 @@ idx_t LineageSelVec::Backward(idx_t source) {
 	return (idx_t)vec.sel_data()->owned_data[source]+ in_offset;
 }
 
-vector<LineageDataWithOffset> LineageSelVec::Divide() {
+vector<LineageDataWithOffset> LineageSelVec::Divide(idx_t child_offset) {
 	vector<LineageDataWithOffset> res(count / STANDARD_VECTOR_SIZE + 1);
 	for (idx_t i = 0; i < count / STANDARD_VECTOR_SIZE + 1; i++) {
 		idx_t this_offset = i * STANDARD_VECTOR_SIZE;
@@ -41,7 +41,7 @@ vector<LineageDataWithOffset> LineageSelVec::Divide() {
 		);
 		auto this_lineage = make_shared<LineageSelVec>(SelectionVector(this_data), this_count);
 		this_lineage->SetChild(child);
-		res[i] = {this_lineage, (int)this_offset, this_offset}; // I don't think this offset management is correct, but we don't use this anymore so it's fine
+		res[i] = {this_lineage, (int)child_offset, this_offset}; // I don't think this offset management is correct, but we don't use this anymore so it's fine
 	}
 	return res;
 }

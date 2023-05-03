@@ -488,8 +488,8 @@ void ScanStructure::NextInnerJoin(DataChunk &keys, DataChunk &left, DataChunk &r
 			GatherResult(vector, result_vector, result_count, i + ht.condition_types.size());
 		}
 #ifdef LINEAGE
-		auto lhs_lineage = make_unique<LineageDataArray<uintptr_t>>(move(key_locations_lineage), result_count);
-		auto rhs_lineage = make_unique<LineageSelVec>(move(result_vector), result_count);
+		auto rhs_lineage = make_unique<LineageDataArray<uintptr_t>>(move(key_locations_lineage), result_count);
+		auto lhs_lineage = make_unique<LineageSelVec>(move(result_vector), result_count);
 		lineage_probe_data = make_shared<LineageBinary>(move(lhs_lineage), move(rhs_lineage));
 #endif
 		AdvancePointers();
@@ -543,8 +543,8 @@ void ScanStructure::NextSemiOrAntiJoin(DataChunk &keys, DataChunk &left, DataChu
 		// reference the columns of the left side from the result
 		result.Slice(left, sel, result_count);
 #ifdef LINEAGE
-		auto lhs_lineage = make_unique<LineageDataArray<uintptr_t>>(move(key_locations_lineage), result_count);
-		auto rhs_lineage = make_unique<LineageSelVec>(move(sel), result_count);
+		auto rhs_lineage = make_unique<LineageDataArray<uintptr_t>>(move(key_locations_lineage), result_count);
+		auto lhs_lineage = make_unique<LineageSelVec>(move(sel), result_count);
 		lineage_probe_data = make_shared<LineageBinary>(move(lhs_lineage), move(rhs_lineage));
 #endif
 	} else {
@@ -612,8 +612,8 @@ void ScanStructure::ConstructMarkJoinResult(DataChunk &join_keys, DataChunk &chi
 	}
 #ifdef LINEAGE
 	SelectionVector lhs_sel(0, child.size());
-	auto lhs_lineage = make_unique<LineageDataArray<uintptr_t>>(move(key_locations_lineage), child.size());
-	auto rhs_lineage = make_unique<LineageSelVec>(move(lhs_sel), child.size());
+	auto rhs_lineage = make_unique<LineageDataArray<uintptr_t>>(move(key_locations_lineage), child.size());
+	auto lhs_lineage = make_unique<LineageSelVec>(move(lhs_sel), child.size());
 	lineage_probe_data = make_shared<LineageBinary>(move(lhs_lineage), move(rhs_lineage));
 #endif
 	// if the right side contains NULL values, the result of any FALSE becomes NULL
@@ -725,8 +725,8 @@ void ScanStructure::NextLeftJoin(DataChunk &keys, DataChunk &left, DataChunk &re
 				ConstantVector::SetNull(vec, true);
 			}
 #ifdef LINEAGE
-			auto rhs_lineage = make_unique<LineageSelVec>(move(sel),  remaining_count);
-			lineage_probe_data = make_shared<LineageBinary>(nullptr, move(rhs_lineage));
+			auto lhs_lineage = make_unique<LineageSelVec>(move(sel),  remaining_count);
+			lineage_probe_data = make_shared<LineageBinary>(move(lhs_lineage), nullptr);
 #endif
 		}
 		finished = true;
@@ -784,8 +784,8 @@ void ScanStructure::NextSingleJoin(DataChunk &keys, DataChunk &input, DataChunk 
 	result.SetCardinality(input.size());
 #ifdef LINEAGE
 	SelectionVector lhs_sel(0, input.size());
-	auto lhs_lineage = make_unique<LineageDataArray<uintptr_t>>(move(key_locations_lineage), result_count);
-	auto rhs_lineage = make_unique<LineageSelVec>(move(lhs_sel),  input.size());
+	auto rhs_lineage = make_unique<LineageDataArray<uintptr_t>>(move(key_locations_lineage), result_count);
+	auto lhs_lineage = make_unique<LineageSelVec>(move(lhs_sel),  input.size());
 	lineage_probe_data = make_shared<LineageBinary>(move(lhs_lineage), move(rhs_lineage));
 #endif
 	// like the SEMI, ANTI and MARK join types, the SINGLE join only ever does one pass over the HT per input chunk
@@ -841,8 +841,8 @@ void JoinHashTable::ScanFullOuter(DataChunk &result, JoinHTScanState &state) {
 			RowOperations::Gather(addresses, sel_vector, vector, sel_vector, found_entries, col_offset, col_no);
 		}
 #ifdef LINEAGE
-		auto lhs_lineage = make_unique<LineageDataArray<data_t>>(move(addresses.GetBuffer()->data), found_entries);
-		auto lineage_data = make_shared<LineageBinary>(move(lhs_lineage), nullptr);
+		auto rhs_lineage = make_unique<LineageDataArray<data_t>>(move(addresses.GetBuffer()->data), found_entries);
+		auto lineage_data = make_shared<LineageBinary>(nullptr, move(rhs_lineage));
 		int child_offset = lineage_op->GetPipelineLineage()->GetChildChunkOffset(LINEAGE_PROBE);
 		idx_t this_offset = lineage_op->GetThisOffset(LINEAGE_PROBE);
 		auto lineage_data_with_offset = make_shared<LineageDataWithOffset>(LineageDataWithOffset{lineage_data, child_offset, this_offset});

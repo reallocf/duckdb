@@ -29,91 +29,69 @@ vector<vector<ColumnDefinition>> LineageManager::GetTableColumnTypes(PhysicalOpe
 	case PhysicalOperatorType::TABLE_SCAN:
 	case PhysicalOperatorType::ORDER_BY: {
 		// schema: [INTEGER in_index, INTEGER out_index, INTEGER thread_id]
-		vector<ColumnDefinition> table_columns;
-		table_columns.emplace_back("in_index", LogicalType::INTEGER);
-		table_columns.emplace_back("out_index", LogicalType::INTEGER);
-		table_columns.emplace_back("thread_id", LogicalType::INTEGER);
-		res.emplace_back(move(table_columns));
+		vector<ColumnDefinition> source;
+		source.emplace_back("in_index", LogicalType::INTEGER);
+		source.emplace_back("out_index", LogicalType::INTEGER);
+		source.emplace_back("thread_id", LogicalType::INTEGER);
+		res.emplace_back(move(source));
 		break;
 	}
 	case PhysicalOperatorType::PERFECT_HASH_GROUP_BY: {
 		// sink schema: [INTEGER in_index, INTEGER out_index, INTEGER thread_id]
-		vector<ColumnDefinition> sink_table_columns;
-		sink_table_columns.emplace_back("in_index", LogicalType::INTEGER);
-		sink_table_columns.emplace_back("out_index", LogicalType::INTEGER);
-		sink_table_columns.emplace_back("thread_id", LogicalType::INTEGER);
-		res.emplace_back(move(sink_table_columns));
+		vector<ColumnDefinition> sink;
+		sink.emplace_back("in_index", LogicalType::INTEGER);
+
+		if (op->type == PhysicalOperatorType::HASH_GROUP_BY)
+			sink.emplace_back("out_index", LogicalType::BIGINT);
+		else
+			sink.emplace_back("out_index", LogicalType::INTEGER);
+
+		sink.emplace_back("thread_id", LogicalType::INTEGER);
+		res.emplace_back(move(sink));
+
 		// source schema: [INTEGER in_index, INTEGER out_index, INTEGER thread_id]
-		vector<ColumnDefinition> source_table_columns;
-		source_table_columns.emplace_back("in_index", LogicalType::INTEGER);
-		source_table_columns.emplace_back("out_index", LogicalType::INTEGER);
-		source_table_columns.emplace_back("thread_id", LogicalType::INTEGER);
-		res.emplace_back(move(source_table_columns));
+		vector<ColumnDefinition> source;
+
+		if (op->type == PhysicalOperatorType::HASH_GROUP_BY)
+			source.emplace_back("in_index", LogicalType::BIGINT);
+		else
+			source.emplace_back("in_index", LogicalType::INTEGER);
+		source.emplace_back("out_index", LogicalType::INTEGER);
+		source.emplace_back("thread_id", LogicalType::INTEGER);
+		res.emplace_back(move(source));
 		break;
 	}
-	case PhysicalOperatorType::HASH_GROUP_BY: {
-		// sink schema: [INTEGER in_index, BIGINT out_index]
-		vector<ColumnDefinition> sink_table_columns;
-		sink_table_columns.emplace_back("in_index", LogicalType::INTEGER);
-		sink_table_columns.emplace_back("out_index", LogicalType::BIGINT);
-		sink_table_columns.emplace_back("thread_id", LogicalType::INTEGER);
-		res.emplace_back(move(sink_table_columns));
-		// source schema: [BIGINT in_index, INTEGER out_index]
-		vector<ColumnDefinition> source_table_columns;
-		source_table_columns.emplace_back("in_index", LogicalType::BIGINT);
-		source_table_columns.emplace_back("out_index", LogicalType::INTEGER);
-		source_table_columns.emplace_back("thread_id", LogicalType::INTEGER);
-		res.emplace_back(move(source_table_columns));
-		// combine schema: [BIGINT in_index, INTEGER out_index]
-		vector<ColumnDefinition> combine_table_columns;
-		combine_table_columns.emplace_back("in_index", LogicalType::BIGINT);
-		combine_table_columns.emplace_back("out_index", LogicalType::BIGINT);
-		combine_table_columns.emplace_back("thread_id", LogicalType::INTEGER);
-		res.emplace_back(move(combine_table_columns));
-		break;
-	}
+	case PhysicalOperatorType::HASH_JOIN:
+	case PhysicalOperatorType::INDEX_JOIN:
 	case PhysicalOperatorType::BLOCKWISE_NL_JOIN:
 	case PhysicalOperatorType::CROSS_PRODUCT:
 	case PhysicalOperatorType::NESTED_LOOP_JOIN:
 	case PhysicalOperatorType::PIECEWISE_MERGE_JOIN: {
-		// sink: [INTEGER in_index, INTEGER out_index]
+		// sink: [INTEGER in_index, INTEGER out_index, INTEGER thread_id]
 		vector<ColumnDefinition> sink;
 		sink.emplace_back("in_index", LogicalType::INTEGER);
-		sink.emplace_back("out_index", LogicalType::INTEGER);
+
+		if (op->type == PhysicalOperatorType::HASH_JOIN) {
+			sink.emplace_back("out_index", LogicalType::BIGINT);
+		} else {
+			sink.emplace_back("out_index", LogicalType::INTEGER);
+		}
+
+		sink.emplace_back("thread_id", LogicalType::INTEGER);
 		res.emplace_back(move(sink));
-		// schema: [INTEGER lhs_index, BIGINT rhs_index, INTEGER out_index]
-		vector<ColumnDefinition> table_columns;
-		table_columns.emplace_back("lhs_index", LogicalType::INTEGER);
-		table_columns.emplace_back("rhs_index", LogicalType::INTEGER);
-		table_columns.emplace_back("out_index", LogicalType::INTEGER);
-		table_columns.emplace_back("thread_id", LogicalType::INTEGER);
-		res.emplace_back(move(table_columns));
-		break;
-	}
-	case PhysicalOperatorType::INDEX_JOIN: {
-		// schema: [INTEGER lhs_index, BIGINT rhs_index, INTEGER out_index]
-		vector<ColumnDefinition> table_columns;
-		table_columns.emplace_back("lhs_index", LogicalType::INTEGER);
-		table_columns.emplace_back("rhs_index", LogicalType::BIGINT);
-		table_columns.emplace_back("out_index", LogicalType::INTEGER);
-		table_columns.emplace_back("thread_id", LogicalType::INTEGER);
-		res.emplace_back(move(table_columns));
-		break;
-	}
-	case PhysicalOperatorType::HASH_JOIN: {
-		// build schema: [INTEGER in_index, BIGINT out_address] TODO convert from address to number?
-		vector<ColumnDefinition> build_table_columns;
-		build_table_columns.emplace_back("out_address", LogicalType::BIGINT);
-		build_table_columns.emplace_back("in_index", LogicalType::BIGINT);
-		build_table_columns.emplace_back("thread_id", LogicalType::INTEGER);
-		res.emplace_back(move(build_table_columns));
-		// probe schema: [BIGINT lhs_address, INTEGER rhs_index, INTEGER out_index]
-		vector<ColumnDefinition> probe_table_columns;
-		probe_table_columns.emplace_back("lhs_address", LogicalType::BIGINT);
-		probe_table_columns.emplace_back("rhs_index", LogicalType::INTEGER);
-		probe_table_columns.emplace_back("out_index", LogicalType::INTEGER);
-		probe_table_columns.emplace_back("thread_id", LogicalType::INTEGER);
-		res.emplace_back(move(probe_table_columns));
+
+		// schema: [INTEGER lhs_index, INTEGER|BIGINT rhs_index, INTEGER out_index]
+		vector<ColumnDefinition> source;
+		source.emplace_back("lhs_index", LogicalType::INTEGER);
+
+		if (op->type == PhysicalOperatorType::INDEX_JOIN || op->type == PhysicalOperatorType::HASH_JOIN)
+			source.emplace_back("rhs_index", LogicalType::BIGINT);
+		else
+			source.emplace_back("rhs_index", LogicalType::INTEGER);
+
+		source.emplace_back("out_index", LogicalType::INTEGER);
+		source.emplace_back("thread_id", LogicalType::INTEGER);
+		res.emplace_back(move(source));
 		break;
 	}
 	default: {
@@ -138,7 +116,7 @@ idx_t LineageManager::CreateLineageTables(PhysicalOperator *op) {
 		for (idx_t col_i = 0; col_i < table_column_types[i].size(); col_i++) {
 			info->columns.push_back(move(table_column_types[i][col_i]));
 		}
-		if (op->type == PhysicalOperatorType::TABLE_SCAN) {
+		/*if (op->type == PhysicalOperatorType::TABLE_SCAN) {
 			base_tables[table_name] = op;
 			auto &phy_tbl_scan = (PhysicalTableScan &)*op;
 			auto &bind_tbl = (TableScanBindData &)*phy_tbl_scan.bind_data;
@@ -146,7 +124,7 @@ idx_t LineageManager::CreateLineageTables(PhysicalOperator *op) {
 				info->columns.push_back(bind_tbl.table->columns[i].Copy());
 			}
 
-		}
+		}*/
 
 		auto binder = Binder::CreateBinder(context);
 		auto bound_create_info = binder->BindCreateTableInfo(move(info));
