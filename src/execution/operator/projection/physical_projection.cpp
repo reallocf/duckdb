@@ -42,7 +42,9 @@ void PhysicalProjection::FinalizeOperatorState(PhysicalOperatorState &state_p, E
 string PhysicalProjection::ParamsToString() const {
 	string extra_info;
 	for (auto &expr : select_list) {
-		extra_info += expr->GetName() + "\n";
+		// all I care about is which columns from the input map to the output
+		// if there is a new alias
+		extra_info += expr->GetName() + "\n" expr->GetIndex();
 	}
 	return extra_info;
 }

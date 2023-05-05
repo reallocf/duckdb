@@ -36,6 +36,7 @@ vector<vector<ColumnDefinition>> LineageManager::GetTableColumnTypes(PhysicalOpe
 		res.emplace_back(move(source));
 		break;
 	}
+	case PhysicalOperatorType::HASH_GROUP_BY:
 	case PhysicalOperatorType::PERFECT_HASH_GROUP_BY: {
 		// sink schema: [INTEGER in_index, INTEGER out_index, INTEGER thread_id]
 		vector<ColumnDefinition> sink;

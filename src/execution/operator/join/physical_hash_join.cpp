@@ -21,7 +21,6 @@ PhysicalHashJoin::PhysicalHashJoin(LogicalOperator &op, unique_ptr<PhysicalOpera
       right_projection_map(right_projection_map_p), delim_types(move(delim_types)) {
 	children.push_back(move(left));
 	children.push_back(move(right));
-
 	D_ASSERT(left_projection_map.size() == 0);
 	for (auto &condition : conditions) {
 		condition_types.push_back(condition.left->return_type);
@@ -38,6 +37,22 @@ PhysicalHashJoin::PhysicalHashJoin(LogicalOperator &op, unique_ptr<PhysicalOpera
 			can_cache = false;
 		}
 	}
+}
+
+string PhysicalHashJoin::ParamsToString() const {
+	string extra_info = JoinTypeToString(join_type) + "\n";
+	for (auto &it : conditions) {
+		string op = ExpressionTypeToOperator(it.comparison);
+		extra_info += it.left->GetName() + op + it.right->GetName() + "\n";
+	}
+
+	extra_info += "\n[INFOSEPARATOR]\n";
+
+	for (auto &it : right_projection_map) {
+ 		extra_info += "#"+to_string(it)+"\n";
+	}
+
+	return extra_info;
 }
 
 PhysicalHashJoin::PhysicalHashJoin(LogicalOperator &op, unique_ptr<PhysicalOperator> left,
