@@ -2,6 +2,11 @@
 #include "duckdb/parallel/thread_context.hpp"
 #include "duckdb/execution/expression_executor.hpp"
 
+
+#ifdef LINEAGE
+#include "duckdb/parallel/task_context.hpp"
+#endif
+
 namespace duckdb {
 
 class PhysicalProjectionState : public PhysicalOperatorState {
@@ -25,6 +30,10 @@ void PhysicalProjection::GetChunkInternal(ExecutionContext &context, DataChunk &
 	}
 
 	state->executor.Execute(state->child_chunk, chunk);
+
+	if (hasFunction) {
+		lineage_op.at(context.task.thread_id)->chunk_collection.Append(chunk);
+	}
 }
 
 unique_ptr<PhysicalOperatorState> PhysicalProjection::GetOperatorState() {
@@ -44,7 +53,7 @@ string PhysicalProjection::ParamsToString() const {
 	for (auto &expr : select_list) {
 		// all I care about is which columns from the input map to the output
 		// if there is a new alias
-		extra_info += expr->GetName() + "\n" expr->GetIndex();
+		extra_info += expr->GetName();
 	}
 	return extra_info;
 }

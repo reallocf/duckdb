@@ -18,7 +18,7 @@ class PhysicalTableScan;
 class PhysicalLineageTableScanOperatorState : public PhysicalOperatorState {
 public:
 	explicit PhysicalLineageTableScanOperatorState(PhysicalOperator &op)
-	    : PhysicalOperatorState(op, nullptr), initialized(false) {
+	    : PhysicalOperatorState(op, nullptr), initialized(false), chunk_index(0), count_so_far(0) {
 	}
 
 	ParallelState *parallel_state;
@@ -26,6 +26,8 @@ public:
 	//! Whether or not the scan has been initialized
 	bool initialized;
 	std::shared_ptr<LineageProcessStruct> lineageProcessStruct;
+	idx_t chunk_index;
+	idx_t count_so_far;
 };
 
 
@@ -50,19 +52,36 @@ void PhysicalLineageScan::GetChunkInternal(ExecutionContext &context, DataChunk 
 	auto &state = (PhysicalLineageTableScanOperatorState &)*state_p;
 	TableScanBindData* tbldata = dynamic_cast<TableScanBindData*>(bind_data.get());
 	auto lineage_table_types = tbldata->table->GetTypes();
-
-	// base_table.types() = table.types() - lineage_table.types()
+	idx_t start = 0;
+	    // base_table.types() = table.types() - lineage_table.types()
 	DataChunk result;
 	result.Initialize(lineage_table_types);
 
-	idx_t start = state.lineageProcessStruct == nullptr ? 0 : state.lineageProcessStruct->count_so_far;
-	if (state.lineageProcessStruct == nullptr) {
-		LineageProcessStruct lps = lineage_op->Process(lineage_table_types, 0, result, 0, -1, 0, stage_idx);
-		state.lineageProcessStruct = std::make_shared<LineageProcessStruct>(lps);
+	// else if projection and chunk_collection is not empty, return everything in chunk_collection
+	if (lineage_op->type == PhysicalOperatorType::PROJECTION) {
+		start = state.count_so_far;
+		if (lineage_op->chunk_collection.Count() == 0) {
+			return;
+		}
+		D_ASSERT(result.GetTypes() == lineage_op->chunk_collection.Types());
+		if (state.chunk_index >= lineage_op->chunk_collection.ChunkCount()) {
+			return;
+		}
+		auto &collection_chunk = lineage_op->chunk_collection.GetChunk(state.chunk_index);
+		result.Reference(collection_chunk);
+		state.chunk_index++;
+		state.count_so_far += result.size();
 	} else {
-		LineageProcessStruct lps = lineage_op->Process(lineage_table_types, state.lineageProcessStruct->count_so_far, result, state.lineageProcessStruct->size_so_far, -1, state.lineageProcessStruct->data_idx, state.lineageProcessStruct->finished_idx);
-		state.lineageProcessStruct = std::make_shared<LineageProcessStruct>(lps);
+		idx_t start = state.lineageProcessStruct == nullptr ? 0 : state.lineageProcessStruct->count_so_far;
+		if (state.lineageProcessStruct == nullptr) {
+			LineageProcessStruct lps = lineage_op->Process(lineage_table_types, 0, result, 0, -1, 0, stage_idx);
+			state.lineageProcessStruct = std::make_shared<LineageProcessStruct>(lps);
+		} else {
+			LineageProcessStruct lps = lineage_op->Process(lineage_table_types, state.lineageProcessStruct->count_so_far, result, state.lineageProcessStruct->size_so_far, -1, state.lineageProcessStruct->data_idx, state.lineageProcessStruct->finished_idx);
+			state.lineageProcessStruct = std::make_shared<LineageProcessStruct>(lps);
+		}
 	}
+
 	if (base_tbl && result.size() > 0) {
 		idx_t lineage_table_offset = types.size() - base_tbl->GetTypes().size();
  		ColumnFetchState fetch_state;

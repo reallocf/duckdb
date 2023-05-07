@@ -76,6 +76,7 @@ public:
 public:
 	idx_t opid;
 	bool trace_lineage;
+	ChunkCollection chunk_collection;
 	shared_ptr<PipelineLineage> pipeline_lineage;
 	// data[0] used by all ops; data[1] used by pipeline breakers
 	// Lineage data in here!

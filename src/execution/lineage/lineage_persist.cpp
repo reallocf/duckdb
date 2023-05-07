@@ -11,6 +11,7 @@
 #include "duckdb/execution/operator/join/physical_delim_join.hpp"
 #include "duckdb/execution/operator/join/physical_join.hpp"
 #include "duckdb/execution/operator/scan/physical_table_scan.hpp"
+#include "duckdb/execution/operator/projection/physical_projection.hpp"
 #include "duckdb/catalog/catalog_entry/table_catalog_entry.hpp"
 #include <utility>
 
@@ -18,12 +19,23 @@ namespace duckdb {
 class PhysicalDelimJoin;
 class PhysicalJoin;
 class PhysicalTableScan;
+class PhysicalProjection;
 
 // Get the column types for this operator
 // Returns 1 vector of ColumnDefinitions for each table that must be created
 vector<vector<ColumnDefinition>> LineageManager::GetTableColumnTypes(PhysicalOperator *op) {
 	vector<vector<ColumnDefinition>> res;
 	switch (op->type) {
+	case PhysicalOperatorType::PROJECTION: {
+		if (dynamic_cast<PhysicalProjection *>(op)->hasFunction) {
+			vector<ColumnDefinition> table;
+			for (idx_t col_i = 0; col_i < dynamic_cast<PhysicalProjection *>(op)->types.size(); col_i++) {
+				table.emplace_back("col_" + to_string(col_i), dynamic_cast<PhysicalProjection *>(op)->types[col_i]);
+			}
+			res.emplace_back(move(table));
+		}
+		break;
+	}
 	case PhysicalOperatorType::LIMIT:
 	case PhysicalOperatorType::FILTER:
 	case PhysicalOperatorType::TABLE_SCAN:

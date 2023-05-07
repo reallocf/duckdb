@@ -38,3 +38,12 @@ ORDER BY supp_nation, cust_nation, l_year
 statement ok
 PRAGMA trace_lineage = "OFF";
 PRAGMA disable_profiling;
+
+
+#query I
+#PRAGMA show_tables;
+#----
+
+query IIIII
+select rowid, * from LINEAGE_1_PROJECTION_13_0;
+----

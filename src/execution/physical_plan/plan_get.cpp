@@ -91,7 +91,7 @@ unique_ptr<PhysicalOperator> PhysicalPlanGenerator::CreatePlan(LogicalGet &op) {
 	} else {
 		if (op.lineage_op) {
 			return make_unique<PhysicalLineageScan>(context, op.lineage_op, op.types, op.function, move(op.bind_data), op.column_ids, op.names,
-			                                        move(table_filters), op.estimated_cardinality);
+															move(table_filters), op.estimated_cardinality);
 		}
 		return make_unique<PhysicalTableScan>(op.types, op.function, move(op.bind_data), op.column_ids, op.names,
 		                                      move(table_filters), op.estimated_cardinality);

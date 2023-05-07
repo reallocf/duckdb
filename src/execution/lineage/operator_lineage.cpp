@@ -28,6 +28,7 @@ void OperatorLineage::Capture(const shared_ptr<LineageData>& datum, idx_t lineag
 void OperatorLineage::FinishedProcessing(idx_t data_idx, idx_t finished_idx) {
 	finished_idx++;
 	data_idx = 0;
+
 }
 
 shared_ptr<PipelineLineage> OperatorLineage::GetPipelineLineage() {
