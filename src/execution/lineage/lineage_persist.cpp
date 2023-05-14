@@ -120,11 +120,15 @@ idx_t LineageManager::CreateLineageTables(PhysicalOperator *op) {
 			info->columns.push_back(move(table_column_types[i][col_i]));
 		}
 
+		table_lineage_op[table_name] = op->lineage_op.at(-1);
+
+		// add column_stats, cardinality
 		auto binder = Binder::CreateBinder(context);
 		auto bound_create_info = binder->BindCreateTableInfo(move(info));
 		auto &catalog = Catalog::GetCatalog(context);
-		catalog.CreateTable(context, bound_create_info.get());
-		table_lineage_op[table_name] = op->lineage_op.at(-1);
+		TableCatalogEntry* table = (TableCatalogEntry*)catalog.CreateTable(context, bound_create_info.get());
+		table->storage->info->cardinality = 100;
+		table->storage->UpdateStats();
 	}
 
 	// persist intermediate values

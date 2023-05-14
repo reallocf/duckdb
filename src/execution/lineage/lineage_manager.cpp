@@ -208,6 +208,7 @@ idx_t PlanAnnotator(PhysicalOperator *op, idx_t counter, bool trace_lineage) {
 		counter = PlanAnnotator(op->children[i].get(), counter, trace_lineage);
 	}
 	op->id = counter;
+	op->trace_lineage = trace_lineage;
 	return counter + 1;
 }
 

@@ -216,7 +216,9 @@ public:
 	void AppendRowGroup(idx_t start_row);
 
 	vector<vector<Value>> GetStorageInfo();
-
+#ifdef LINEAGE
+	void UpdateStats();
+#endif
 private:
 	//! Verify constraints with a chunk from the Append containing all columns of the table
 	void VerifyAppendConstraints(TableCatalogEntry &table, DataChunk &chunk);
@@ -233,7 +235,6 @@ private:
 	//! The CreateIndexScan is a special scan that is used to create an index on the table, it keeps locks on the table
 	void InitializeCreateIndexScan(CreateIndexScanState &state, const vector<column_t> &column_ids);
 	bool ScanCreateIndex(CreateIndexScanState &state, DataChunk &result, TableScanType type);
-
 private:
 	//! Lock for appending entries to the table
 	mutex append_lock;

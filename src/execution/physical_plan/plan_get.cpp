@@ -90,6 +90,7 @@ unique_ptr<PhysicalOperator> PhysicalPlanGenerator::CreatePlan(LogicalGet &op) {
 		return move(projection);
 	} else {
 		if (op.lineage_op) {
+			op.estimated_cardinality = 10;
 			return make_unique<PhysicalLineageScan>(context, op.lineage_op, op.types, op.function, move(op.bind_data), op.column_ids, op.names,
 															move(table_filters), op.estimated_cardinality);
 		}
