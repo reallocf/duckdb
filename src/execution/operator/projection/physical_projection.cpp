@@ -53,10 +53,9 @@ string PhysicalProjection::ParamsToString() const {
 	extra_info += to_string(hasFunction);
 	extra_info += "\n[INFOSEPARATOR]\n";
 	for (auto &expr : select_list) {
-		string col =  expr->ToString() + "DEL" +  expr->GetColumnBindings();
+		string col =  expr->ToString() + "#DEL#" +  expr->GetColumnBindings();
 		extra_info += col + "\n";
 	}
-	std::cout << extra_info << std::endl;
 	return extra_info;
 }
 

@@ -201,7 +201,7 @@ string PhysicalSimpleAggregate::ParamsToString() const {
 		if (i > 0) {
 			result += "\n";
 		}
-		result += aggregates[i]->GetName()  + "DEL" +  aggregates[i]->GetColumnBindings();
+		result += aggregates[i]->GetName()  + "#DEL#" +  aggregates[i]->GetColumnBindings();
 
 		if (aggregate.filter) {
 			result += " Filter: " + aggregate.filter->GetName();

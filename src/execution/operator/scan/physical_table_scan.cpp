@@ -127,7 +127,7 @@ string PhysicalTableScan::ParamsToString() const {
 				}
 				result += names[column_ids[i]];
 
-				result += "DEL" +  ( std::to_string(column_ids[i]));
+				result += "#DEL#" +  ( std::to_string(column_ids[i]));
 			}
 		}
 	}

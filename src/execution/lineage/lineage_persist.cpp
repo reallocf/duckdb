@@ -135,7 +135,7 @@ idx_t LineageManager::CreateLineageTables(PhysicalOperator *op) {
 			table.emplace_back("col_" + to_string(col_i), op->types[col_i]);
 		}
 
-		string table_name = "LINEAGE_" + to_string(query_id) + "_"  + op->GetName() + "_9";
+		string table_name = "LINEAGE_" + to_string(query_id) + "_"  + op->GetName() + "_100";
 		auto info = make_unique<CreateTableInfo>(DEFAULT_SCHEMA, table_name);
 		for (idx_t col_i = 0; col_i < table.size(); col_i++) {
 			info->columns.push_back(move(table[col_i]));

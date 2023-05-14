@@ -39,10 +39,16 @@ PhysicalLineageScan::PhysicalLineageScan(ClientContext &context, shared_ptr<Oper
       function(move(function_p)), bind_data(move(bind_data_p)), column_ids(move(column_ids_p)), names(move(names_p)),
       table_filters(move(table_filters_p)), lineage_op(lineage_op), base_tbl(nullptr) {
 	TableScanBindData* tbldata = dynamic_cast<TableScanBindData *>(bind_data.get());
-	string st = tbldata->table->name.substr(tbldata->table->name.length()-1);
-	stage_idx = stoi(st);
-
-
+	string table_name = tbldata->table->name;
+	size_t underscorePos = table_name.rfind('_');
+	if (underscorePos != std::string::npos && underscorePos < table_name.length() - 1) {
+		// Extract the substring starting from the position after '_'
+		std::string numberStr = table_name.substr(underscorePos + 1);
+		// Convert the extracted substring to an integer
+		stage_idx = std::stoi(numberStr);
+	} else {
+		std::cout << "Invalid input string format." << std::endl;
+	}
 }
 
 void PhysicalLineageScan::GetChunkInternal(ExecutionContext &context, DataChunk &chunk, PhysicalOperatorState *state_p) const {
@@ -55,7 +61,7 @@ void PhysicalLineageScan::GetChunkInternal(ExecutionContext &context, DataChunk 
 	result.Initialize(lineage_table_types);
 
 	// else if projection and chunk_collection is not empty, return everything in chunk_collection
-	if (stage_idx == 9) {
+	if (stage_idx == 100) {
 		start = state.count_so_far;
 		if (lineage_op->chunk_collection.Count() == 0) {
 			return;
