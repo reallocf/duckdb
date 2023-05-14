@@ -31,9 +31,9 @@ void PhysicalProjection::GetChunkInternal(ExecutionContext &context, DataChunk &
 
 	state->executor.Execute(state->child_chunk, chunk);
 
-	if (hasFunction) {
-		lineage_op.at(context.task.thread_id)->chunk_collection.Append(chunk);
-	}
+#ifdef LINEAGE
+	lineage_op.at(context.task.thread_id)->chunk_collection.Append(chunk);
+#endif
 }
 
 unique_ptr<PhysicalOperatorState> PhysicalProjection::GetOperatorState() {
@@ -50,11 +50,13 @@ void PhysicalProjection::FinalizeOperatorState(PhysicalOperatorState &state_p, E
 
 string PhysicalProjection::ParamsToString() const {
 	string extra_info;
+	extra_info += to_string(hasFunction);
+	extra_info += "\n[INFOSEPARATOR]\n";
 	for (auto &expr : select_list) {
-		// all I care about is which columns from the input map to the output
-		// if there is a new alias
-		extra_info += expr->GetName();
+		string col =  expr->ToString() + "DEL" +  expr->GetColumnBindings();
+		extra_info += col + "\n";
 	}
+	std::cout << extra_info << std::endl;
 	return extra_info;
 }
 

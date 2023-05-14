@@ -42,10 +42,7 @@ PhysicalLineageScan::PhysicalLineageScan(ClientContext &context, shared_ptr<Oper
 	string st = tbldata->table->name.substr(tbldata->table->name.length()-1);
 	stage_idx = stoi(st);
 
-	if (context.lineage_manager->base_tables.find(tbldata->table->name) != context.lineage_manager->base_tables.end()) {
-		auto &phy_tbl_scan = (PhysicalTableScan &)*context.lineage_manager->base_tables[tbldata->table->name];
-		base_tbl = ((TableScanBindData &)*phy_tbl_scan.bind_data).table;
-	}
+
 }
 
 void PhysicalLineageScan::GetChunkInternal(ExecutionContext &context, DataChunk &chunk, PhysicalOperatorState *state_p) const {
@@ -58,7 +55,7 @@ void PhysicalLineageScan::GetChunkInternal(ExecutionContext &context, DataChunk 
 	result.Initialize(lineage_table_types);
 
 	// else if projection and chunk_collection is not empty, return everything in chunk_collection
-	if (lineage_op->type == PhysicalOperatorType::PROJECTION) {
+	if (stage_idx == 9) {
 		start = state.count_so_far;
 		if (lineage_op->chunk_collection.Count() == 0) {
 			return;
@@ -79,34 +76,6 @@ void PhysicalLineageScan::GetChunkInternal(ExecutionContext &context, DataChunk 
 		} else {
 			LineageProcessStruct lps = lineage_op->Process(lineage_table_types, state.lineageProcessStruct->count_so_far, result, state.lineageProcessStruct->size_so_far, -1, state.lineageProcessStruct->data_idx, state.lineageProcessStruct->finished_idx);
 			state.lineageProcessStruct = std::make_shared<LineageProcessStruct>(lps);
-		}
-	}
-
-	if (base_tbl && result.size() > 0) {
-		idx_t lineage_table_offset = types.size() - base_tbl->GetTypes().size();
- 		ColumnFetchState fetch_state;
-		auto &transaction = Transaction::GetTransaction(context.client);
-		DataChunk base_table_chunk;
-		base_table_chunk.Initialize(base_tbl->GetTypes());
-
-		// I need to get in_index column
-		idx_t fetch_count = result.size();
-		vector<column_t> fetch_ids;
-		for (column_t i = 0; i < base_tbl->GetTypes().size(); ++i) {
-			fetch_ids.push_back(i);
-		}
-
-		result.data[0].Normalify(result.size());
-		vector<row_t> fetch_rows;
-		for (idx_t i=0; i < result.size(); i++) {
-			fetch_rows.push_back(result.data[0].GetValue(i).GetValue<row_t>());
- 		}
- 		Vector row_ids(result.data[0].GetType(), (data_ptr_t)&fetch_rows[0]);
-
-		base_tbl->storage.get()->Fetch(transaction, base_table_chunk, fetch_ids, row_ids, fetch_count, fetch_state);
-		//std::cout << base_table_chunk.ToString() << std::endl;
-		for (idx_t i=0; i < base_tbl->GetTypes().size(); i++) {
-			result.data[i+lineage_table_offset].Reference(base_table_chunk.data[i]);
 		}
 	}
 

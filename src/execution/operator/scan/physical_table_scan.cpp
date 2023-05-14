@@ -70,6 +70,9 @@ void PhysicalTableScan::GetChunkInternal(ExecutionContext &context, DataChunk &c
 		// sequential scan
 		function.function(context.client, bind_data.get(), state.operator_data.get(), nullptr, chunk);
 		if (chunk.size() != 0) {
+#ifdef LINEAGE
+			lineage_op.at(context.task.thread_id)->chunk_collection.Append(chunk);
+#endif
 			return;
 		}
 	} else {
@@ -123,6 +126,8 @@ string PhysicalTableScan::ParamsToString() const {
 					result += "\n";
 				}
 				result += names[column_ids[i]];
+
+				result += "DEL" +  ( std::to_string(column_ids[i]));
 			}
 		}
 	}

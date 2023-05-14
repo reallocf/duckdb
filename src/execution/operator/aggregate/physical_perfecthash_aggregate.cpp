@@ -188,6 +188,7 @@ void PhysicalPerfectHashAggregate::GetChunkInternal(ExecutionContext &context, D
 	auto &gstate = (PerfectHashAggregateGlobalState &)*sink_state;
 #ifdef LINEAGE
 	gstate.ht->Scan(state.ht_scan_position, chunk, lineage_op.at(context.task.thread_id));
+	lineage_op.at(context.task.thread_id)->chunk_collection.Append(chunk);
 #else
 	gstate.ht->Scan(state.ht_scan_position, chunk);
 #endif

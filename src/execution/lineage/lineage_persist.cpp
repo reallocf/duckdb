@@ -26,16 +26,6 @@ class PhysicalProjection;
 vector<vector<ColumnDefinition>> LineageManager::GetTableColumnTypes(PhysicalOperator *op) {
 	vector<vector<ColumnDefinition>> res;
 	switch (op->type) {
-	case PhysicalOperatorType::PROJECTION: {
-		if (dynamic_cast<PhysicalProjection *>(op)->hasFunction) {
-			vector<ColumnDefinition> table;
-			for (idx_t col_i = 0; col_i < dynamic_cast<PhysicalProjection *>(op)->types.size(); col_i++) {
-				table.emplace_back("col_" + to_string(col_i), dynamic_cast<PhysicalProjection *>(op)->types[col_i]);
-			}
-			res.emplace_back(move(table));
-		}
-		break;
-	}
 	case PhysicalOperatorType::LIMIT:
 	case PhysicalOperatorType::FILTER:
 	case PhysicalOperatorType::TABLE_SCAN:
@@ -129,16 +119,27 @@ idx_t LineageManager::CreateLineageTables(PhysicalOperator *op) {
 		for (idx_t col_i = 0; col_i < table_column_types[i].size(); col_i++) {
 			info->columns.push_back(move(table_column_types[i][col_i]));
 		}
-		/*if (op->type == PhysicalOperatorType::TABLE_SCAN) {
-			base_tables[table_name] = op;
-			auto &phy_tbl_scan = (PhysicalTableScan &)*op;
-			auto &bind_tbl = (TableScanBindData &)*phy_tbl_scan.bind_data;
-			for (idx_t i=0; i < bind_tbl.table->columns.size(); ++i) {
-				info->columns.push_back(bind_tbl.table->columns[i].Copy());
-			}
 
-		}*/
+		auto binder = Binder::CreateBinder(context);
+		auto bound_create_info = binder->BindCreateTableInfo(move(info));
+		auto &catalog = Catalog::GetCatalog(context);
+		catalog.CreateTable(context, bound_create_info.get());
+		table_lineage_op[table_name] = op->lineage_op.at(-1);
+	}
 
+	// persist intermediate values
+	bool persist_intermediate = true;
+	if (persist_intermediate) {
+		vector<ColumnDefinition> table;
+		for (idx_t col_i = 0; col_i < op->types.size(); col_i++) {
+			table.emplace_back("col_" + to_string(col_i), op->types[col_i]);
+		}
+
+		string table_name = "LINEAGE_" + to_string(query_id) + "_"  + op->GetName() + "_9";
+		auto info = make_unique<CreateTableInfo>(DEFAULT_SCHEMA, table_name);
+		for (idx_t col_i = 0; col_i < table.size(); col_i++) {
+			info->columns.push_back(move(table[col_i]));
+		}
 		auto binder = Binder::CreateBinder(context);
 		auto bound_create_info = binder->BindCreateTableInfo(move(info));
 		auto &catalog = Catalog::GetCatalog(context);

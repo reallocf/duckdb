@@ -44,6 +44,6 @@ PRAGMA disable_profiling;
 #PRAGMA show_tables;
 #----
 
-query IIIII
-select rowid, * from LINEAGE_1_PROJECTION_13_0;
+query II
+select * from LINEAGE_1_SEQ_SCAN_8_9;
 ----

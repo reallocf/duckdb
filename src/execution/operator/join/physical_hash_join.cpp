@@ -258,6 +258,9 @@ void PhysicalHashJoin::GetChunkInternal(ExecutionContext &context, DataChunk &ch
 			if (state->cached_chunk.size() > 0) {
 				// finished probing but cached data remains, return cached chunk
 				chunk.Move(state->cached_chunk);
+#ifdef LINEAGE
+				lineage_op.at(context.task.thread_id)->chunk_collection.Append(chunk);
+#endif
 				state->cached_chunk.Initialize(types);
 #ifdef LINEAGE
 				if (state->cached_lineage->Count() > 0) {
@@ -273,6 +276,7 @@ void PhysicalHashJoin::GetChunkInternal(ExecutionContext &context, DataChunk &ch
 				// check if we need to scan any unmatched tuples from the RHS for the full/right outer join
 #ifdef LINEAGE
 				sink.hash_table->ScanFullOuter(chunk, sink.ht_scan_state, lineage_op.at(context.task.thread_id));
+				lineage_op.at(context.task.thread_id)->chunk_collection.Append(chunk);
 #else
 				sink.hash_table->ScanFullOuter(chunk, sink.ht_scan_state);
 #endif
@@ -297,6 +301,9 @@ void PhysicalHashJoin::GetChunkInternal(ExecutionContext &context, DataChunk &ch
 				if (state->cached_chunk.size() >= (STANDARD_VECTOR_SIZE - 64)) {
 					// chunk cache full: return it
 					chunk.Move(state->cached_chunk);
+#ifdef LINEAGE
+					lineage_op.at(context.task.thread_id)->chunk_collection.Append(chunk);
+#endif
 					state->cached_chunk.Initialize(types);
 #ifdef LINEAGE
 					if (state->cached_lineage->Count() > 0) {
@@ -313,6 +320,9 @@ void PhysicalHashJoin::GetChunkInternal(ExecutionContext &context, DataChunk &ch
 					chunk.Reset();
 				}
 			} else {
+#ifdef LINEAGE
+				lineage_op.at(context.task.thread_id)->chunk_collection.Append(chunk);
+#endif
 #ifdef LINEAGE
 				if (state->scan_structure && state->scan_structure->lineage_probe_data) {
 					int child_offset = lineage_op.at(context.task.thread_id)->GetPipelineLineage()->GetChildChunkOffset(LINEAGE_PROBE);

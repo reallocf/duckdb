@@ -35,6 +35,14 @@ select * from t1 where i=6
 statement ok
 PRAGMA trace_lineage = "OFF";
 
+query I
+SELECT * FROM LINEAGE_2_SEQ_SCAN_0_9
+----
+0
+1
+0
+1
+
 query III
 SELECT rowid, in_index, out_index FROM LINEAGE_2_SEQ_SCAN_0_0
 ----

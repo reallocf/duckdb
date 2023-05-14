@@ -481,6 +481,9 @@ void PhysicalHashAggregate::GetChunkInternal(ExecutionContext &context, DataChun
 	for (idx_t col_idx = 0; col_idx < aggregates.size(); col_idx++) {
 		chunk.data[chunk_index++].Reference(state.scan_chunk.data[group_types.size() + col_idx]);
 	}
+#ifdef LINEAGE
+	lineage_op.at(context.task.thread_id)->chunk_collection.Append(chunk);
+#endif
 }
 
 unique_ptr<PhysicalOperatorState> PhysicalHashAggregate::GetOperatorState() {

@@ -119,6 +119,7 @@ void PhysicalSimpleAggregate::Sink(ExecutionContext &context, GlobalOperatorStat
 		idx_t payload_cnt = 0;
 		// resolve the filter (if any)
 		if (aggregate.filter) {
+			// TODO: capture lineage
 			ExpressionExecutor filter_execution(aggregate.filter.get());
 			SelectionVector true_sel(STANDARD_VECTOR_SIZE);
 			auto count = filter_execution.SelectExpression(input, true_sel);
@@ -188,6 +189,9 @@ void PhysicalSimpleAggregate::GetChunkInternal(ExecutionContext &context, DataCh
 		aggregate.function.finalize(state_vector, aggregate.bind_info.get(), chunk.data[aggr_idx], 1, 0);
 	}
 	state->finished = true;
+#ifdef LINEAGE
+	lineage_op.at(context.task.thread_id)->chunk_collection.Append(chunk);
+#endif
 }
 
 string PhysicalSimpleAggregate::ParamsToString() const {
@@ -197,11 +201,14 @@ string PhysicalSimpleAggregate::ParamsToString() const {
 		if (i > 0) {
 			result += "\n";
 		}
-		result += aggregates[i]->GetName();
+		result += aggregates[i]->GetName()  + "DEL" +  aggregates[i]->GetColumnBindings();
+
 		if (aggregate.filter) {
 			result += " Filter: " + aggregate.filter->GetName();
 		}
 	}
+	std::cout << result << std::endl;
+
 	return result;
 }
 void PhysicalSimpleAggregate::FinalizeOperatorState(PhysicalOperatorState &state, ExecutionContext &context) {
