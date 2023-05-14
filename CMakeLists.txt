@@ -124,6 +124,10 @@ elseif(${ENABLE_SANITIZER})
   endif()
 endif()
 
+if(APPLE AND CMAKE_SYSTEM_PROCESSOR MATCHES "arm64")
+  set(DISABLE_VPTR_SANITIZER TRUE)
+endif()
+
 if(${ENABLE_UBSAN})
   if(${ENABLE_THREAD_SANITIZER})
     message(
@@ -201,6 +205,9 @@ option(AMALGAMATION_BUILD
        "Build from the amalgamation files, rather than from the normal sources."
        FALSE)
 
+option(BUILD_LINEAGE_DEBUG_EXTENSION "Build LINEAGE DEBUG extension" FALSE)
+option(BUILD_LINEAGE_EXTENSION "Build LINEAGE extension." FALSE)
+
 option(BUILD_ICU_EXTENSION "Build the ICU extension." FALSE)
 option(BUILD_PARQUET_EXTENSION "Build the Parquet extension." FALSE)
 option(BUILD_TPCH_EXTENSION "Build the TPC-H extension." FALSE)
@@ -232,6 +239,15 @@ option(TREAT_WARNINGS_AS_ERRORS "Treat warnings as errors" FALSE)
 option(EXPORT_DLL_SYMBOLS "Export dll symbols on Windows, else import" TRUE)
 option(BUILD_RDTSC "Enable the rdtsc instruction." FALSE)
 option(BUILD_ARROW_ABI_TEST "Enable the Arrow ABI Test." FALSE)
+
+if(${BUILD_LINEAGE_EXTENSION})
+  message(STATUS "Enable Lineage collection")
+  add_definitions(-DLINEAGE=1)
+  if (${BUILD_LINEAGE_DEBUG_EXTENSION})
+    message(STATUS "Enable Lineage debug")
+    add_definitions(-DLINEAGE_DEBUG=1)
+  endif()
+endif()
 
 if(${BUILD_RDTSC})
   add_compile_definitions(RDTSC)

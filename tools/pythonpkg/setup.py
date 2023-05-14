@@ -83,6 +83,8 @@ if platform.system() == 'Windows':
 for ext in extensions:
     toolchain_args.extend(['-DBUILD_{}_EXTENSION'.format(ext.upper())])
 
+toolchain_args.extend(['-DLINEAGE=1'])
+
 class get_pybind_include(object):
     def __init__(self, user=False):
         self.user = user
