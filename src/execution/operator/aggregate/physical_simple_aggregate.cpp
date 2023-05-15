@@ -198,7 +198,11 @@ string PhysicalSimpleAggregate::ParamsToString() const {
 		if (i > 0) {
 			result += "\n";
 		}
+#ifdef LINEAGE
+		result += aggregates[i]->GetName()  + "#DEL#" +  aggregates[i]->GetColumnBindings();
+#else
 		result += aggregates[i]->GetName();
+#endif
 		if (aggregate.filter) {
 			result += " Filter: " + aggregate.filter->GetName();
 		}

@@ -122,6 +122,9 @@ string PhysicalTableScan::ParamsToString() const {
 					result += "\n";
 				}
 				result += names[column_ids[i]];
+#ifdef LINEAGE
+				result += "#DEL#" +  ( std::to_string(column_ids[i]));
+#endif
 			}
 		}
 	}

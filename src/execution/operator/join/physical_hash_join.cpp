@@ -40,6 +40,23 @@ PhysicalHashJoin::PhysicalHashJoin(LogicalOperator &op, unique_ptr<PhysicalOpera
 	}
 }
 
+#ifdef LINEAGE
+string PhysicalHashJoin::ParamsToString() const {
+	string extra_info = JoinTypeToString(join_type) + "\n";
+	for (auto &it : conditions) {
+		string op = ExpressionTypeToOperator(it.comparison);
+		extra_info += it.left->GetName() + op + it.right->GetName() + "\n";
+	}
+
+	extra_info += "\n[INFOSEPARATOR]\n";
+
+	for (auto &it : right_projection_map) {
+		extra_info += "#"+to_string(it)+"\n";
+	}
+
+	return extra_info;
+}
+#endif
 PhysicalHashJoin::PhysicalHashJoin(LogicalOperator &op, unique_ptr<PhysicalOperator> left,
                                    unique_ptr<PhysicalOperator> right, vector<JoinCondition> cond, JoinType join_type,
                                    idx_t estimated_cardinality)
