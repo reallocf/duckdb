@@ -16,6 +16,10 @@
 #include "duckdb/storage/checkpoint/table_data_writer.hpp"
 #include "duckdb/storage/table/standard_column_data.hpp"
 
+#ifdef LINEAGE
+#include "duckdb/storage/statistics/numeric_statistics.hpp"
+#endif
+
 #include "duckdb/common/chrono.hpp"
 
 namespace duckdb {
@@ -1034,6 +1038,17 @@ void DataTable::AddIndex(unique_ptr<Index> index, const vector<unique_ptr<Expres
 	}
 	info->indexes.AddIndex(move(index));
 }
+
+#ifdef LINEAGE
+//! TODO: use actual lineage data to get min and max for each column
+void DataTable::UpdateStats() {
+	// update columns with min and max
+	column_stats.clear();
+	for (auto &type : types) {
+		column_stats.push_back(make_unique<NumericStatistics>(type, 0, 10000000));
+	}
+}
+#endif
 
 unique_ptr<BaseStatistics> DataTable::GetStatistics(ClientContext &context, column_t column_id) {
 	if (column_id == COLUMN_IDENTIFIER_ROW_ID) {

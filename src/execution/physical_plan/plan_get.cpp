@@ -7,6 +7,9 @@
 #include "duckdb/execution/physical_plan_generator.hpp"
 #include "duckdb/planner/operator/logical_get.hpp"
 #include "duckdb/function/table/table_scan.hpp"
+#ifdef LINEAGE
+#include <duckdb/execution/operator/scan/physical_lineage_scan.hpp>
+#endif
 
 namespace duckdb {
 
@@ -87,6 +90,30 @@ unique_ptr<PhysicalOperator> PhysicalPlanGenerator::CreatePlan(LogicalGet &op) {
 		projection->children.push_back(move(node));
 		return move(projection);
 	} else {
+#ifdef LINEAGE
+		if (op.bind_data && dynamic_cast<TableScanBindData*>(op.bind_data.get())) {
+			TableScanBindData* tbldata = dynamic_cast<TableScanBindData *>(op.bind_data.get());
+			string table_name_upper = tbldata->table->name;
+			for (char& c : table_name_upper) {
+				c = toupper(c);
+			}
+			auto map = context.lineage_manager->table_lineage_op;
+			shared_ptr<OperatorLineage> lineage_op = nullptr;
+			if (map.find(table_name_upper) != map.end()) {
+				lineage_op = map[table_name_upper];
+				size_t underscorePos = table_name_upper.rfind('_');
+				idx_t stage_idx = 0;
+				if (underscorePos != std::string::npos && underscorePos < table_name_upper.length() - 1) {
+					// Extract the substring starting from the position after '_'
+					std::string numberStr = table_name_upper.substr(underscorePos + 1);
+					// Convert the extracted substring to an integer
+					stage_idx = std::stoi(numberStr);
+				}
+				return make_unique<PhysicalLineageScan>(context, lineage_op, op.types, op.function, move(op.bind_data), op.column_ids, op.names,
+				                                        move(table_filters), op.estimated_cardinality, stage_idx);
+			}
+		}
+#endif
 		return make_unique<PhysicalTableScan>(op.types, op.function, move(op.bind_data), op.column_ids, op.names,
 		                                      move(table_filters), op.estimated_cardinality);
 	}

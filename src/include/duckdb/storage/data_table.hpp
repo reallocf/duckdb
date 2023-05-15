@@ -216,7 +216,11 @@ public:
 	void AppendRowGroup(idx_t start_row);
 
 	vector<vector<Value>> GetStorageInfo();
-
+#ifdef LINEAGE
+	//! Hack to add column stats for lineage tables
+	//! TODO: get statistics from actual underlying lineage data
+	void UpdateStats();
+#endif
 private:
 	//! Verify constraints with a chunk from the Append containing all columns of the table
 	void VerifyAppendConstraints(TableCatalogEntry &table, DataChunk &chunk);
