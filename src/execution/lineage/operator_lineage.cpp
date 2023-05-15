@@ -1,0 +1,397 @@
+#ifdef LINEAGE
+#include "duckdb/execution/lineage/operator_lineage.hpp"
+
+#include "duckdb/parser/parsed_data/create_table_info.hpp"
+#include "duckdb/parser/statement/create_statement.hpp"
+#include "duckdb/planner/parsed_data/bound_create_table_info.hpp"
+
+namespace duckdb {
+
+void OperatorLineage::Capture(const shared_ptr<LineageData>& datum, idx_t lineage_idx, int thread_id) {
+	if (!trace_lineage || datum->Count() == 0) return;
+	// Prepare this vector's chunk to be passed on to future operators
+	pipeline_lineage->AdjustChunkOffsets(datum->Count(), lineage_idx);
+
+	// Set child ptr
+	datum->SetChild(GetChildLatest(lineage_idx));
+
+	// Capture this vector
+	idx_t child_offset = pipeline_lineage->GetChildChunkOffset(lineage_idx);
+	idx_t this_offset = GetThisOffset(lineage_idx);
+	if (lineage_idx == LINEAGE_COMBINE) {
+		data[lineage_idx].push_back(LineageDataWithOffset{datum, thread_id, this_offset});
+	} else {
+		data[lineage_idx].push_back(LineageDataWithOffset{datum, (int)child_offset, this_offset});
+	}
+}
+
+
+shared_ptr<LineageDataWithOffset> OperatorLineage::ConstructNestedData(const shared_ptr<LineageData>& datum, idx_t lineage_idx) {
+	int child_offset = GetPipelineLineage()->GetChildChunkOffset(lineage_idx);
+	idx_t this_offset =  GetThisOffset(lineage_idx);
+	datum->SetChild(GetChildLatest(lineage_idx));
+	auto lineage = make_shared<LineageDataWithOffset>(LineageDataWithOffset{
+	    move(datum), child_offset, this_offset});
+	return lineage;
+}
+
+shared_ptr<PipelineLineage> OperatorLineage::GetPipelineLineage() {
+	return pipeline_lineage;
+}
+
+void OperatorLineage::MarkChunkReturned() {
+	dynamic_cast<PipelineJoinLineage *>(pipeline_lineage.get())->MarkChunkReturned();
+}
+
+void fillBaseChunk(DataChunk &insert_chunk, idx_t res_count, Vector &lhs_payload, Vector &rhs_payload, idx_t count_so_far, Vector &thread_id_vec) {
+	insert_chunk.SetCardinality(res_count);
+	insert_chunk.data[0].Reference(lhs_payload);
+	insert_chunk.data[1].Reference(rhs_payload);
+	insert_chunk.data[2].Sequence(count_so_far, 1);
+	insert_chunk.data[3].Reference(thread_id_vec);
+}
+
+LineageProcessStruct OperatorLineage::GetLineageAsChunk(const vector<LogicalType>& types, idx_t count_so_far,
+                                              DataChunk &insert_chunk, idx_t size, int thread_id, idx_t data_idx, idx_t stage_idx) {
+	if (data[stage_idx].size() > data_idx) {
+		Vector thread_id_vec(Value::INTEGER(thread_id));
+		switch (this->type) {
+		case PhysicalOperatorType::ORDER_BY:
+		case PhysicalOperatorType::FILTER:
+		case PhysicalOperatorType::LIMIT:
+		case PhysicalOperatorType::TABLE_SCAN: {
+			// Seq Scan, Filter, Limit, Order By, TopN, etc...
+			// schema: [INTEGER in_index, INTEGER out_index, INTEGER thread_id]
+			LineageDataWithOffset this_data = data[LINEAGE_UNARY][data_idx];
+			idx_t res_count = this_data.data->Count();
+
+			if (res_count > STANDARD_VECTOR_SIZE) {
+				D_ASSERT(data_idx == 0);
+				data[LINEAGE_UNARY] =
+				    dynamic_cast<LineageSelVec *>(this_data.data.get())->Divide(this_data.child_offset);
+				this_data = data[LINEAGE_UNARY][0];
+				res_count = this_data.data->Count();
+			}
+			insert_chunk.Reset();
+			insert_chunk.SetCardinality(res_count);
+			Vector in_index = this_data.data->GetVecRef(types[0], this_data.child_offset);
+			insert_chunk.data[0].Reference(in_index);
+			insert_chunk.data[1].Sequence(count_so_far, 1); // out_index
+			insert_chunk.data[2].Reference(thread_id_vec);  // thread_id
+
+			count_so_far += res_count;
+			size += this_data.data->Size();
+			break;
+		}
+		case PhysicalOperatorType::CROSS_PRODUCT: {
+			LineageDataWithOffset this_data = data[LINEAGE_PROBE][data_idx];
+			idx_t res_count = this_data.data->Count();
+			Vector rhs_payload = this_data.data->GetVecRef(types[0], 0);
+			Vector lhs_payload(types[1], res_count);
+			lhs_payload.Sequence(this_data.child_offset, 1);
+			fillBaseChunk(insert_chunk, res_count, lhs_payload, rhs_payload, count_so_far, thread_id_vec);
+			count_so_far += res_count;
+			size += this_data.data->Size();
+			break;
+		}
+		case PhysicalOperatorType::INDEX_JOIN:
+		case PhysicalOperatorType::BLOCKWISE_NL_JOIN:
+		case PhysicalOperatorType::PIECEWISE_MERGE_JOIN:
+		case PhysicalOperatorType::NESTED_LOOP_JOIN: {
+			LineageDataWithOffset this_data = data[LINEAGE_PROBE][data_idx];
+			idx_t res_count = this_data.data->Count();
+
+			Vector lhs_payload = dynamic_cast<LineageBinary&>(*this_data.data).left->GetVecRef(types[0], this_data.child_offset);
+			Vector rhs_payload = dynamic_cast<LineageBinary&>(*this_data.data).right->GetVecRef(types[1], 0);
+			fillBaseChunk(insert_chunk, res_count, lhs_payload, rhs_payload, count_so_far, thread_id_vec);
+			count_so_far += res_count;
+			size += this_data.data->Size();
+			break;
+		}
+		case PhysicalOperatorType::HASH_JOIN: {
+			// Hash Join - other joins too?
+			if (stage_idx == LINEAGE_BUILD) {
+				// sink: [BIGINT in_index, INTEGER out_index, INTEGER thread_id]
+				LineageDataWithOffset this_data = data[LINEAGE_BUILD][data_idx];
+				idx_t res_count = data[0][data_idx].data->Count();
+
+				Vector payload = this_data.data->GetVecRef(types[1], 0);
+				insert_chunk.SetCardinality(res_count);
+				insert_chunk.data[0].Sequence(count_so_far, 1);
+				insert_chunk.data[1].Reference(payload);
+				insert_chunk.data[2].Reference(thread_id_vec);
+
+				count_so_far += res_count;
+				size += this_data.data->Size();
+			} else {
+				// schema: [INTEGER lhs_index, BIGINT rhs_index, INTEGER out_index]
+
+				// This is pretty hacky, but it's fine since we're just validating that we haven't broken HashJoins
+				// when introducing LineageNested
+				if (cached_internal_lineage == nullptr) {
+					cached_internal_lineage = make_shared<LineageNested>(
+					    dynamic_cast<LineageNested &>(*data[LINEAGE_PROBE][data_idx].data)
+					);
+				}
+
+				shared_ptr<LineageDataWithOffset> this_data = cached_internal_lineage->GetInternal();
+
+				if (cached_internal_lineage->IsComplete()) {
+					cached_internal_lineage = nullptr; // Clear to prepare for next LineageNested
+				} else {
+					data_idx--; // Subtract one since later we'll add one and we don't want to move to the next data_idx yet
+				}
+
+				Vector lhs_payload(types[0]);
+				Vector rhs_payload(types[1]);
+
+				idx_t res_count = this_data->data->Count();
+
+				// Left side / probe side
+				if (dynamic_cast<LineageBinary&>(*this_data->data).left == nullptr) {
+					lhs_payload.SetVectorType(VectorType::CONSTANT_VECTOR);
+					ConstantVector::SetNull(rhs_payload, true);
+				} else {
+					Vector temp(types[0],  this_data->data->Process(this_data->child_offset));
+					lhs_payload.Reference(temp);
+				}
+
+				// Right side / build side
+				if (dynamic_cast<LineageBinary&>(*this_data->data).right == nullptr) {
+					rhs_payload.SetVectorType(VectorType::CONSTANT_VECTOR);
+					ConstantVector::SetNull(rhs_payload, true);
+				} else {
+					Vector temp(types[1],  this_data->data->Process(0));
+					rhs_payload.Reference(temp);
+				}
+
+				fillBaseChunk(insert_chunk, res_count, lhs_payload, rhs_payload, count_so_far, thread_id_vec);
+
+				count_so_far += res_count;
+				size += this_data->data->Size();
+			}
+			break;
+		}
+		case PhysicalOperatorType::HASH_GROUP_BY:
+		case PhysicalOperatorType::PERFECT_HASH_GROUP_BY: {
+			// Hash Aggregate / Perfect Hash Aggregate
+			// sink schema: [INTEGER in_index, INTEGER out_index, INTEGER thread_id]
+			if (stage_idx == LINEAGE_SINK) {
+				// in_index | LogicalType::INTEGER, out_index|LogicalType::BIGINT, thread_id|LogicalType::INTEGER
+				LineageDataWithOffset this_data = data[LINEAGE_SINK][data_idx];
+				idx_t res_count = this_data.data->Count();
+
+				Vector out_index = this_data.data->GetVecRef(types[1], 0);
+
+				insert_chunk.SetCardinality(res_count);
+				insert_chunk.data[0].Sequence(count_so_far, 1);
+				insert_chunk.data[1].Reference(out_index);
+				insert_chunk.data[2].Reference(thread_id_vec);
+
+				count_so_far += res_count;
+				size += this_data.data->Size();
+			} else if (stage_idx == LINEAGE_COMBINE) {
+				LineageDataWithOffset this_data = data[LINEAGE_COMBINE][data_idx];
+				idx_t res_count = this_data.data->Count();
+
+				Vector source_payload(types[0], this_data.data->Process(0));
+				Vector new_payload(types[1], this_data.data->Process(0));
+
+
+				insert_chunk.SetCardinality(res_count);
+				insert_chunk.data[0].Reference(source_payload);
+				insert_chunk.data[1].Reference(new_payload);
+				insert_chunk.data[2].Reference(thread_id_vec);
+
+
+				count_so_far += res_count;
+				size += this_data.data->Size();
+			} else {
+				// in_index|LogicalType::BIGINT, out_index|LogicalType::INTEGER, thread_id| LogicalType::INTEGER
+				LineageDataWithOffset this_data = data[LINEAGE_SOURCE][data_idx];
+				idx_t res_count = this_data.data->Count();
+
+				//Vector in_index(types[0], this_data.data->GetLineageAsChunk(0));
+				Vector in_index = this_data.data->GetVecRef(types[0], 0);
+				insert_chunk.SetCardinality(res_count);
+				insert_chunk.data[0].Reference(in_index);
+				insert_chunk.data[1].Sequence(count_so_far, 1); // out_index
+				insert_chunk.data[2].Reference(thread_id_vec);
+
+				count_so_far += res_count;
+				size += this_data.data->Size();
+			}
+			break;
+		}
+		default:
+			// We must capture lineage for everything getting processed
+			D_ASSERT(false);
+		}
+	}
+	data_idx++;
+	return LineageProcessStruct{ count_so_far, size, data_idx, stage_idx, data[stage_idx].size() > data_idx };
+}
+
+void OperatorLineage::SetChunkId(idx_t idx) {
+	dynamic_cast<PipelineScanLineage *>(pipeline_lineage.get())->SetChunkId(idx);
+}
+
+idx_t OperatorLineage::Size() {
+	idx_t size = 0;
+	for (const auto& lineage_data : data[0]) {
+		size += lineage_data.data->Size();
+	}
+	for (const auto& lineage_data : data[1]) {
+		size += lineage_data.data->Size();
+	}
+	return size;
+}
+
+shared_ptr<LineageDataWithOffset> OperatorLineage::GetMyLatest() {
+	switch (type) {
+	case PhysicalOperatorType::CHUNK_SCAN:
+	case PhysicalOperatorType::DELIM_SCAN:
+	case PhysicalOperatorType::DUMMY_SCAN:
+	case PhysicalOperatorType::TABLE_SCAN: {
+		if (!data[0].empty()) {
+			return make_shared<LineageDataWithOffset>(data[0][data[0].size() - 1]);
+		} else {
+			return nullptr;
+		}
+	}
+	case PhysicalOperatorType::SIMPLE_AGGREGATE: {
+		// Simple agg = ALL lineage, so child lineage data ptrs are meaningless
+		return nullptr;
+	}
+	case PhysicalOperatorType::FILTER:
+	case PhysicalOperatorType::LIMIT:
+	case PhysicalOperatorType::ORDER_BY: {
+		if (!data[LINEAGE_UNARY].empty()) {
+			return make_shared<LineageDataWithOffset>(data[LINEAGE_UNARY][data[LINEAGE_UNARY].size() - 1]);
+		}
+		return nullptr;
+	}
+	case PhysicalOperatorType::HASH_GROUP_BY:
+	case PhysicalOperatorType::PERFECT_HASH_GROUP_BY:
+	case PhysicalOperatorType::WINDOW: {
+		if (!data[LINEAGE_SOURCE].empty()) {
+			return make_shared<LineageDataWithOffset>(data[LINEAGE_SOURCE][data[LINEAGE_SOURCE].size() - 1]);
+		}
+		return nullptr;
+	}
+	case PhysicalOperatorType::CROSS_PRODUCT: {
+		// Only the right lineage is ever captured TODO is this what we should do?
+		if (!data[LINEAGE_PROBE].empty()) {
+			return make_shared<LineageDataWithOffset>(data[LINEAGE_PROBE][data[LINEAGE_PROBE].size() - 1]);
+		}
+		return nullptr;
+	}
+	case PhysicalOperatorType::NESTED_LOOP_JOIN:
+	case PhysicalOperatorType::BLOCKWISE_NL_JOIN:
+	case PhysicalOperatorType::INDEX_JOIN: {
+		// 0 is the probe side for these joins
+		if (!data[0].empty()) {
+			return make_shared<LineageDataWithOffset>(data[0][data[0].size() - 1]);
+		} else {
+			return nullptr;
+		}
+	}
+	case PhysicalOperatorType::PIECEWISE_MERGE_JOIN: {
+		// 1 is the probe side for this join
+		return make_shared<LineageDataWithOffset>(data[1][data[1].size() - 1]);
+	}
+	case PhysicalOperatorType::HASH_JOIN: {
+		// When being asked for latest, we'll always want to refer to the probe data
+		if (!data[LINEAGE_PROBE].empty()) {
+			return make_shared<LineageDataWithOffset>(data[LINEAGE_PROBE][data[LINEAGE_PROBE].size() - 1]);
+		} else {
+			// Pass through child for Mark Hash Join TODO is this right?
+			return children[LINEAGE_PROBE]->GetMyLatest();
+		}
+	}
+	case PhysicalOperatorType::PROJECTION: {
+		throw std::logic_error("We shouldn't ever try to call GetMyLatest on a Projection");
+	}
+	case PhysicalOperatorType::DELIM_JOIN: {
+		// TODO think through this
+		return {};
+	}
+	default:
+		// Lineage unimplemented! TODO these :)
+		return {};
+	}
+}
+
+shared_ptr<LineageDataWithOffset> OperatorLineage::GetChildLatest(idx_t lineage_idx) {
+	switch (type) {
+	case PhysicalOperatorType::CHUNK_SCAN:
+	case PhysicalOperatorType::DELIM_SCAN:
+	case PhysicalOperatorType::DUMMY_SCAN:
+	case PhysicalOperatorType::PROJECTION:
+	case PhysicalOperatorType::TABLE_SCAN: {
+		return nullptr;
+	}
+	case PhysicalOperatorType::ORDER_BY: {
+		return nullptr; // Order By has no children since ALL are its children
+	}
+	case PhysicalOperatorType::HASH_GROUP_BY:
+	case PhysicalOperatorType::PERFECT_HASH_GROUP_BY: {
+		// Only SINK has children
+		if (children.empty()) {
+			// The aggregation in DelimJoin TODO figure this out
+			return nullptr;
+		} else if (lineage_idx == LINEAGE_SINK) {
+			return children[0]->GetMyLatest();
+		} else {
+			return nullptr;
+		}
+	}
+	case PhysicalOperatorType::FILTER:
+	case PhysicalOperatorType::LIMIT:
+	case PhysicalOperatorType::SIMPLE_AGGREGATE:
+	case PhysicalOperatorType::WINDOW: {
+		return children[0]->GetMyLatest();
+	}
+	case PhysicalOperatorType::INDEX_JOIN: {
+		// Index Join, despite being a join, just has 1 child
+		return children[0]->GetMyLatest();
+	}
+	case PhysicalOperatorType::CROSS_PRODUCT:
+	case PhysicalOperatorType::NESTED_LOOP_JOIN:
+	case PhysicalOperatorType::BLOCKWISE_NL_JOIN:
+	case PhysicalOperatorType::PIECEWISE_MERGE_JOIN: {
+		// These only capture 1 lineage on PROBE side and we really care about BUILD side child
+		return children[0]->GetMyLatest();
+	}
+	case PhysicalOperatorType::HASH_JOIN: {
+		// We mix up Hash Join...
+		if (lineage_idx == LINEAGE_BUILD) {
+			return children[0]->GetMyLatest();
+		} else {
+			return children[1]->GetMyLatest();
+		}
+	}
+	case PhysicalOperatorType::DELIM_JOIN: {
+		// TODO think through this
+		throw std::logic_error("Haven't handled delim join yet");
+	}
+	default:
+		// Lineage unimplemented! TODO these :)
+		return {};
+	}
+}
+
+idx_t OperatorLineage::GetThisOffset(idx_t lineage_idx) {
+	idx_t last_data_idx = data[lineage_idx].size() - 1;
+	return data[lineage_idx].empty() ? 0 : data[lineage_idx][last_data_idx].this_offset + data[lineage_idx][last_data_idx].data->Count();
+}
+
+LineageProcessStruct::LineageProcessStruct(idx_t i, idx_t i1, idx_t i2, idx_t i3, bool b) {
+	count_so_far = i;
+	size_so_far = i1;
+	data_idx = i2;
+	finished_idx = i3;
+	still_processing = b;
+}
+} // namespace duckdb
+#endif

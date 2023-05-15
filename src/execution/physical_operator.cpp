@@ -10,7 +10,11 @@
 namespace duckdb {
 
 string PhysicalOperator::GetName() const {
+#ifdef LINEAGE
+	return PhysicalOperatorToString(type) + "_" + std::to_string(id);
+#else
 	return PhysicalOperatorToString(type);
+#endif
 }
 
 string PhysicalOperator::ToString() const {
@@ -39,6 +43,11 @@ void PhysicalOperator::GetChunk(ExecutionContext &context, DataChunk &chunk, Phy
 	// execute the operator
 	context.thread.profiler.StartOperator(this);
 	GetChunkInternal(context, chunk, state);
+#ifdef LINEAGE
+	if (context.client.lineage_manager->persist_intermediate) {
+		lineage_op.at(context.task.thread_id)->chunk_collection.Append(chunk);
+	}
+#endif
 	context.thread.profiler.EndOperator(&chunk);
 
 	chunk.Verify();

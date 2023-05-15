@@ -15,6 +15,10 @@
 #include "duckdb/planner/expression.hpp"
 #include "duckdb/execution/execution_context.hpp"
 
+#ifdef LINEAGE
+#include "duckdb/execution/lineage/lineage_manager.hpp"
+#include "duckdb/parallel/task_context.hpp"
+#endif
 #include <functional>
 #include <utility>
 
@@ -65,6 +69,13 @@ public:
 	vector<LogicalType> types;
 	//! The extimated cardinality of this physical operator
 	idx_t estimated_cardinality;
+#ifdef LINEAGE
+	//! ID of this operator within the physical plan
+	idx_t id;
+	//! Lineage captured for this operator partitioned by thread id
+	std::unordered_map<int, shared_ptr<OperatorLineage>> lineage_op;
+	bool delim_handled = false;
+#endif
 
 public:
 	virtual string GetName() const;

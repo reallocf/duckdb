@@ -55,6 +55,10 @@ ClientContext::ClientContext(shared_ptr<DatabaseInstance> database)
 	random_engine.seed(rd());
 
 	progress_bar = make_unique<ProgressBar>(&executor, wait_time);
+
+#ifdef LINEAGE
+	lineage_manager = make_unique<LineageManager>(*this);
+#endif
 }
 
 ClientContext::~ClientContext() {
@@ -239,6 +243,12 @@ unique_ptr<QueryResult> ClientContext::ExecutePreparedStatement(ClientContextLoc
 		progress_bar->Initialize(wait_time);
 		progress_bar->Start();
 	}
+
+#ifdef LINEAGE
+	// Always annotate plan with lineage
+	lineage_manager->InitOperatorPlan(statement.plan.get());
+#endif
+
 	// store the physical plan in the context for calls to Fetch()
 	executor.Initialize(statement.plan.get());
 
@@ -271,6 +281,9 @@ unique_ptr<QueryResult> ClientContext::ExecutePreparedStatement(ClientContextLoc
 #endif
 		result->collection.Append(*chunk);
 	}
+#ifdef LINEAGE
+	lineage_manager->StoreQueryLineage(move(statement.plan), query);
+#endif
 	if (enable_progress_bar) {
 		progress_bar->Stop();
 	}

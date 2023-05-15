@@ -63,6 +63,9 @@ void StreamQueryResult::Close() {
 		return;
 	}
 	is_open = false;
+#ifdef LINEAGE
+	context->lineage_manager->StoreQueryLineage(move(prepared->plan), context->query);
+#endif
 	context->Cleanup();
 }
 

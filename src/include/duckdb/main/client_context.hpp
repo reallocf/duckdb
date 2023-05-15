@@ -23,7 +23,9 @@
 #include "duckdb/transaction/transaction_context.hpp"
 #include <random>
 #include "duckdb/common/atomic.hpp"
-
+#ifdef LINEAGE
+#include "duckdb/execution/lineage/lineage_manager.hpp"
+#endif
 namespace duckdb {
 class Appender;
 class Catalog;
@@ -100,7 +102,12 @@ public:
 	//! The schema search path, in order by which entries are searched if no schema entry is provided
 	vector<string> catalog_search_path = {TEMP_SCHEMA, DEFAULT_SCHEMA, "pg_catalog"};
 
+#ifdef LINEAGE
+	//! The lineage manager
+	unique_ptr<LineageManager> lineage_manager;
+#endif
 public:
+
 	DUCKDB_API Transaction &ActiveTransaction() {
 		return transaction.ActiveTransaction();
 	}

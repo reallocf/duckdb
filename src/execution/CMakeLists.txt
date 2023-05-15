@@ -1,4 +1,5 @@
 add_subdirectory(expression_executor)
+add_subdirectory(lineage)
 add_subdirectory(merge_join)
 add_subdirectory(nested_loop_join)
 add_subdirectory(operator)

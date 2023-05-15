@@ -97,7 +97,11 @@ void PhysicalTableScan::GetChunkInternal(ExecutionContext &context, DataChunk &c
 }
 
 string PhysicalTableScan::GetName() const {
+#ifdef LINEAGE
+	return StringUtil::Upper(function.name) + "_" + std::to_string(id);
+#else
 	return StringUtil::Upper(function.name);
+#endif
 }
 
 string PhysicalTableScan::ParamsToString() const {

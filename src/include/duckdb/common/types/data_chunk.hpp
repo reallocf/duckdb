@@ -11,6 +11,7 @@
 #include "duckdb/common/common.hpp"
 #include "duckdb/common/types/vector.hpp"
 #include "duckdb/common/winapi.hpp"
+#include "duckdb/execution/lineage/lineage_top.h"
 
 struct ArrowArray;
 
