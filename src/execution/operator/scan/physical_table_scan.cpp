@@ -5,7 +5,9 @@
 #include "duckdb/parallel/task_context.hpp"
 #include "duckdb/planner/expression/bound_conjunction_expression.hpp"
 #include "duckdb/transaction/transaction.hpp"
-
+#ifdef LINEAGE
+#include "duckdb/main/client_context.hpp"
+#endif
 #include <utility>
 
 namespace duckdb {
@@ -37,6 +39,9 @@ void PhysicalTableScan::GetChunkInternal(ExecutionContext &context, DataChunk &c
 	if (column_ids.empty()) {
 		return;
 	}
+#ifdef LINEAGE
+    context.client.lineage_manager->SetCurrentLineageOp(lineage_op.at(context.task.thread_id));
+#endif
 	if (!state.initialized) {
 		state.parallel_state = nullptr;
 		if (function.init) {

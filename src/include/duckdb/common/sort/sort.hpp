@@ -12,6 +12,9 @@
 #include "duckdb/common/types/row_data_collection.hpp"
 #include "duckdb/planner/bound_query_node.hpp"
 
+#ifdef LINEAGE
+#include "duckdb/execution/lineage/lineage_data.hpp"
+#endif
 namespace duckdb {
 
 class RowLayout;
@@ -82,6 +85,9 @@ public:
 	idx_t num_pairs;
 	idx_t l_start;
 	idx_t r_start;
+#ifdef LINEAGE
+	SelectionVector lineage_sel;
+#endif
 };
 
 struct LocalSortState {
@@ -125,6 +131,11 @@ public:
 	unique_ptr<RowDataCollection> payload_heap;
 	//! Sorted data
 	vector<unique_ptr<SortedBlock>> sorted_blocks;
+
+#ifdef LINEAGE
+	//! Captured lineage for this local sort
+	shared_ptr<LineageSelVec> lineage;
+#endif
 
 private:
 	//! Selection vector and addresses for scattering the data to rows

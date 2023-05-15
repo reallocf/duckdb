@@ -70,7 +70,20 @@ static void TableScanFunc(ClientContext &context, const FunctionData *bind_data_
 	auto &bind_data = (TableScanBindData &)*bind_data_p;
 	auto &state = (TableScanOperatorData &)*operator_state;
 	auto &transaction = Transaction::GetTransaction(context);
+	// transaction is shared between multiple threads?
 	bind_data.table->storage->Scan(transaction, output, state.scan_state, state.column_ids);
+
+#ifdef LINEAGE
+	auto scan_lop = context.lineage_manager->GetCurrentLineageOp();
+	scan_lop->SetChunkId(state.scan_state.row_group_scan_state.chunk_id);
+	if (state.scan_state.row_group_scan_state.scan_lineage_data) {
+		scan_lop->Capture(move(state.scan_state.row_group_scan_state.scan_lineage_data), LINEAGE_UNARY);
+	} else {
+		if (output.size() > 0) {
+			scan_lop->Capture( make_shared<LineageRange>(0, output.size()), LINEAGE_UNARY);
+		}
+	}
+#endif
 	bind_data.chunk_count++;
 }
 

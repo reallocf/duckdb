@@ -74,11 +74,21 @@ void PhysicalIndexJoin::Output(ExecutionContext &context, DataChunk &chunk, Phys
 	sel.Initialize(STANDARD_VECTOR_SIZE);
 	idx_t output_sel_idx = 0;
 	vector<row_t> fetch_rows;
+#ifdef LINEAGE
+	bool do_not_fetch = false;
+#endif
 	auto state = reinterpret_cast<PhysicalIndexJoinOperatorState *>(state_p);
 	while (output_sel_idx < STANDARD_VECTOR_SIZE && state->lhs_idx < state->child_chunk.size()) {
 		if (state->rhs_idx < state->result_sizes[state->lhs_idx]) {
 			sel.set_index(output_sel_idx++, state->lhs_idx);
+#ifdef LINEAGE
+			if (!fetch_types.empty() || context.client.lineage_manager->trace_lineage) {
+				if (fetch_types.empty()) {
+					do_not_fetch = true;
+				}
+#else
 			if (!fetch_types.empty()) {
+#endif
 				//! We need to collect the rows we want to fetch
 				fetch_rows.push_back(state->rhs_rows[state->lhs_idx][state->rhs_idx]);
 			}
@@ -89,8 +99,13 @@ void PhysicalIndexJoin::Output(ExecutionContext &context, DataChunk &chunk, Phys
 			state->lhs_idx++;
 		}
 	}
+
 	//! Now we fetch the RHS data
+#ifdef LINEAGE
+	if (!fetch_types.empty() && !do_not_fetch) {
+#else
 	if (!fetch_types.empty()) {
+#endif
 		if (fetch_rows.empty()) {
 			return;
 		}
@@ -117,6 +132,14 @@ void PhysicalIndexJoin::Output(ExecutionContext &context, DataChunk &chunk, Phys
 		chunk.data[left_offset + i].Slice(sel, output_sel_idx);
 	}
 
+#ifdef LINEAGE
+	unique_ptr<row_t[]> array(new row_t[output_sel_idx]);
+	std::copy(fetch_rows.begin(), fetch_rows.end(), array.get());
+	auto lhs_lineage = make_unique<LineageSelVec>(move(sel), output_sel_idx);
+	auto rhs_lineage = make_unique<LineageDataArray<row_t>>(move(array), output_sel_idx);
+	lineage_op.at(context.task.thread_id)->Capture(make_shared<LineageBinary>(move(lhs_lineage), move(rhs_lineage)), LINEAGE_PROBE);
+#endif
+
 	state->result_size = output_sel_idx;
 	chunk.SetCardinality(state->result_size);
 }
@@ -130,7 +153,11 @@ void PhysicalIndexJoin::GetRHSMatches(ExecutionContext &context, PhysicalOperato
 		auto index_state = art.InitializeScanSinglePredicate(transaction, equal_value, ExpressionType::COMPARE_EQUAL);
 		state->rhs_rows[i].clear();
 		if (!equal_value.is_null) {
+#ifdef LINEAGE
+			if (fetch_types.empty() && !context.client.lineage_manager->trace_lineage) {
+#else
 			if (fetch_types.empty()) {
+#endif
 				IndexLock lock;
 				index->InitializeLock(lock);
 				art.SearchEqualJoinNoFetch(equal_value, state->result_sizes[i]);

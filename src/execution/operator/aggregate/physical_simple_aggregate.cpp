@@ -119,6 +119,7 @@ void PhysicalSimpleAggregate::Sink(ExecutionContext &context, GlobalOperatorStat
 		idx_t payload_cnt = 0;
 		// resolve the filter (if any)
 		if (aggregate.filter) {
+			// TODO: capture lineage
 			ExpressionExecutor filter_execution(aggregate.filter.get());
 			SelectionVector true_sel(STANDARD_VECTOR_SIZE);
 			auto count = filter_execution.SelectExpression(input, true_sel);

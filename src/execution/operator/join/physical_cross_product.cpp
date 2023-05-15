@@ -88,6 +88,15 @@ void PhysicalCrossProduct::GetChunkInternal(ExecutionContext &context, DataChunk
 		                          right_chunk.size());
 	}
 
+#ifdef LINEAGE
+    // right_position -> tuple id from right side + all tuples from the left side
+	if (lineage_op.count(context.task.thread_id)) {
+		lineage_op.at(context.task.thread_id)->Capture(make_shared<LineageConstant>(
+			state->right_position,
+			left_chunk.size()), LINEAGE_PROBE);
+	}
+#endif
+
 	// for the next iteration, move to the next position on the right side
 	state->right_position++;
 }

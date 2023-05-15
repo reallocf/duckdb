@@ -48,6 +48,9 @@ void PhysicalLimit::GetChunkInternal(ExecutionContext &context, DataChunk &chunk
 		}
 	}
 
+#ifdef LINEAGE
+	idx_t orig_offset = state->current_offset;
+#endif
 	// get the next chunk from the child
 	do {
 		children[0]->GetChunk(context, state->child_chunk, state->child_state.get());
@@ -95,6 +98,12 @@ void PhysicalLimit::GetChunkInternal(ExecutionContext &context, DataChunk &chunk
 
 		state->current_offset += state->child_chunk.size();
 	} while (chunk.size() == 0);
+
+#ifdef LINEAGE
+	auto lineage_start = orig_offset == 0 ? offset : 0;
+	auto lineage_end = lineage_start + chunk.size();
+    lineage_op.at(context.task.thread_id)->Capture(make_shared<LineageRange>(lineage_start, lineage_end), LINEAGE_UNARY);
+#endif
 }
 
 unique_ptr<PhysicalOperatorState> PhysicalLimit::GetOperatorState() {
