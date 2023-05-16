@@ -118,9 +118,9 @@ if(${ENABLE_THREAD_SANITIZER})
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=thread")
 elseif(${ENABLE_SANITIZER})
   if(FORCE_ASSERT)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}") #-fsanitize=address") Removed by Charlie Summers to enable Mac execution
   else()
-    set(CXX_EXTRA_DEBUG "${CXX_EXTRA_DEBUG} -fsanitize=address")
+    set(CXX_EXTRA_DEBUG "${CXX_EXTRA_DEBUG}") #-fsanitize=address") Removed by Charlie Summers to enable Mac execution
   endif()
 endif()
 

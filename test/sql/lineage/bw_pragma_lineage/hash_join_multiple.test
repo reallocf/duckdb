@@ -1,0 +1,46 @@
+# name: test/sql/lineage/bw_pragma_lineage/hash_join_multiple.test
+# description: Test Multiple Hash Joins via pragma BW()
+# group: [bw_pragma_lineage]
+
+statement ok
+CREATE TABLE t1(i INTEGER);
+CREATE TABLE t2(i INTEGER);
+CREATE TABLE t3(i INTEGER);
+CREATE TABLE t4(i INTEGER);
+
+statement ok
+INSERT INTO t1 VALUES (1), (2), (3), (4);
+INSERT INTO t2 VALUES (5), (1), (6), (7);
+INSERT INTO t3 VALUES (8), (9), (1), (10);
+INSERT INTO t4 VALUES (11), (12), (13), (1);
+
+statement ok
+PRAGMA trace_lineage = "ON";
+
+query I
+select t1.i from t1 inner join t2 on t1.i = t2.i inner join t3 on t2.i = t3.i inner join t4 on t3.i = t4.i;
+----
+1
+
+statement ok
+PRAGMA trace_lineage = "OFF";
+
+query I
+PRAGMA BW(1, 0, 't1')
+----
+0
+
+query I
+PRAGMA BW(1, 0, 't2')
+----
+1
+
+query I
+PRAGMA BW(1, 0, 't3')
+----
+2
+
+query I
+PRAGMA BW(1, 0, 't4')
+----
+3

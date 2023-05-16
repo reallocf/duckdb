@@ -7,6 +7,7 @@
 #include "duckdb/execution/operator/join/physical_delim_join.hpp"
 #include "duckdb/execution/operator/join/physical_join.hpp"
 #include "duckdb/execution/operator/join/physical_index_join.hpp"
+#include "duckdb/execution/operator/helper/physical_limit.hpp"
 #include "duckdb/execution/index/lineage_index/lineage_index.hpp"
 #include "duckdb/execution/operator/scan/physical_chunk_scan.hpp"
 #include "duckdb/execution/operator/scan/physical_empty_result.hpp"
@@ -371,10 +372,17 @@ unique_ptr<PhysicalOperator> GenerateCustomLineagePlan(
 	}
 }
 
+bool CheckPipelineForTable(PhysicalOperator* pipeline, const string& input_table_name) {
+	// Top of pipeline is the table scan - so only need to check top node
+	// TODO: handle multithreading
+	return dynamic_cast<PhysicalIndexJoin *>(pipeline)->opLineage->table_name == input_table_name;
+}
+
 unique_ptr<PhysicalOperator> CombineByMode(
 	ClientContext &context,
 	const string& mode,
 	bool should_count,
+    const string& input_table_name,
 	unique_ptr<PhysicalOperator> first_plan,
 	vector<unique_ptr<PhysicalOperator>> other_plans
 ) {
@@ -401,9 +409,74 @@ unique_ptr<PhysicalOperator> CombineByMode(
 				1 // TODO improve this?
 			);
 		}
+	} else if (mode == "SINGLE") {
+		// Search for the pipeline with the TableScan we're targeting.
+		// Each pipeline that does NOT contain that TableScan must still be run in order
+		// to ensure we've filled the correct ChunkScan.
+		// TODO Optimization
+		//  Tight now we're running the full pipeline even if the TableScan is incorrect when
+		//  we only actually need to run until the pipeline until the join.
+		// TODO Optimization
+		//  Currently we're running too many pipelines for query plans like this:
+		//          J
+		//         / \
+		//       J   T4
+		//      / \
+		//    J   T3
+		//   / \
+		//  T1 T2
+		//  if we query T3 then we'll run the pipelines for T1, T2, and T3 when optimally we
+		//  would just run T1 and T3.
+		vector<LogicalType> types = {LogicalType::UBIGINT};
+
+		if (CheckPipelineForTable(final_plan.get(), input_table_name)) {
+			return final_plan;
+		}
+
+		for (idx_t i = 0; i < other_plans.size(); i++) {
+			// For every plan that must be run but doesn't have the desired table name:
+			// 1. Add a simple aggregate count to ensure all values are executed
+			// 2. Add a union to combine the outputs and craft a single query plan
+			// 3. Add a limit with just an offset of 1 (no actual limit) to ignore the simple aggregate value
+
+			bool this_is_target_pipeline = CheckPipelineForTable(other_plans[i].get(), input_table_name);
+
+			// 1
+			vector<unique_ptr<Expression>> agg_exprs;
+			agg_exprs.push_back(AggregateFunction::BindAggregateFunction(context, CountStarFun::GetFunction(), {}));
+			unique_ptr<PhysicalOperator> agg = make_unique<PhysicalSimpleAggregate>(types, move(agg_exprs), true, 1);
+			agg->children.push_back(move(final_plan));
+
+			// 2
+			unique_ptr<PhysicalOperator> agg_union_new = make_unique<PhysicalUnion>(
+			    types,
+			    move(agg),
+			    move(other_plans[i]),
+			    2 // TODO improve this?
+			);
+
+			// 3
+			final_plan = make_unique<PhysicalLimit>(
+			    types,
+			    std::numeric_limits<int64_t>::max(),
+			    1,
+			    nullptr,
+			    nullptr,
+			    1 // TODO improve this?
+			);
+			final_plan->children.push_back(move(agg_union_new));
+
+			if (this_is_target_pipeline) {
+				return final_plan;
+			}
+		}
 	} else {
 		// Invalid mode
-		throw std::logic_error("Invalid backward query mode - should one of [LIN, PERM, PROV]");
+		throw std::logic_error("Invalid backward query mode - should one of [LIN, PERM, PROV, SINGLE]");
+	}
+	if (mode == "SINGLE") {
+		// At this point, must not have found table
+		throw std::logic_error("Table name not in base query");
 	}
 	if (should_count) {
 		// Add final aggregation at end

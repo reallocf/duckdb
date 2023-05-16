@@ -24,13 +24,6 @@
 #include <random>
 #include "duckdb/common/atomic.hpp"
 
-#ifdef LINEAGE
-#define LINEAGE_INDEXES_ON true
-// 0 => Binary Search index
-// 1 => Array index
-#define LINEAGE_INDEX_TYPE 0
-#endif
-
 namespace duckdb {
 class Appender;
 class Catalog;
@@ -112,7 +105,8 @@ public:
 	bool trace_lineage = false;
 	//! The lineage manager
 	unique_ptr<LineageManager> lineage_manager;
-	std::unordered_map<string, std::unique_ptr<PhysicalOperator>> query_to_plan;
+	std::unordered_map<string, std::shared_ptr<PhysicalOperator>> query_to_plan;
+	std::unordered_map<idx_t, std::shared_ptr<PhysicalOperator>> query_id_to_plan;
 	//! Set which join type explicitly we want to use
 	unique_ptr<string> explict_join_type = nullptr;
 	unique_ptr<string> explicit_agg_type = nullptr;

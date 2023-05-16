@@ -6,7 +6,11 @@ namespace duckdb {
 
 #ifdef LINEAGE
 string PragmaBackwardLineageDuckDBExecEngine(ClientContext &context, const FunctionParameters &parameters) {
-	return StringUtil::Format("SELECT 1");
+	return "SELECT 1";
+}
+
+string PragmaBW(ClientContext &context, const FunctionParameters &parameters) {
+	return "SELECT 1";
 }
 
 string PragmaClearLineage(ClientContext &context, const FunctionParameters &parameters) {
@@ -80,6 +84,7 @@ string PragmaStorageInfo(ClientContext &context, const FunctionParameters &param
 void PragmaQueries::RegisterFunction(BuiltinFunctions &set) {
 #ifdef LINEAGE
 	set.AddFunction(PragmaFunction::PragmaCall("lineage_query", PragmaBackwardLineageDuckDBExecEngine, {LogicalType::VARCHAR, LogicalType::VARCHAR, LogicalType::VARCHAR, LogicalType::INTEGER}));
+	set.AddFunction(PragmaFunction::PragmaCall("BW", PragmaBW, {LogicalType::INTEGER, LogicalType::INTEGER, LogicalType::VARCHAR}));
 	set.AddFunction(PragmaFunction::PragmaStatement("clear_lineage", PragmaClearLineage));
 #endif
 	set.AddFunction(PragmaFunction::PragmaCall("table_info", PragmaTableInfo, {LogicalType::VARCHAR}));

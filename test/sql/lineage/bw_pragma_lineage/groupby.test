@@ -1,0 +1,46 @@
+# name: test/sql/lineage/bw_pragma_lineage/groupby.test
+# description: Test Group By Lineage via pragma BW()
+# group: [bw_pragma_lineage]
+
+statement ok
+PRAGMA trace_lineage = "OFF";
+
+statement ok
+CREATE TABLE t2(i VARCHAR(10), j INTEGER);
+
+statement ok
+INSERT INTO t2 VALUES ('Haneen', 2),  ('Omar', 2), ('Haneen', 4), ('Mohammed', 1), ('Omar', 1), ('Haneen', 3), ('Mohammed', 2), ('Omar', 1)
+
+statement ok
+PRAGMA trace_lineage = "ON";
+
+# standalone limit
+query II
+select t2.i, avg(t2.j) from t2 GROUP BY t2.i
+----
+Haneen	3.000000
+Omar	1.333333
+Mohammed	1.500000
+
+statement ok
+PRAGMA trace_lineage = "OFF";
+
+query I
+PRAGMA BW(1, 0, 't2');
+----
+0
+2
+5
+
+query I
+PRAGMA BW(1, 1, 't2');
+----
+1
+4
+7
+
+query I
+PRAGMA BW(1, 2, 't2');
+----
+3
+6

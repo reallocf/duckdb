@@ -1,0 +1,39 @@
+# name: test/sql/lineage/bw_pragma_lineage/filter.test
+# description: Test Filter Lineage via pragma BW()
+# group: [bw_pragma_lineage]
+
+
+statement ok
+CREATE TABLE t1(i INTEGER);
+
+statement ok
+INSERT INTO t1 SELECT i FROM range(0,2000) tbl(i);
+
+statement ok
+PRAGMA trace_lineage = "ON";
+
+query I
+select * from t1 where 2 > i  OR i > 1998
+----
+0
+1
+1999
+
+statement ok
+PRAGMA trace_lineage = "OFF";
+
+
+query I
+PRAGMA BW(1, 0, 't1');
+----
+0
+
+query I
+PRAGMA BW(1, 1, 't1');
+----
+1
+
+query I
+PRAGMA BW(1, 2, 't1');
+----
+1999

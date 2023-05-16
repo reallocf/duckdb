@@ -38,7 +38,7 @@ public:
 	void InitOperatorPlan(PhysicalOperator *op, bool trace_lineage);
 	idx_t CreateLineageTables(PhysicalOperator *op);
 	void CreateQueryTable();
-	void LogQuery(const string& input_query, idx_t lineage_size=0);
+	idx_t LogQuery(const string& input_query, idx_t lineage_size=0);
 	static shared_ptr<PipelineLineage> GetPipelineLineageNodeForOp(PhysicalOperator *op, int thd_id=-1);
 	static void CreateOperatorLineage(PhysicalOperator *op, int thd_id=-1, bool trace_lineage=true, bool should_index=true);
 

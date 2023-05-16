@@ -1,18 +1,20 @@
 #ifdef LINEAGE
 #include "duckdb/execution/lineage/lineage_manager.hpp"
 
+#include "duckdb/catalog/catalog_entry/index_catalog_entry.hpp"
+#include "duckdb/execution/index/lineage_index/lineage_index.hpp"
+#include "duckdb/execution/operator/join/physical_delim_join.hpp"
+#include "duckdb/execution/operator/join/physical_join.hpp"
+#include "duckdb/execution/operator/scan/physical_table_scan.hpp"
+#include "duckdb/function/table/table_scan.hpp"
 #include "duckdb/main/client_context.hpp"
+#include "duckdb/parser/parsed_data/create_index_info.hpp"
 #include "duckdb/parser/parsed_data/create_table_info.hpp"
 #include "duckdb/parser/statement/create_statement.hpp"
 #include "duckdb/planner/binder.hpp"
-#include "duckdb/planner/parsed_data/bound_create_table_info.hpp"
-#include "duckdb/parser/parsed_data/create_index_info.hpp"
-#include "duckdb/execution/operator/join/physical_delim_join.hpp"
-#include "duckdb/execution/operator/join/physical_join.hpp"
-#include "duckdb/catalog/catalog_entry/index_catalog_entry.hpp"
-#include "duckdb/storage/data_table.hpp"
 #include "duckdb/planner/expression_binder/index_binder.hpp"
-#include "duckdb/execution/index/lineage_index/lineage_index.hpp"
+#include "duckdb/planner/parsed_data/bound_create_table_info.hpp"
+#include "duckdb/storage/data_table.hpp"
 
 #include <utility>
 
@@ -202,6 +204,11 @@ void LineageManager::CreateOperatorLineage(PhysicalOperator *op, int thd_id, boo
 	) {
 		// Cache join type so we can avoid anti joins
 		op->lineage_op[thd_id]->join_type = dynamic_cast<PhysicalJoin *>(op)->join_type;
+	}
+	if (op->type == PhysicalOperatorType::TABLE_SCAN) {
+		string table_str = dynamic_cast<PhysicalTableScan *>(op)->ParamsToString();
+		// TODO there's probably a better way to do this...
+		op->lineage_op[thd_id]->table_name = table_str.substr(0, table_str.find('\n'));
 	}
 }
 
@@ -474,7 +481,7 @@ void LineageManager::CreateQueryTable() {
 /*
  * Persist executed query in queries_list table
  */
-void LineageManager::LogQuery(const string& input_query, idx_t lineage_size) {
+idx_t LineageManager::LogQuery(const string& input_query, idx_t lineage_size) {
   idx_t count = 1;
   TableCatalogEntry * table = Catalog::GetCatalog(context)
 	                             .GetEntry<TableCatalogEntry>(context,  DEFAULT_SCHEMA, QUERY_LIST_TABLE_NAME);
@@ -483,7 +490,8 @@ void LineageManager::LogQuery(const string& input_query, idx_t lineage_size) {
   insert_chunk.SetCardinality(count);
 
   // query id
-  Vector query_ids(Value::INTEGER(query_id++));
+  idx_t this_query_id = query_id++;
+  Vector query_ids(Value::INTEGER(this_query_id));
   Vector lineage_size_vec(Value::UBIGINT(lineage_size));
 
   // query value
@@ -495,6 +503,8 @@ void LineageManager::LogQuery(const string& input_query, idx_t lineage_size) {
   insert_chunk.data[2].Reference(lineage_size_vec);
 
   table->Persist(*table, context, insert_chunk);
+
+  return this_query_id;
 }
 
 } // namespace duckdb

@@ -102,6 +102,7 @@ public:
     vector<idx_t> index;
     bool should_index;
 	JoinType join_type;
+	string table_name;
 };
 
 struct LineageProcessStruct {

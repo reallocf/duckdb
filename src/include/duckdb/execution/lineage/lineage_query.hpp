@@ -15,7 +15,8 @@ unique_ptr<PhysicalOperator> GenerateCustomLineagePlan(
 	ChunkCollection* lineage_ids,
 	unique_ptr<PhysicalOperator> left,
 	bool simple_agg_flag,
-	vector<unique_ptr<PhysicalOperator>> *pipelines);
+	vector<unique_ptr<PhysicalOperator>> *pipelines
+);
 
 
 template <typename T>
@@ -31,9 +32,10 @@ unique_ptr<PhysicalOperator> CombineByMode(
     ClientContext &context,
     const string& mode,
     bool should_count,
+    const string& input_table_name,
     unique_ptr<PhysicalOperator> first_plan,
     vector<unique_ptr<PhysicalOperator>> other_plans
-    );
+);
 
 } // namespace duckdb
 #endif

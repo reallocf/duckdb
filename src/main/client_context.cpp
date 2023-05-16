@@ -180,13 +180,37 @@ shared_ptr<PreparedStatementData> ClientContext::CreatePreparedStatement(ClientC
 	// check if it is lineage query then construct the query here
 	if (statement && statement->parent_pragma) {
 		auto info = *((PragmaStatement &)*statement->parent_pragma).info;
-		if (info.name == "lineage_query") {
+		if (info.name == "lineage_query" || info.name == "bw") {
 			FunctionParameters parameters {info.parameters, info.named_parameters};
 			clock_t start = clock();
-			string q = parameters.values[0].ToString();
-			string lineage_ids_str = parameters.values[1].GetValue<string>();
-			string mode = parameters.values[2].ToString();
-			bool should_count = parameters.values[3].GetValue<int>() != 0;
+
+			shared_ptr<PhysicalOperator> op;
+			string lineage_ids_str;
+			string mode;
+			bool should_count;
+			string input_table_name;
+			if (info.name == "lineage_query") {
+				string q = parameters.values[0].ToString();
+				lineage_ids_str = parameters.values[1].GetValue<string>();
+				mode = parameters.values[2].ToString();
+				should_count = parameters.values[3].GetValue<int>() != 0;
+
+				op = query_to_plan[q];
+				input_table_name = "";
+			} else {
+				int query_id = parameters.values[0].GetValue<int>();
+				int output_id = parameters.values[1].GetValue<int>();
+				input_table_name = parameters.values[2].ToString();
+
+				op = query_id_to_plan[query_id];
+				lineage_ids_str = std::to_string(output_id);
+				mode = "SINGLE";
+				should_count = false;
+			}
+
+			if (op == nullptr) {
+				throw std::logic_error("Querying non-existent lineage");
+			}
 
 			// Split string like 1,2,3 into separate lineage ids, and ultimately into input ChunkCollection
 			ChunkCollection lineage_ids;
@@ -214,17 +238,25 @@ shared_ptr<PreparedStatementData> ClientContext::CreatePreparedStatement(ClientC
 			lineage_id_chunk->SetCardinality(num_vals_in_chunk);
 			lineage_ids.Append(move(lineage_id_chunk));
 
-			auto op = query_to_plan[q].get();
-			if (op == nullptr) {
-				throw std::logic_error("Querying non-existent lineage");
-			}
 			vector<unique_ptr<PhysicalOperator>> other_plans;
-			unique_ptr<PhysicalOperator> first_plan =
-			    GenerateCustomLineagePlan(op, *this, &lineage_ids, nullptr, false, &other_plans);
+			unique_ptr<PhysicalOperator> first_plan = GenerateCustomLineagePlan(
+			    op.get(),
+			    *this,
+			    &lineage_ids,
+			    nullptr,
+			    false,
+			    &other_plans
+			);
 			// We construct other_plans in reverse execution order, swap here
 			Reverse(&other_plans);
-			unique_ptr<PhysicalOperator> final_plan =
-			    CombineByMode(*this, mode, should_count, move(first_plan), move(other_plans));
+			unique_ptr<PhysicalOperator> final_plan = CombineByMode(
+			    *this,
+			    mode,
+			    should_count,
+			    input_table_name,
+			    move(first_plan),
+			    move(other_plans)
+			);
 			result->types.resize(final_plan->types.size());
  			copy(final_plan->types.begin(), final_plan->types.end(), result->types.begin());
  			result->plan = move(final_plan);
@@ -348,15 +380,15 @@ unique_ptr<QueryResult> ClientContext::ExecutePreparedStatement(ClientContextLoc
 	}
 #ifdef LINEAGE
 	if (trace_lineage) {
-		idx_t lineage_size = lineage_manager->CreateLineageTables(statement.plan.get());
-		if (LINEAGE_INDEXES_ON) {
-			clock_t start = clock();
-			lineage_manager->PostProcess(statement.plan.get(), true);
-			clock_t end = clock();
-			std::cout << "PostProcess time: " << ((float) end - start) / CLOCKS_PER_SEC << " sec" << std::endl;
-		}
-		lineage_manager->LogQuery(query, 0);
-		query_to_plan[query] = move(statement.plan);
+		lineage_manager->CreateLineageTables(statement.plan.get());
+		clock_t start = clock();
+		lineage_manager->PostProcess(statement.plan.get(), true);
+		clock_t end = clock();
+		std::cout << "PostProcess time: " << ((float) end - start) / CLOCKS_PER_SEC << " sec" << std::endl;
+		idx_t this_query_id = lineage_manager->LogQuery(query, 0);
+		shared_ptr<PhysicalOperator> plan(move(statement.plan));
+		query_to_plan[query] = plan;
+		query_id_to_plan[this_query_id] = plan;
 	}
 #endif
 	if (enable_progress_bar) {
