@@ -281,6 +281,12 @@ static void PragmaTraceLineage(ClientContext &context, const FunctionParameters 
 	context.lineage_manager->trace_lineage = trace_lineage == "ON" ? true : false;
 	std::cout << "\nEnable Lineage Capture: " << trace_lineage << " " << context.lineage_manager->trace_lineage  << std::endl;
 }
+
+static void PragmaIntermediateTables(ClientContext &context, const FunctionParameters &parameters) {
+	auto onoff = parameters.values[0].ToString();
+	context.lineage_manager->persist_intermediate = onoff == "ON" ? true : false;
+	std::cout << "\nEnable Intermediate Tables Capture: " << onoff << " " << context.lineage_manager->persist_intermediate  << std::endl;
+}
 #endif
 
 void PragmaFunctions::RegisterFunction(BuiltinFunctions &set) {
@@ -364,6 +370,7 @@ void PragmaFunctions::RegisterFunction(BuiltinFunctions &set) {
 	set.AddFunction(PragmaFunction::PragmaStatement("debug_many_free_list_blocks", PragmaDebugManyFreeListBlocks));
 #ifdef LINEAGE
 	set.AddFunction(PragmaFunction::PragmaAssignment("trace_lineage", PragmaTraceLineage, LogicalType::VARCHAR));
+	set.AddFunction(PragmaFunction::PragmaAssignment("intermediate_tables", PragmaIntermediateTables, LogicalType::VARCHAR));
 #endif
 }
 
