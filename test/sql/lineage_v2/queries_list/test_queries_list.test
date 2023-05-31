@@ -1,0 +1,108 @@
+# name: test/sql/lineage_v2/queries_list/test_queries_list.test
+# description: Test Queries List table
+# group: [queries_list]
+
+
+statement ok
+PRAGMA explain_output = PHYSICAL_ONLY;
+
+query II
+select * from duckdb_queries_list()
+----
+
+statement ok
+CREATE TABLE t1(i INTEGER);
+
+statement ok
+INSERT INTO t1 SELECT i FROM range(0,2000) tbl(i);
+
+statement ok
+PRAGMA trace_lineage = "ON";
+
+statement ok
+select * from t1 where 2 > i  OR i > 1998
+
+statement ok
+select * from t1 where i > 2000 OR i > 1998
+
+statement ok
+select * from t1 where i < 2000 OR i > 1998
+
+statement ok
+PRAGMA trace_lineage = "OFF";
+
+
+query II
+select * from duckdb_queries_list()
+----
+0	PRAGMA trace_lineage = "ON";
+1	select * from t1 where 2 > i  OR i > 1998
+2	select * from t1 where i > 2000 OR i > 1998
+3	select * from t1 where i < 2000 OR i > 1998
+
+query III
+SELECT rowid, out_index, in_index FROM LINEAGE_1_SEQ_SCAN_0_0 WHERE in_index!=out_index OR in_index!=rowid
+----
+
+
+query III
+SELECT rowid, out_index, in_index FROM LINEAGE_2_SEQ_SCAN_0_0 WHERE in_index!=out_index OR in_index!=rowid
+----
+
+
+query III
+SELECT rowid, out_index, in_index FROM LINEAGE_3_SEQ_SCAN_0_0 WHERE in_index!=out_index OR in_index!=rowid
+----
+
+query III
+SELECT rowid, out_index, in_index FROM LINEAGE_1_FILTER_1_0
+----
+0	0	0
+1	1	1
+2	2	1999
+
+query III
+SELECT rowid, out_index, in_index FROM LINEAGE_2_FILTER_1_0
+----
+0	0	1999
+
+query III
+SELECT rowid, out_index, in_index FROM LINEAGE_3_FILTER_1_0 where out_index!=in_index and out_index!=rowid
+----
+
+
+query II
+select * from duckdb_queries_list()
+----
+0	PRAGMA trace_lineage = "ON";
+1	select * from t1 where 2 > i  OR i > 1998
+2	select * from t1 where i > 2000 OR i > 1998
+3	select * from t1 where i < 2000 OR i > 1998
+
+
+statement ok
+PRAGMA trace_lineage = "ON";
+
+statement ok
+select * from t1 where 2 > i  OR i > 1998
+
+statement ok
+select * from t1 where i > 2000 OR i > 1998
+
+statement ok
+select * from t1 where i < 2000 OR i > 1998
+
+statement ok
+PRAGMA trace_lineage = "OFF";
+
+query II
+select * from duckdb_queries_list()
+----
+0	PRAGMA trace_lineage = "ON";
+1	select * from t1 where 2 > i  OR i > 1998
+2	select * from t1 where i > 2000 OR i > 1998
+3	select * from t1 where i < 2000 OR i > 1998
+4	PRAGMA trace_lineage = "ON";
+5	select * from t1 where 2 > i  OR i > 1998
+6	select * from t1 where i > 2000 OR i > 1998
+7	select * from t1 where i < 2000 OR i > 1998
