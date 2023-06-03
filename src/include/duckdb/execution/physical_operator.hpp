@@ -73,6 +73,8 @@ public:
 	std::unordered_map<int, shared_ptr<OperatorLineage>> lineage_op;
 	bool trace_lineage;
 	bool delim_handled = false;
+	// ID of the operator that we need to join with to reconstruct lineage as a table
+	idx_t lineage_join_id;
 #endif
 
 public:

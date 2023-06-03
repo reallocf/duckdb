@@ -23,17 +23,17 @@ statement ok
 PRAGMA trace_lineage = "OFF";
 
 
-query I
+query II
 PRAGMA BW(1, 0, 't1');
 ----
-0
+0	0
 
-query I
+query II
 PRAGMA BW(1, 1, 't1');
 ----
-1
+1	1
 
-query I
+query II
 PRAGMA BW(1, 2, 't1');
 ----
-1999
+1999	2

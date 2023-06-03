@@ -6,11 +6,11 @@ namespace duckdb {
 
 #ifdef LINEAGE
 string PragmaBackwardLineageDuckDBExecEngine(ClientContext &context, const FunctionParameters &parameters) {
-	return "SELECT 1";
+	return "SELECT 1 as in_col, 1 as out_col";
 }
 
 string PragmaBW(ClientContext &context, const FunctionParameters &parameters) {
-	return "SELECT 1";
+	return "SELECT 1 as in_col, 1 as out_col";
 }
 
 string PragmaClearLineage(ClientContext &context, const FunctionParameters &parameters) {

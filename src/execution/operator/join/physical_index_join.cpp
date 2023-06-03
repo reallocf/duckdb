@@ -182,6 +182,8 @@ void PhysicalIndexJoin::Output(ExecutionContext &context, DataChunk &chunk, Phys
 		if (!state->child_chunk.next_lineage_agg_data->empty()) {
 			chunk.lineage_agg_data = move(state->child_chunk.next_lineage_agg_data);
 			state->child_chunk.next_lineage_agg_data = make_unique<vector<shared_ptr<vector<SourceAndMaybeData>>>>();
+			chunk.lineage_agg_out_cols = move(state->child_chunk.next_lineage_agg_out_cols);
+			state->child_chunk.next_lineage_agg_out_cols = make_unique<vector<Value>>();
 		}
 		if (!state->child_chunk.next_lineage_simple_agg_data->empty()) {
 			chunk.lineage_simple_agg_data = move(state->child_chunk.next_lineage_simple_agg_data);
@@ -236,7 +238,7 @@ void PhysicalIndexJoin::GetChunkInternal(ExecutionContext &context, DataChunk &c
 	auto state = reinterpret_cast<PhysicalIndexJoinOperatorState *>(state_p);
 	state->result_size = 0;
 	while (state->result_size == 0) {
-		// Fancy lineage cache management
+		// Fancy lineage cache management TODO fix when >1024 values are input into an agg
 		if (state->child_chunk.lineage_agg_data->size() > state->child_chunk.outer_agg_idx) {
 			Output(context, chunk, state_p);
 			return;

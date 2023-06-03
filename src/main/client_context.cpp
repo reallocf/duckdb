@@ -171,13 +171,12 @@ unique_ptr<DataChunk> ClientContext::FetchInternal(ClientContextLock &) {
 	return executor.FetchChunk();
 }
 
-// move lineage query plan to here
 shared_ptr<PreparedStatementData> ClientContext::CreatePreparedStatement(ClientContextLock &lock, const string &query,
                                                                          unique_ptr<SQLStatement> statement) {
 	StatementType statement_type = statement->type;
 	auto result = make_shared<PreparedStatementData>(statement_type);
 
-	// check if it is lineage query then construct the query here
+	// check if it is a pragma lineage query then construct the query here
 	if (statement && statement->parent_pragma) {
 		auto info = *((PragmaStatement &)*statement->parent_pragma).info;
 		if (info.name == "lineage_query" || info.name == "bw") {
@@ -213,28 +212,36 @@ shared_ptr<PreparedStatementData> ClientContext::CreatePreparedStatement(ClientC
 			}
 
 			// Split string like 1,2,3 into separate lineage ids, and ultimately into input ChunkCollection
+			// The chunk will have two columns - the first is the in_col and the second is the out_col
+			// They start as the same value (the out_col) and the in_col is replaced throughout query
+			// execution until it contains the final in_col value
 			ChunkCollection lineage_ids;
 			unique_ptr<DataChunk> lineage_id_chunk = make_unique<DataChunk>();
-			lineage_id_chunk->Initialize({LogicalTypeId::UBIGINT});
+			lineage_id_chunk->Initialize({LogicalTypeId::UBIGINT, LogicalTypeId::UBIGINT});
 			idx_t num_vals_in_chunk = 0;
 			string tmp;
+			int val;
 			char delim = ',';
 			for (idx_t i = 0; i < lineage_ids_str.length(); i++) {
 				if (lineage_ids_str[i] == delim) {
-					lineage_id_chunk->data[0].SetValue(num_vals_in_chunk++, Value::BIGINT(stoi(tmp)));
+					val = stoi(tmp);
+					lineage_id_chunk->data[0].SetValue(num_vals_in_chunk, Value::UBIGINT(val));
+					lineage_id_chunk->data[1].SetValue(num_vals_in_chunk++, Value::UBIGINT(val));
 					tmp = "";
 					if (num_vals_in_chunk == STANDARD_VECTOR_SIZE) {
 						lineage_id_chunk->SetCardinality(STANDARD_VECTOR_SIZE);
 						lineage_ids.Append(move(lineage_id_chunk));
 						num_vals_in_chunk = 0;
 						lineage_id_chunk = make_unique<DataChunk>();
-						lineage_id_chunk->Initialize({LogicalTypeId::UBIGINT});
+						lineage_id_chunk->Initialize({LogicalTypeId::UBIGINT, LogicalTypeId::UBIGINT});
 					}
 				} else {
 					tmp.push_back(lineage_ids_str[i]);
 				}
 			}
-			lineage_id_chunk->data[0].SetValue(num_vals_in_chunk++, Value::BIGINT(stoi(tmp)));
+			val = stoi(tmp);
+			lineage_id_chunk->data[0].SetValue(num_vals_in_chunk, Value::UBIGINT(val));
+			lineage_id_chunk->data[1].SetValue(num_vals_in_chunk++, Value::UBIGINT(val));
 			lineage_id_chunk->SetCardinality(num_vals_in_chunk);
 			lineage_ids.Append(move(lineage_id_chunk));
 

@@ -4,7 +4,10 @@
 #include "duckdb/execution/lineage/lineage_query.hpp"
 
 #include "duckdb/main/client_context.hpp"
+#include "duckdb/common/enums/join_type.hpp"
+#include "duckdb/common/enums/logical_operator_type.hpp"
 #include "duckdb/execution/operator/join/physical_delim_join.hpp"
+#include "duckdb/execution/operator/join/physical_hash_join.hpp"
 #include "duckdb/execution/operator/join/physical_join.hpp"
 #include "duckdb/execution/operator/join/physical_index_join.hpp"
 #include "duckdb/execution/operator/helper/physical_limit.hpp"
@@ -210,19 +213,19 @@ LineageProcessStruct OperatorLineage::PostProcess(idx_t chunk_count, idx_t count
 
 unique_ptr<PhysicalIndexJoin> PreparePhysicalIndexJoin(PhysicalOperator *op, unique_ptr<PhysicalOperator> left, ClientContext &cxt, ChunkCollection *chunk_collection) {
 	auto logical_join = make_unique<LogicalComparisonJoin>(JoinType::INNER);
-	logical_join->types = {LogicalType::UBIGINT};
+	logical_join->types = {LogicalType::UBIGINT, LogicalType::UBIGINT};
 	vector<JoinCondition> conds;
-	unique_ptr<Expression> left_expression = make_unique<BoundReferenceExpression>("", LogicalType::UBIGINT, 0);
-	unique_ptr<Expression> right_expression = make_unique<BoundReferenceExpression>("", LogicalType::UBIGINT, 0);
+	unique_ptr<Expression> left_expression = make_unique<BoundReferenceExpression>(LogicalType::UBIGINT, 0);
+	unique_ptr<Expression> right_expression = make_unique<BoundReferenceExpression>(LogicalType::UBIGINT, 0);
 	JoinCondition cond = JoinCondition();
 	cond.left = move(left_expression);
 	cond.right = move(right_expression);
 	cond.comparison = ExpressionType::COMPARE_EQUAL;
 	cond.null_values_are_equal = false;
 	conds.push_back(move(cond));
-	vector<LogicalType> empty_types = {LogicalType::UBIGINT};
+	vector<LogicalType> empty_types = {LogicalType::UBIGINT, LogicalType::UBIGINT};
 	const vector<column_t> cids = {0L};
-	unique_ptr<ColumnBinding> col_bind = make_unique<ColumnBinding>(0,0);
+	unique_ptr<ColumnBinding> col_bind = make_unique<ColumnBinding>(0, 0);
 	unique_ptr<BoundColumnRefExpression> exp = make_unique<BoundColumnRefExpression>(LogicalType::UBIGINT, *col_bind.get());
 	vector<unique_ptr<Expression>> exps;
 	exps.push_back(move(exp));
@@ -230,8 +233,8 @@ unique_ptr<PhysicalIndexJoin> PreparePhysicalIndexJoin(PhysicalOperator *op, uni
 	lineage_index->unbound_expressions.push_back(move(exp));
 	lineage_index->column_ids.push_back(0);
 	vector<idx_t> left_projection_map = {};
-	vector<idx_t> right_projection_map = {0};
-	vector<column_t> column_ids = {0};
+	vector<idx_t> right_projection_map = {0, 1};
+	vector<column_t> column_ids = {0, 1};
 	unique_ptr<PhysicalOperator> right = make_unique<PhysicalEmptyResult>(empty_types, 1);
 	return make_unique<PhysicalIndexJoin>(
 		*logical_join.get(),
@@ -286,7 +289,7 @@ unique_ptr<PhysicalOperator> GenerateCustomLineagePlan(
 	)) {
 		return GenerateCustomLineagePlan(op->children[0].get(), cxt, lineage_ids, move(left), true, pipelines);
 	}
-	vector<LogicalType> types = {LogicalType::UBIGINT};
+	vector<LogicalType> types = {LogicalType::UBIGINT, LogicalType::UBIGINT};
 	PhysicalOperatorType op_type = PhysicalOperatorType::CHUNK_SCAN;
 	idx_t estimated_cardinality = 1;
 
@@ -388,24 +391,13 @@ unique_ptr<PhysicalOperator> CombineByMode(
 ) {
 	unique_ptr<PhysicalOperator> final_plan = move(first_plan);
 	if (mode == "LIN") {
-		vector<LogicalType> types = {LogicalType::UBIGINT};
+		vector<LogicalType> types = {LogicalType::UBIGINT, LogicalType::UBIGINT};
 		// Count of Lineage - union then aggregate
 		for (idx_t i = 0; i < other_plans.size(); i++) {
 			final_plan = make_unique<PhysicalUnion>(
 				types,
 				move(final_plan),
 				move(other_plans[i]),
-				1 // TODO improve this?
-			);
-		}
-	} else if (mode == "PERM") {
-		vector<LogicalType> types = {LogicalType::UBIGINT};
-		for (idx_t i = 0; i < other_plans.size(); i++) {
-			types.push_back(LogicalType::UBIGINT);
-			final_plan = make_unique<PhysicalCrossProduct>(
-				types,
-				move(other_plans[i]),
-				move(final_plan),
 				1 // TODO improve this?
 			);
 		}
@@ -427,7 +419,7 @@ unique_ptr<PhysicalOperator> CombineByMode(
 		//  T1 T2
 		//  if we query T3 then we'll run the pipelines for T1, T2, and T3 when optimally we
 		//  would just run T1 and T3.
-		vector<LogicalType> types = {LogicalType::UBIGINT};
+		vector<LogicalType> types = {LogicalType::UBIGINT, LogicalType::UBIGINT};
 
 		if (CheckPipelineForTable(final_plan.get(), input_table_name)) {
 			return final_plan;
@@ -443,6 +435,8 @@ unique_ptr<PhysicalOperator> CombineByMode(
 
 			// 1
 			vector<unique_ptr<Expression>> agg_exprs;
+			// Add 2 COUNT(*)s to match final schema: in_col, out_col
+			agg_exprs.push_back(AggregateFunction::BindAggregateFunction(context, CountStarFun::GetFunction(), {}));
 			agg_exprs.push_back(AggregateFunction::BindAggregateFunction(context, CountStarFun::GetFunction(), {}));
 			unique_ptr<PhysicalOperator> agg = make_unique<PhysicalSimpleAggregate>(types, move(agg_exprs), true, 1);
 			agg->children.push_back(move(final_plan));
@@ -469,14 +463,72 @@ unique_ptr<PhysicalOperator> CombineByMode(
 			if (this_is_target_pipeline) {
 				return final_plan;
 			}
+			if (i == other_plans.size() - 1) {
+				// At this point, must not have found table
+				throw std::logic_error("Table name not in base query");
+			}
 		}
+	} else if (mode == "PERM") {
+		/**
+		 * Result table schema: out_col, table_name1_in, table_name2_in, ..., table_nameN_in
+		 *           J
+		 *          / \
+		 *         J   T4
+		 *        / \
+		 *       J   T3
+		 *      / \
+		 *     T1 T2
+		 * Algo:
+		 * 2 pieces of metadata: id and join_id
+		 * Label each pipeline with an id starting at 0 and increasing with each new pipeline
+		 * The first pipeline will have join_id = NULL
+		 * Each subsequent pipeline will have join_id = parent_pipeline.id
+		 * Add a Projection to each pipeline that adds the column in
+		 * Add an equality HashJoin on the new column and the new column for the join_id chunk
+		 * The resulting HashJoin will have all columns
+		 * After executing all HashJoin it will have 2 columns for each starting table:
+		 * one including the data, and another with that table's id
+		 * Add a Projection that pulls out just the data columns and names them based on the table name
+		 *
+		 * TODO Optimization: remove array agg if no base query agg in
+		 * TODO: handle self-joins gracefully
+		 */
+
+
+//		vector<LogicalType> types = {LogicalType::UBIGINT};
+//		for (idx_t i = 0; i < other_plans.size(); i++) {
+//			types.push_back(LogicalType::UBIGINT);
+//			vector<JoinCondition> conds;
+//			// TODO: figure out table in ColumnBindings. It should be based on lineage id,
+//			//       but I think it's also related to all the other tables.
+//			// TODO: think through column id. For the first join it should be 1 and 1, but
+//			//       for follow on joins the lineage_join_id table could use column 1, 3, 5, ...
+//			unique_ptr<Expression> left_expression = make_unique<BoundColumnRefExpression>(
+//			    LogicalType::SMALLINT,
+//			    ColumnBinding(other_plans[i]->id, 1) // TODO: figure out table
+//			);
+//			unique_ptr<Expression> right_expression = make_unique<BoundColumnRefExpression>(
+//			    LogicalType::SMALLINT,
+//			    ColumnBinding(other_plans[i]->lineage_join_id, 1) // TODO: figure out table
+//			);
+//			JoinCondition cond = JoinCondition();
+//			cond.left = move(left_expression);
+//			cond.right = move(right_expression);
+//			cond.comparison = ExpressionType::COMPARE_EQUAL;
+//			cond.null_values_are_equal = false;
+//			conds.push_back(move(cond));
+//			final_plan = make_unique<PhysicalHashJoin>(
+//			    LogicalJoin(JoinType::INNER, LogicalOperatorType::LOGICAL_COMPARISON_JOIN),
+//			    move(other_plans[i]),
+//			    move(final_plan),
+//			    conds,
+//			    JoinType::INNER,
+//			    1 // TODO improve this?
+//			);
+//		}
 	} else {
 		// Invalid mode
 		throw std::logic_error("Invalid backward query mode - should one of [LIN, PERM, PROV, SINGLE]");
-	}
-	if (mode == "SINGLE") {
-		// At this point, must not have found table
-		throw std::logic_error("Table name not in base query");
 	}
 	if (should_count) {
 		// Add final aggregation at end
@@ -614,7 +666,9 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 					while (out_idx < STANDARD_VECTOR_SIZE && key.chunk.inner_agg_idx < agg_vec_ptr->size()) {
 						auto this_data = agg_vec_ptr->at(key.chunk.inner_agg_idx);
 						idx_t val = this_data.data->data->Backward(this_data.source) + this_data.data->child_offset;
-						key.chunk.SetValue(0, out_idx++, Value::UBIGINT(val));
+						key.chunk.SetValue(0, out_idx, Value::UBIGINT(val));
+						key.chunk.SetValue(1, out_idx, key.chunk.lineage_agg_out_cols->at(key.chunk.outer_agg_idx));
+						out_idx++;
 						key.chunk.inner_agg_idx++;
 					}
 					if (key.chunk.inner_agg_idx < agg_vec_ptr->size()) {
@@ -630,6 +684,7 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 					while(out_idx < STANDARD_VECTOR_SIZE && key.chunk.inner_simple_agg_idx < this_data.data->Count()) {
 						idx_t val = this_data.data->Backward(key.chunk.inner_simple_agg_idx) + this_data.child_offset;
 						key.chunk.SetValue(0, out_idx++, Value::UBIGINT(val));
+						key.chunk.SetValue(1, out_idx, key.chunk.lineage_simple_agg_out_col);
 						key.chunk.inner_simple_agg_idx++;
 					}
 					if (key.chunk.inner_simple_agg_idx < this_data.data->Count()) {
@@ -667,6 +722,7 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 					auto this_data = agg_vec_ptr->at(key.chunk.inner_agg_idx);
 					idx_t new_val = this_data.data->data->Backward(this_data.source);
 					key.chunk.SetValue(0, out_idx, Value::UBIGINT(new_val));
+					key.chunk.SetValue(1, out_idx, key.chunk.lineage_agg_out_cols->at(key.chunk.outer_agg_idx));
 					key.child_ptrs[out_idx++] = this_data.data->data->GetChild();
 					key.chunk.inner_agg_idx++;
 				}
@@ -683,6 +739,7 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 				while(out_idx < STANDARD_VECTOR_SIZE && key.chunk.inner_simple_agg_idx < this_data.data->Count()) {
 					idx_t new_val = this_data.data->Backward(key.chunk.inner_simple_agg_idx);
 					key.chunk.SetValue(0, out_idx, Value::UBIGINT(new_val));
+					key.chunk.SetValue(1, out_idx, key.chunk.lineage_simple_agg_out_col);
 					key.child_ptrs[out_idx++] = this_data.data->GetChild();
 					key.chunk.inner_simple_agg_idx++;
 				}
@@ -708,7 +765,7 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 	}
 	case PhysicalOperatorType::HASH_JOIN: {
 		// Setup build chunk
-		key.join_chunk.Initialize({LogicalType::UBIGINT});
+		key.join_chunk.Initialize({LogicalType::UBIGINT, LogicalType::UBIGINT});
 
 		idx_t out_idx = 0;
 		idx_t right_idx = 0;
@@ -754,7 +811,7 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 							}
 							D_ASSERT(flag);
 						}
-						left_idx++;
+						key.chunk.SetValue(1, left_idx++, key.chunk.lineage_agg_out_cols->at(key.chunk.outer_agg_idx));
 					}
 					out_idx++;
 					key.chunk.inner_agg_idx++;
@@ -801,7 +858,7 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 							}
 							D_ASSERT(flag);
 						}
-						left_idx++;
+						key.join_chunk.SetValue(1, left_idx++, key.chunk.lineage_simple_agg_out_col);
 					}
 					out_idx++;
 					key.chunk.inner_simple_agg_idx++;
@@ -856,7 +913,7 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 						}
 						D_ASSERT(flag);
 					}
-					left_idx++;
+					key.join_chunk.SetValue(1, left_idx++, key.chunk.GetValue(1, out_idx));
 				}
 			}
 		}
@@ -872,6 +929,7 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 	}
 	case PhysicalOperatorType::HASH_GROUP_BY: {
 		key.chunk.next_lineage_agg_data->reserve(key.chunk.size());
+		key.chunk.next_lineage_agg_out_cols->reserve(key.chunk.size());
 		idx_t out_idx = 0;
 		if (!key.chunk.lineage_agg_data->empty()) {
 			if (key.chunk.lineage_agg_data->at(0)->at(0).data == nullptr) {
@@ -883,6 +941,7 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 					auto this_data = agg_vec_ptr->at(key.chunk.inner_agg_idx);
 					auto payload = (uint64_t *)this_data.data->data->Process(0);
 					key.chunk.next_lineage_agg_data->push_back(hash_map_agg[payload[this_data.source]]);
+					key.chunk.next_lineage_agg_out_cols->push_back(key.chunk.lineage_agg_out_cols->at(key.chunk.outer_agg_idx));
 					out_idx++;
 					key.chunk.inner_agg_idx++;
 				}
@@ -898,6 +957,7 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 				while(out_idx < STANDARD_VECTOR_SIZE && key.chunk.inner_simple_agg_idx < this_data.data->Count()) {
 					auto payload = (uint64_t *)this_data.data->Process(0);
 					key.chunk.next_lineage_agg_data->push_back(hash_map_agg[payload[key.chunk.inner_simple_agg_idx]]);
+					key.chunk.next_lineage_agg_out_cols->push_back(key.chunk.lineage_simple_agg_out_col);
 					out_idx++;
 					key.chunk.inner_simple_agg_idx++;
 				}
@@ -915,6 +975,7 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 			for (idx_t i = 0; i < key.chunk.size(); i++) {
 				auto payload = (uint64_t *)key.child_ptrs[i]->data->Process(0);
 				key.chunk.next_lineage_agg_data->push_back(hash_map_agg[payload[key.chunk.GetValue(0, i).GetValue<uint64_t>()]]);
+				key.chunk.next_lineage_agg_out_cols->push_back(key.chunk.GetValue(0, i));
 				out_idx++;
 			}
 		}
@@ -934,6 +995,7 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 					auto this_data = agg_vec_ptr->at(key.chunk.inner_agg_idx);
 					auto payload = (sel_t *)this_data.data->data->Process(0);
 					key.chunk.next_lineage_agg_data->push_back(hash_map_agg[payload[this_data.source]]);
+					key.chunk.next_lineage_agg_out_cols->push_back(key.chunk.lineage_agg_out_cols->at(key.chunk.outer_agg_idx));
 					key.chunk.inner_agg_idx++;
 				}
 				if (key.chunk.inner_agg_idx < agg_vec_ptr->size()) {
@@ -948,6 +1010,7 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 				while(out_idx < STANDARD_VECTOR_SIZE && key.chunk.inner_simple_agg_idx < this_data.data->Count()) {
 					auto payload = (sel_t *)this_data.data->Process(0);
 					key.chunk.next_lineage_agg_data->push_back(hash_map_agg[payload[key.chunk.inner_simple_agg_idx]]);
+					key.chunk.next_lineage_agg_out_cols->push_back(key.chunk.lineage_simple_agg_out_col);
 					key.chunk.inner_simple_agg_idx++;
 				}
 				if (key.chunk.inner_simple_agg_idx < this_data.data->Count()) {
@@ -964,6 +1027,7 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 			for (idx_t i = 0; i < key.chunk.size(); i++) {
 				auto payload = (sel_t *)key.child_ptrs[i]->data->Process(0);
 				key.chunk.next_lineage_agg_data->push_back(hash_map_agg[payload[key.chunk.GetValue(0, i).GetValue<uint64_t>()]]);
+				key.chunk.next_lineage_agg_out_cols->push_back(key.chunk.GetValue(0, i));
 				out_idx++;
 			}
 		}
@@ -980,7 +1044,7 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 	case PhysicalOperatorType::PIECEWISE_MERGE_JOIN:
 	case PhysicalOperatorType::NESTED_LOOP_JOIN: {
 		// Setup build chunk
-		key.join_chunk.Initialize({LogicalType::UBIGINT});
+		key.join_chunk.Initialize({LogicalType::UBIGINT, LogicalType::UBIGINT});
 
 		idx_t out_idx = 0;
 		idx_t right_idx = 0;
@@ -1003,7 +1067,8 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 					if (binary_lineage.left != nullptr) {
 						auto left = binary_lineage.left->Backward(this_data.source);
 						key.chunk.SetValue(0, left_idx, Value::UBIGINT(left));
-						key.child_ptrs[left_idx++] = binary_lineage.GetChild();
+						key.child_ptrs[left_idx] = binary_lineage.GetChild();
+						key.join_chunk.SetValue(1, left_idx++, key.chunk.lineage_agg_out_cols->at(key.chunk.outer_agg_idx));
 					}
 					out_idx++;
 					key.chunk.inner_agg_idx++;
@@ -1027,7 +1092,8 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 					if (binary_lineage.left != nullptr) {
 						auto left = binary_lineage.left->Backward(key.chunk.inner_simple_agg_idx);
 						key.chunk.SetValue(0, left_idx, Value::UBIGINT(left));
-						key.child_ptrs[left_idx++] = binary_lineage.GetChild();
+						key.child_ptrs[left_idx] = binary_lineage.GetChild();
+						key.join_chunk.SetValue(1, left_idx++, key.chunk.lineage_simple_agg_out_col);
 					}
 					out_idx++;
 					key.chunk.inner_simple_agg_idx++;
@@ -1054,7 +1120,8 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 				if (dynamic_cast<LineageBinary &>(*key.child_ptrs[i]->data).left != nullptr) {
 					auto left = dynamic_cast<LineageBinary &>(*key.child_ptrs[i]->data).left->Backward(source);
 					key.chunk.SetValue(0, left_idx, Value::UBIGINT(left));
-					key.child_ptrs[left_idx++] = key.child_ptrs[i]->data->GetChild();
+					key.child_ptrs[left_idx] = key.child_ptrs[i]->data->GetChild();
+					key.join_chunk.SetValue(1, left_idx++, key.chunk.GetValue(1, out_idx));
 				}
 			}
 		}
@@ -1070,7 +1137,7 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 	}
 	case PhysicalOperatorType::CROSS_PRODUCT: {
 		// Setup build chunk
-		key.join_chunk.Initialize({LogicalType::UBIGINT});
+		key.join_chunk.Initialize({LogicalType::UBIGINT, LogicalType::UBIGINT});
 
 		idx_t out_idx = 0;
 
@@ -1083,6 +1150,7 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 				while (out_idx < STANDARD_VECTOR_SIZE && key.chunk.inner_agg_idx < agg_vec_ptr->size()) {
 					auto this_data = agg_vec_ptr->at(key.chunk.inner_agg_idx);
 					key.join_chunk.SetValue(0, out_idx, Value::UBIGINT(this_data.data->data->Backward(this_data.source)));
+					key.join_chunk.SetValue(1, out_idx, key.chunk.lineage_agg_out_cols->at(key.chunk.outer_agg_idx));
 					key.chunk.SetValue(0, out_idx, Value::UBIGINT(this_data.source));
 					key.child_ptrs[out_idx++] = this_data.data->data->GetChild();
 					key.chunk.inner_agg_idx++;
@@ -1100,6 +1168,7 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 				LineageDataWithOffset this_data = key.chunk.lineage_simple_agg_data->at(key.chunk.outer_simple_agg_idx);
 				while(out_idx < STANDARD_VECTOR_SIZE && key.chunk.inner_simple_agg_idx < this_data.data->Count()) {
 					key.join_chunk.SetValue(0, out_idx, Value::UBIGINT(this_data.data->Backward(key.chunk.inner_simple_agg_idx)));
+					key.join_chunk.SetValue(1, out_idx, key.chunk.lineage_simple_agg_out_col);
 					key.chunk.SetValue(0, out_idx, Value::UBIGINT(key.chunk.inner_simple_agg_idx));
 					key.child_ptrs[out_idx++] = this_data.data->GetChild();
 					key.chunk.inner_simple_agg_idx++;
@@ -1121,6 +1190,7 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 				idx_t source = key.chunk.GetValue(0, i).GetValue<uint64_t>();
 
 				key.join_chunk.SetValue(0, i, Value::UBIGINT(key.child_ptrs[i]->data->Backward(source)));
+				key.join_chunk.SetValue(1, i, key.chunk.GetValue(1, i));
 				key.chunk.SetValue(0, i, Value::UBIGINT(source));
 				key.child_ptrs[i] = key.child_ptrs[i]->data->GetChild();
 			}
@@ -1131,7 +1201,7 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 	}
 	case PhysicalOperatorType::INDEX_JOIN: {
 		// Setup build chunk
-		key.join_chunk.Initialize({LogicalType::UBIGINT});
+		key.join_chunk.Initialize({LogicalType::UBIGINT, LogicalType::UBIGINT});
 
 		idx_t out_idx = 0;
 		idx_t right_idx = 0;
@@ -1148,7 +1218,8 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 					LineageBinary &binary_lineage = dynamic_cast<LineageBinary &>(*this_data.data->data);
 					if (binary_lineage.right != nullptr) {
 						auto right = binary_lineage.right->Backward(this_data.source);
-						key.join_chunk.SetValue(0, right_idx++, Value::UBIGINT(right));
+						key.join_chunk.SetValue(0, right_idx, Value::UBIGINT(right));
+						key.join_chunk.SetValue(1, right_idx++, key.chunk.lineage_agg_out_cols->at(key.chunk.outer_agg_idx));
 					}
 
 					if (binary_lineage.left != nullptr) {
@@ -1172,7 +1243,8 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 					LineageBinary &binary_lineage = dynamic_cast<LineageBinary &>(*this_data.data);
 					if (binary_lineage.right != nullptr) {
 						auto right = binary_lineage.right->Backward(key.chunk.inner_simple_agg_idx);
-						key.join_chunk.SetValue(0, right_idx++, Value::UBIGINT(right));
+						key.join_chunk.SetValue(0, right_idx, Value::UBIGINT(right));
+						key.join_chunk.SetValue(1, right_idx++, key.chunk.lineage_simple_agg_out_col);
 					}
 
 					if (binary_lineage.left != nullptr) {
@@ -1199,7 +1271,8 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 
 				if (dynamic_cast<LineageBinary &>(*key.child_ptrs[i]->data).right != nullptr) {
 					auto right = dynamic_cast<LineageBinary &>(*key.child_ptrs[i]->data).right->Backward(source);
-					key.join_chunk.SetValue(0, right_idx++, Value::UBIGINT(right));
+					key.join_chunk.SetValue(0, right_idx, Value::UBIGINT(right));
+					key.join_chunk.SetValue(1, right_idx++, key.chunk.GetValue(1, out_idx));
 				}
 
 				if (dynamic_cast<LineageBinary &>(*key.child_ptrs[i]->data).left != nullptr) {
@@ -1227,7 +1300,8 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 				auto agg_vec_ptr = key.chunk.lineage_agg_data->at(key.chunk.outer_agg_idx);
 				while (out_idx < STANDARD_VECTOR_SIZE && key.chunk.inner_agg_idx < agg_vec_ptr->size()) {
 					auto this_data = agg_vec_ptr->at(key.chunk.inner_agg_idx);
-					key.chunk.SetValue(0, out_idx++, Value::UBIGINT(data_ptr->data->Backward(this_data.source)));
+					key.chunk.SetValue(0, out_idx, Value::UBIGINT(data_ptr->data->Backward(this_data.source)));
+					key.chunk.SetValue(1, out_idx++, key.chunk.lineage_agg_out_cols->at(key.chunk.outer_agg_idx));
 					key.chunk.inner_agg_idx++;
 				}
 				if (key.chunk.inner_agg_idx < agg_vec_ptr->size()) {
@@ -1241,7 +1315,8 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 			while (out_idx < STANDARD_VECTOR_SIZE && key.chunk.outer_simple_agg_idx < key.chunk.lineage_simple_agg_data->size()) {
 				LineageDataWithOffset this_data = key.chunk.lineage_simple_agg_data->at(key.chunk.outer_simple_agg_idx);
 				while(out_idx < STANDARD_VECTOR_SIZE && key.chunk.inner_simple_agg_idx < this_data.data->Count()) {
-					key.chunk.SetValue(0, out_idx++, Value::UBIGINT(data_ptr->data->Backward(key.chunk.inner_simple_agg_idx)));
+					key.chunk.SetValue(0, out_idx, Value::UBIGINT(data_ptr->data->Backward(key.chunk.inner_simple_agg_idx)));
+					key.join_chunk.SetValue(1, out_idx++, key.chunk.lineage_simple_agg_out_col);
 					key.chunk.inner_simple_agg_idx++;
 				}
 				if (key.chunk.inner_simple_agg_idx < this_data.data->Count()) {
@@ -1263,6 +1338,12 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 		// Recurse until we find a filter-like child, then use all of its lineage
 		// This optimizations allows us to skip aggregations and order bys - especially helping for query 15
 		key.chunk.next_lineage_simple_agg_data = RecurseForSimpleAgg(children[0]);
+		// TODO: Right now, if there are multiple out_col values, this includes just the first
+		//       We should think through a better way to handle this.
+		//       From an interface perspective we could duplicate the next_lineage_sample_agg_data
+		//       for each distinct out_col, but this sounds super wasteful.
+		//       Maybe we should do an array agg over this column? Something like that?
+		key.chunk.next_lineage_simple_agg_out_col = key.chunk.GetValue(1, 0);
 		key.child_ptrs = {};
 		break;
 	}
