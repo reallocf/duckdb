@@ -25,6 +25,10 @@ public:
 	                 idx_t estimated_cardinality);
 	PhysicalHashJoin(LogicalOperator &op, unique_ptr<PhysicalOperator> left, unique_ptr<PhysicalOperator> right,
 	                 vector<JoinCondition> cond, JoinType join_type, idx_t estimated_cardinality);
+	PhysicalHashJoin(vector<LogicalType> types, unique_ptr<PhysicalOperator> left, unique_ptr<PhysicalOperator> right,
+	                 vector<JoinCondition> cond, JoinType join_type, const vector<idx_t> &left_projection_map,
+	                 const vector<idx_t> &right_projection_map, vector<LogicalType> delim_types,
+	                 idx_t estimated_cardinality);
 	void Combine(ExecutionContext &context, GlobalOperatorState &gstate, LocalSinkState &lstate) override;
 
 	vector<idx_t> right_projection_map;

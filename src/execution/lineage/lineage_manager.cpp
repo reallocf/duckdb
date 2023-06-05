@@ -189,13 +189,13 @@ void LineageManager::CreateOperatorLineage(PhysicalOperator *op, int thd_id, boo
 		CreateOperatorLineage(op->children[i].get(), thd_id, trace_lineage, child_should_index);
 	}
 	op->lineage_op[thd_id] = make_shared<OperatorLineage>(
+	    op->id,
+	    trace_lineage,
 	    GetPipelineLineageNodeForOp(op, thd_id),
 	    GetChildrenForOp(op, thd_id),
 	    op->type,
-	    op->id,
 	    should_index
 	);
-	op->lineage_op[thd_id]->trace_lineage = trace_lineage;
 	if (
 	    op->type == PhysicalOperatorType::HASH_JOIN ||
 	    op->type == PhysicalOperatorType::PIECEWISE_MERGE_JOIN ||

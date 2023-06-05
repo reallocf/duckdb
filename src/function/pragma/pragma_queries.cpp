@@ -1,12 +1,38 @@
 #include "duckdb/function/pragma/pragma_functions.hpp"
 #include "duckdb/common/string_util.hpp"
 #include "duckdb/common/file_system.hpp"
+#include "duckdb/execution/lineage/lineage_query.hpp"
 
 namespace duckdb {
 
 #ifdef LINEAGE
 string PragmaBackwardLineageDuckDBExecEngine(ClientContext &context, const FunctionParameters &parameters) {
-	return "SELECT 1 as in_col, 1 as out_col";
+	string mode = parameters.values[2].ToString();
+	bool should_count = parameters.values[3].GetValue<int>() != 0;
+
+	if (should_count) {
+		return "SELECT 1 as lineage_count";
+	} else if (mode == "PERM") {
+		// Number of columns is based on number of base tables
+		string q = parameters.values[0].ToString();
+		shared_ptr<PhysicalOperator> op = context.query_to_plan[q];
+		if (op == nullptr) {
+			throw std::logic_error("Querying non-existent lineage");
+		}
+
+		vector<string> lineage_table_names = GetLineageTableNames(op.get());
+
+		// TODO: handle self-joins gracefully
+		string res = "SELECT ";
+		for (idx_t i = 0; i < lineage_table_names.size(); i++) {
+			res += "1 as " + lineage_table_names[i] + ", ";
+		}
+		res += "1 as out_col";
+
+		return res;
+	} else {
+		return "SELECT 1 as in_col, 1 as out_col";
+	}
 }
 
 string PragmaBW(ClientContext &context, const FunctionParameters &parameters) {

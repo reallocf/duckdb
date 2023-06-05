@@ -1,0 +1,92 @@
+# name: test/sql/lineage/perm/test_bw_complex.test
+# description: Test complex, multi-operator lineage with PERM mode
+# group: [perm]
+
+statement ok
+CREATE TABLE t1(i INTEGER, j INTEGER);
+CREATE TABLE t2(i INTEGER);
+CREATE TABLE t3(i INTEGER);
+CREATE TABLE a(i VARCHAR, j integer);
+CREATE TABLE b(i VARCHAR, j integer);
+
+statement ok
+INSERT INTO t1 SELECT i, i+1 FROM range(0,3072) tbl(i);
+INSERT INTO t2 SELECT i FROM range(0, 10) tbl(i);
+INSERT INTO t2 SELECT i FROM range(5000,7000) tbl(i);
+INSERT INTO t2 SELECT i FROM range(30, 40) tbl(i);
+INSERT INTO t3 SELECT i FROM range(0,1030) tbl(i);
+INSERT INTO a VALUES ('a', 2), ('a', 2), ('b', 4), ('b', 1), ('c', 1), ('c', 3), ('b', 2), ('a', 1);
+INSERT INTO b VALUES ('a', 6), ('a', 2), ('c', 3), ('b', 5), ('b', 6), ('b', 1);
+
+
+statement ok
+PRAGMA trace_lineage = "ON"
+
+query III
+SELECT t1.i, t2.i, t3.i FROM t1, t2, t3 WHERE t1.i = t2.i AND t2.i = t3.i AND t1.j + t2.i > 12 ORDER BY t3.i LIMIT 5
+----
+6	6	6
+7	7	7
+8	8	8
+9	9	9
+30	30	30
+
+query III
+SELECT a_res.i, a_res.a_sum, b_res.b_sum FROM (SELECT i, SUM(j) AS a_sum FROM a GROUP BY i) AS a_res, (SELECT i, SUM(j) AS b_sum FROM b GROUP BY i) AS b_res WHERE a_res.i = b_res.i
+----
+a	5	8
+b	7	12
+c	4	3
+
+statement ok
+PRAGMA trace_lineage = "OFF";
+
+query IIII
+PRAGMA lineage_query('SELECT t1.i, t2.i, t3.i FROM t1, t2, t3 WHERE t1.i = t2.i AND t2.i = t3.i AND t1.j + t2.i > 12 ORDER BY t3.i LIMIT 5', '0', 'PERM', 0)
+----
+6	6	6	0
+
+query IIII
+PRAGMA lineage_query('SELECT t1.i, t2.i, t3.i FROM t1, t2, t3 WHERE t1.i = t2.i AND t2.i = t3.i AND t1.j + t2.i > 12 ORDER BY t3.i LIMIT 5', '4', 'PERM', 0)
+----
+30	2010	30	4
+
+query IIII
+PRAGMA lineage_query('SELECT t1.i, t2.i, t3.i FROM t1, t2, t3 WHERE t1.i = t2.i AND t2.i = t3.i AND t1.j + t2.i > 12 ORDER BY t3.i LIMIT 5', '0,1,2,3,4', 'PERM', 0)
+----
+6	6	6	0
+7	7	7	1
+8	8	8	2
+9	9	9	3
+30	2010	30	4
+
+query III
+PRAGMA lineage_query('SELECT a_res.i, a_res.a_sum, b_res.b_sum FROM (SELECT i, SUM(j) AS a_sum FROM a GROUP BY i) AS a_res, (SELECT i, SUM(j) AS b_sum FROM b GROUP BY i) AS b_res WHERE a_res.i = b_res.i', '0', 'PERM', 0)
+----
+7	0	0
+7	1	0
+1	0	0
+1	1	0
+0	0	0
+0	1	0
+
+query III
+PRAGMA lineage_query('SELECT a_res.i, a_res.a_sum, b_res.b_sum FROM (SELECT i, SUM(j) AS a_sum FROM a GROUP BY i) AS a_res, (SELECT i, SUM(j) AS b_sum FROM b GROUP BY i) AS b_res WHERE a_res.i = b_res.i', '0,1,2', 'PERM', 0)
+----
+7	0	0
+7	1	0
+6	3	1
+6	4	1
+6	5	1
+5	2	2
+1	0	0
+1	1	0
+3	3	1
+3	4	1
+3	5	1
+4	2	2
+0	0	0
+0	1	0
+2	3	1
+2	4	1
+2	5	1

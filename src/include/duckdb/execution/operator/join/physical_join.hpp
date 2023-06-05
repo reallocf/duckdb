@@ -17,6 +17,7 @@ namespace duckdb {
 class PhysicalJoin : public PhysicalSink {
 public:
 	PhysicalJoin(LogicalOperator &op, PhysicalOperatorType type, JoinType join_type, idx_t estimated_cardinality);
+	PhysicalJoin(vector<LogicalType> types, PhysicalOperatorType type, JoinType join_type, idx_t estimated_cardinality);
 
 	JoinType join_type;
 

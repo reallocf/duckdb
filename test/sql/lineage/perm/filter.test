@@ -1,0 +1,46 @@
+# name: test/sql/lineage/perm/filter.test
+# description: Test Filter Lineage with PERM mode
+# group: [perm]
+
+
+statement ok
+CREATE TABLE t1(i INTEGER);
+
+statement ok
+INSERT INTO t1 SELECT i FROM range(0,2000) tbl(i);
+
+statement ok
+PRAGMA trace_lineage = "ON";
+
+query I
+select * from t1 where 2 > i  OR i > 1998
+----
+0
+1
+1999
+
+statement ok
+PRAGMA trace_lineage = "OFF";
+
+
+query II
+PRAGMA lineage_query('select * from t1 where 2 > i  OR i > 1998', '0', 'PERM', 0);
+----
+0	0
+
+query II
+PRAGMA lineage_query('select * from t1 where 2 > i  OR i > 1998', '1', 'PERM', 0);
+----
+1	1
+
+query II
+PRAGMA lineage_query('select * from t1 where 2 > i  OR i > 1998', '2', 'PERM', 0);
+----
+1999	2
+
+query II
+PRAGMA lineage_query('select * from t1 where 2 > i  OR i > 1998', '0,1,2', 'PERM', 0);
+----
+0	0
+1	1
+1999	2

@@ -44,12 +44,14 @@ struct LineageIndexStruct;
 class OperatorLineage {
 public:
 	explicit OperatorLineage(
+	    idx_t opid,
+	    bool trace_lineage,
 		shared_ptr<PipelineLineage> pipeline_lineage,
 		std::vector<shared_ptr<OperatorLineage>> children,
 	    PhysicalOperatorType type,
-	    idx_t opid,
 	    bool should_index
-	) : opid(opid), pipeline_lineage(move(pipeline_lineage)), type(type), children(move(children)), should_index(should_index) {}
+	) : opid(opid), trace_lineage(trace_lineage), pipeline_lineage(move(pipeline_lineage)), type(type), children(move(children)),
+	      should_index(should_index) {}
 
 	void Capture(const shared_ptr<LineageData>& datum, idx_t lineage_idx, int thread_id=-1);
 

@@ -1,0 +1,57 @@
+# name: test/sql/lineage/perm/groupby.test
+# description: Test Group By Lineage with PERM mode
+# group: [perm]
+
+statement ok
+PRAGMA trace_lineage = "OFF";
+
+statement ok
+CREATE TABLE t2(i VARCHAR(10), j INTEGER);
+
+statement ok
+INSERT INTO t2 VALUES ('Haneen', 2),  ('Omar', 2), ('Haneen', 4), ('Mohammed', 1), ('Omar', 1), ('Haneen', 3), ('Mohammed', 2), ('Omar', 1)
+
+statement ok
+PRAGMA trace_lineage = "ON";
+
+query II
+select t2.i, avg(t2.j) from t2 GROUP BY t2.i
+----
+Haneen	3.000000
+Omar	1.333333
+Mohammed	1.500000
+
+statement ok
+PRAGMA trace_lineage = "OFF";
+
+query II
+PRAGMA lineage_query('select t2.i, avg(t2.j) from t2 GROUP BY t2.i', '0', 'PERM', 0);
+----
+0	0
+2	0
+5	0
+
+query II
+PRAGMA lineage_query('select t2.i, avg(t2.j) from t2 GROUP BY t2.i', '1', 'PERM', 0);
+----
+1	1
+4	1
+7	1
+
+query II
+PRAGMA lineage_query('select t2.i, avg(t2.j) from t2 GROUP BY t2.i', '2', 'PERM', 0);
+----
+3	2
+6	2
+
+query II
+PRAGMA lineage_query('select t2.i, avg(t2.j) from t2 GROUP BY t2.i', '0,1,2', 'PERM', 0);
+----
+0	0
+2	0
+5	0
+1	1
+4	1
+7	1
+3	2
+6	2

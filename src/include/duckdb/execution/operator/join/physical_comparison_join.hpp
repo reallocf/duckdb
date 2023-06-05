@@ -19,6 +19,8 @@ class PhysicalComparisonJoin : public PhysicalJoin {
 public:
 	PhysicalComparisonJoin(LogicalOperator &op, PhysicalOperatorType type, vector<JoinCondition> cond,
 	                       JoinType join_type, idx_t estimated_cardinality);
+	PhysicalComparisonJoin(vector<LogicalType> types, PhysicalOperatorType type, vector<JoinCondition> cond,
+	                       JoinType join_type, idx_t estimated_cardinality);
 
 	vector<JoinCondition> conditions;
 
