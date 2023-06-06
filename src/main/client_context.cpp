@@ -217,7 +217,7 @@ shared_ptr<PreparedStatementData> ClientContext::CreatePreparedStatement(ClientC
 			// execution until it contains the final in_col value
 			ChunkCollection lineage_ids;
 			unique_ptr<DataChunk> lineage_id_chunk = make_unique<DataChunk>();
-			lineage_id_chunk->Initialize({LogicalTypeId::UBIGINT, LogicalTypeId::UBIGINT});
+			lineage_id_chunk->Initialize({LogicalTypeId::BIGINT, LogicalTypeId::BIGINT});
 			idx_t num_vals_in_chunk = 0;
 			string tmp;
 			int val;
@@ -225,31 +225,39 @@ shared_ptr<PreparedStatementData> ClientContext::CreatePreparedStatement(ClientC
 			for (idx_t i = 0; i < lineage_ids_str.length(); i++) {
 				if (lineage_ids_str[i] == delim) {
 					val = stoi(tmp);
-					lineage_id_chunk->data[0].SetValue(num_vals_in_chunk, Value::UBIGINT(val));
-					lineage_id_chunk->data[1].SetValue(num_vals_in_chunk++, Value::UBIGINT(val));
+					lineage_id_chunk->data[0].SetValue(num_vals_in_chunk, Value::BIGINT(val));
+					lineage_id_chunk->data[1].SetValue(num_vals_in_chunk++, Value::BIGINT(val));
 					tmp = "";
 					if (num_vals_in_chunk == STANDARD_VECTOR_SIZE) {
 						lineage_id_chunk->SetCardinality(STANDARD_VECTOR_SIZE);
 						lineage_ids.Append(move(lineage_id_chunk));
 						num_vals_in_chunk = 0;
 						lineage_id_chunk = make_unique<DataChunk>();
-						lineage_id_chunk->Initialize({LogicalTypeId::UBIGINT, LogicalTypeId::UBIGINT});
+						lineage_id_chunk->Initialize({LogicalTypeId::BIGINT, LogicalTypeId::BIGINT});
 					}
 				} else {
 					tmp.push_back(lineage_ids_str[i]);
 				}
 			}
 			val = stoi(tmp);
-			lineage_id_chunk->data[0].SetValue(num_vals_in_chunk, Value::UBIGINT(val));
-			lineage_id_chunk->data[1].SetValue(num_vals_in_chunk++, Value::UBIGINT(val));
+			lineage_id_chunk->data[0].SetValue(num_vals_in_chunk, Value::BIGINT(val));
+			lineage_id_chunk->data[1].SetValue(num_vals_in_chunk++, Value::BIGINT(val));
 			lineage_id_chunk->SetCardinality(num_vals_in_chunk);
 			lineage_ids.Append(move(lineage_id_chunk));
+
+			// Projected column ids - always get all columns
+			vector<string> lineage_table_names = GetLineageTableNames(op.get());
+			vector<column_t> projected_columns;
+			for (idx_t i = 0; i < lineage_table_names.size() + 1; i++) { // Add 1 to size for out_col
+				projected_columns.push_back(i);
+			}
 
 			unique_ptr<PhysicalOperator> final_plan = GenerateLineageQueryPlan(
 			    op.get(),
 			    *this,
 			    &lineage_ids,
 			    mode,
+			    projected_columns,
 			    should_count,
 			    input_table_name
 			);

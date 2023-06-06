@@ -467,9 +467,9 @@ void LineageManager::CreateRelationalLineageTable(const shared_ptr<PhysicalOpera
 	info->temporary = false;
 	// TODO: handle self-joins more gracefully
 	for (const string& name : lineage_table_names) {
-		info->columns.emplace_back(name, LogicalType::UBIGINT);
+		info->columns.emplace_back(name, lineage_col_type);
 	}
-	info->columns.emplace_back("out_col", LogicalType::UBIGINT);
+	info->columns.emplace_back("out_col", lineage_col_type);
 	auto binder = Binder::CreateBinder(context);
 	auto bound_create_info = binder->BindCreateTableInfo(move(info));
 	bound_create_info->lineage_query_as_table = true;

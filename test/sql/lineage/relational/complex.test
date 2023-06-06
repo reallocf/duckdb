@@ -60,6 +60,24 @@ SELECT * FROM LINEAGE_1
 9	9	9	3
 30	2010	30	4
 
+query I
+SELECT out_col FROM LINEAGE_1
+----
+0
+1
+2
+3
+4
+
+query IIII
+SELECT t2, t3 - 3, out_col > 2, out_col::STRING || ' is a great out_col' FROM LINEAGE_1
+----
+6	3	False	0 is a great out_col
+7	4	False	1 is a great out_col
+8	5	False	2 is a great out_col
+9	6	True	3 is a great out_col
+2010	27	True	4 is a great out_col
+
 query III
 SELECT * FROM LINEAGE_2 WHERE out_col = 0
 ----

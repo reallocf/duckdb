@@ -15,6 +15,7 @@ unique_ptr<PhysicalOperator> GenerateLineageQueryPlan(
     ClientContext &cxt,
     ChunkCollection* lineage_ids,
     const string& mode,
+    const vector<column_t>& projected_columns,
     bool should_count = false,
     const string& input_table_name = ""
 );
@@ -42,6 +43,7 @@ void Reverse(vector<unique_ptr<T>> *vec) {
 unique_ptr<PhysicalOperator> CombineByMode(
     ClientContext &context,
     const string& mode,
+    const vector<column_t>& projected_columns,
     bool should_count,
     const string& input_table_name,
     unique_ptr<PhysicalOperator> first_plan,
