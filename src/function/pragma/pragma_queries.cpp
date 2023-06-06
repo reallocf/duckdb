@@ -22,7 +22,6 @@ string PragmaBackwardLineageDuckDBExecEngine(ClientContext &context, const Funct
 
 		vector<string> lineage_table_names = GetLineageTableNames(op.get());
 
-		// TODO: handle self-joins gracefully
 		string res = "SELECT ";
 		for (idx_t i = 0; i < lineage_table_names.size(); i++) {
 			res += "1 as " + lineage_table_names[i] + ", ";

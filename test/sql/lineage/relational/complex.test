@@ -1,6 +1,6 @@
 # name: test/sql/lineage/relational/test_complex.test
 # description: Test complex, multi-operator lineage with Relational API
-# group: [perm]
+# group: [relational]
 
 statement ok
 CREATE TABLE t1(i INTEGER, j INTEGER);

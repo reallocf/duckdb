@@ -1,6 +1,6 @@
 # name: test/sql/lineage/relational/hash_join_multiple.test
 # description: Test Multiple Hash Joins with Relational API
-# group: [perm]
+# group: [relational]
 
 statement ok
 CREATE TABLE t1(i INTEGER);

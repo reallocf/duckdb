@@ -510,7 +510,6 @@ unique_ptr<PhysicalOperator> CombineByMode(
 		 * TODO Optimization: join ordering?
 		 * TODO Optimization: can we push down projection more aggressively?
 		 *                    if we know we don't need a particular pipeline to be executed based on proj we could cut it
-		 * TODO: handle self-joins gracefully
 		 */
 
 		vector<LogicalType> types = {lineage_col_type, lineage_col_type};
@@ -601,18 +600,45 @@ unique_ptr<PhysicalOperator> CombineByMode(
 	return final_plan;
 }
 
+string FindNextLineageTableName(const unordered_set<string>& so_far, string name) {
+	string orig_name = name;
+	idx_t j = 0;
+	while (so_far.count(name) > 0) {
+		if (orig_name == name) {
+			// Add suffix for the first time
+			name = name + "_" + to_string(j++);
+		} else {
+			// Remove latest number and add the next one
+			name = name.substr(0, name.size() - 1) + to_string(j++);
+		}
+	}
+	return name;
+}
+
 vector<string> GetLineageTableNames(PhysicalOperator *op) {
     vector<string> res;
+	unordered_set<string> res_set;
 
 	for (idx_t i = 0; i < op->children.size(); i++) {
 		vector<string> found = GetLineageTableNames(op->children[i].get());
-		res.insert(res.end(), found.begin(), found.end());
+		// Resolve naming conflicts (self-joins)
+		// We do not always have an available alias, for example when there's a semi-join like
+		// select * from foo where id in (select id from foo) so instead we name these:
+		// foo, foo_1, foo_2, ...
+		// Note that we don't do foo_0 since many queries do not have self-joins, so we avoid the ugly suffix when possible
+		for (string name : found) {
+			name = FindNextLineageTableName(res_set, name);
+			res.push_back(name);
+			res_set.insert(name);
+		}
 	}
 
 	// TODO: multithreading
 	string table_name = op->lineage_op[-1]->table_name;
 	if (!table_name.empty()) {
+		table_name = FindNextLineageTableName(res_set, table_name);
 		res.push_back(table_name);
+		res_set.insert(table_name);
 	}
 
 	return res;

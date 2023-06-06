@@ -1,6 +1,6 @@
 # name: test/sql/lineage/relational/filter.test
 # description: Test Filter Lineage with Relational API
-# group: [perm]
+# group: [relational]
 
 
 statement ok

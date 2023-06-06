@@ -1,0 +1,62 @@
+# name: test/sql/lineage/relational/self_join.test
+# description: Test Self Joins with Relational API
+# group: [relational]
+
+statement ok
+CREATE TABLE t1(i INTEGER, j INTEGER);
+
+statement ok
+INSERT INTO t1 VALUES (3, 1), (2, 3), (3, 4);
+
+statement ok
+PRAGMA trace_lineage = "ON";
+
+query IIII
+select t1.j, t2.j + 1, t3.j + 2, t4.j + 3 from t1 inner join t1 as t2 on (t1.i = t2.i) inner join t1 as t3 on (t1.i = t3.i) inner join (select * from t1) as t4 on (t1.i = t4.i);
+----
+1	5	6	7
+3	4	5	6
+4	5	6	7
+1	2	6	7
+4	2	6	7
+1	5	3	7
+4	5	3	7
+1	2	3	7
+4	2	3	7
+1	5	6	4
+4	5	6	4
+1	2	6	4
+4	2	6	4
+1	5	3	4
+4	5	3	4
+1	2	3	4
+4	2	3	4
+
+statement ok
+PRAGMA trace_lineage = "OFF";
+
+query IIIII
+SELECT * FROM LINEAGE_1 WHERE out_col = 0
+----
+0	2	2	2	0
+
+query IIIII
+SELECT * FROM LINEAGE_1
+----
+0	2	2	2	0
+1	1	1	1	1
+2	2	2	2	2
+0	2	2	0	3
+2	2	2	0	4
+0	2	0	2	5
+2	2	0	2	6
+0	2	0	0	7
+2	2	0	0	8
+0	0	2	2	9
+2	0	2	2	10
+0	0	2	0	11
+2	0	2	0	12
+0	0	0	2	13
+2	0	0	2	14
+0	0	0	0	15
+2	0	0	0	16

@@ -1,6 +1,6 @@
 # name: test/sql/lineage/relational/groupby.test
 # description: Test Group By Lineage with Relational API
-# group: [perm]
+# group: [relational]
 
 statement ok
 PRAGMA trace_lineage = "OFF";

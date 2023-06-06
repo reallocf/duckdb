@@ -465,7 +465,6 @@ void LineageManager::CreateRelationalLineageTable(const shared_ptr<PhysicalOpera
 	info->table = table_name;
 	info->on_conflict = OnCreateConflict::ERROR_ON_CONFLICT;
 	info->temporary = false;
-	// TODO: handle self-joins more gracefully
 	for (const string& name : lineage_table_names) {
 		info->columns.emplace_back(name, lineage_col_type);
 	}
