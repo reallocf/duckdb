@@ -21,10 +21,6 @@
 #include <iostream>
 #include <utility>
 
-#ifndef QUERY_LIST_TABLE_NAME
-#define QUERY_LIST_TABLE_NAME "queries_list"
-#endif
-
 namespace duckdb {
 class ClientContext;
 class PhysicalOperator;
@@ -44,22 +40,11 @@ public:
 	static void CreateOperatorLineage(PhysicalOperator *op, int thd_id=-1, bool trace_lineage=true, bool should_index=true);
 
 	//! Create empty lineage tables for each operator
-	void CreateLineageTables(PhysicalOperator *op);
-
-	//! Create queries_list table
-	void CreateQueryTable();
-
-	//! Add entries to queries_list
-	void LogQuery(const string& input_query, string extra_meta="");
+	void CreateLineageTables(PhysicalOperator *op, idx_t query_id);
 
 	static shared_ptr<PipelineLineage> GetPipelineLineageNodeForOp(PhysicalOperator *op, int thd_id=-1);
 
-	void StoreQueryLineage(std::unique_ptr<PhysicalOperator> op, string query) {
-		if (!trace_lineage) return;
-		CreateLineageTables(op.get());
-		LogQuery(query);
-		query_to_plan[query] = move(op);
-	}
+	void StoreQueryLineage(std::unique_ptr<PhysicalOperator> op, string query);
 
 	void SetCurrentLineageOp(shared_ptr<OperatorLineage> lop) {
 		current_lop = lop;
@@ -71,9 +56,6 @@ public:
 
 private:
 	ClientContext &context;
-
-	//! id for current executed query
-	idx_t query_id = 0;
 
 	//! cached operator lineage to be accessed from function calls that don't have access to operator members
 	shared_ptr<OperatorLineage> current_lop;
@@ -89,7 +71,11 @@ public:
 	unordered_map<string, shared_ptr<OperatorLineage>> table_lineage_op;
 
 	//! in_memory storage of physical query plan per query
-	std::unordered_map<string, std::unique_ptr<PhysicalOperator>> query_to_plan;
+	std::unordered_map<idx_t, std::unique_ptr<PhysicalOperator>> queryid_to_plan;
+
+	//! map between query_id and query string
+	//! id for current executed query query_to_id.size()
+	vector<string> query_to_id;
 };
 
 

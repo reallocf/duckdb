@@ -28,12 +28,6 @@
 
 namespace duckdb {
 
-#ifdef LINEAGE
-void  TableCatalogEntry::Persist(TableCatalogEntry &table, ClientContext &context, DataChunk &chunk) {
-    storage->Append(table, context, chunk);
-}
-#endif
-
 idx_t TableCatalogEntry::GetColumnIndex(string &column_name, bool if_exists) {
 	auto entry = name_map.find(column_name);
 	if (entry == name_map.end()) {

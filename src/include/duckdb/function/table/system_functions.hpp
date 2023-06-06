@@ -84,4 +84,10 @@ struct DuckDBViewsFun {
 	static void RegisterFunction(BuiltinFunctions &set);
 };
 
+#ifdef LINEAGE
+struct DuckDBQueriesListFun {
+	static void RegisterFunction(BuiltinFunctions &set);
+};
+#endif
+
 } // namespace duckdb

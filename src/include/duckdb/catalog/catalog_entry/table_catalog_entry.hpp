@@ -51,9 +51,6 @@ public:
 	case_insensitive_map_t<column_t> name_map;
 
 public:
-#ifdef LINEAGE
-	void Persist(TableCatalogEntry &table, ClientContext &context, DataChunk &chunk);
-#endif
 	unique_ptr<CatalogEntry> AlterEntry(ClientContext &context, AlterInfo *info) override;
 	//! Returns whether or not a column with the given name exists
 	bool ColumnExists(const string &name);

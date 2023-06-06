@@ -106,7 +106,7 @@ vector<vector<ColumnDefinition>> LineageManager::GetTableColumnTypes(PhysicalOpe
 
 
 //! Construct empty tables for operators lineage to be accessed using Lineage Scan
-void LineageManager::CreateLineageTables(PhysicalOperator *op) {
+void LineageManager::CreateLineageTables(PhysicalOperator *op, idx_t query_id) {
 	vector<vector<ColumnDefinition>> table_column_types = GetTableColumnTypes(op);
 	for (idx_t i = 0; i < table_column_types.size(); i++) {
 		// Example: LINEAGE_1_HASH_JOIN_3_0
@@ -149,61 +149,15 @@ void LineageManager::CreateLineageTables(PhysicalOperator *op) {
 	}
 
 	if (op->type == PhysicalOperatorType::DELIM_JOIN) {
-		CreateLineageTables( dynamic_cast<PhysicalDelimJoin *>(op)->join.get());
-		CreateLineageTables( (PhysicalOperator *)dynamic_cast<PhysicalDelimJoin *>(op)->distinct.get());
+		CreateLineageTables( dynamic_cast<PhysicalDelimJoin *>(op)->join.get(), query_id);
+		CreateLineageTables( (PhysicalOperator *)dynamic_cast<PhysicalDelimJoin *>(op)->distinct.get(), query_id);
 	}
 
 	// If the operator is unimplemented or doesn't materialize any lineage, it'll be skipped and we'll just
 	// iterate through its children
 	for (idx_t i = 0; i < op->children.size(); i++) {
-		CreateLineageTables(op->children[i].get());
+		CreateLineageTables(op->children[i].get(), query_id);
 	}
-}
-
-//! Create table to store executed queries with their IDs
-//! Table name: queries_list
-//! Schema: (INT query_id, varchar query, varchar extra)
-void LineageManager::CreateQueryTable() {
-	auto info = make_unique <CreateTableInfo>(DEFAULT_SCHEMA, QUERY_LIST_TABLE_NAME);
-	// This is recreated when a database is spun back up, so ignore
-	info->on_conflict = OnCreateConflict::IGNORE_ON_CONFLICT;
-
-	info->columns.emplace_back("query_id", LogicalType::INTEGER);
-	info->columns.emplace_back("query", LogicalType::VARCHAR);
-	info->columns.emplace_back("extra", LogicalType::VARCHAR);
-
-	auto binder = Binder::CreateBinder(context);
-	auto bound_create_info = binder->BindCreateTableInfo(move(info));
-	auto &catalog = Catalog::GetCatalog(context);
-	catalog.CreateTable(context, bound_create_info.get());
-}
-
-//! Persist executed query in queries_list table
-void LineageManager::LogQuery(const string& input_query, string extra_meta) {
-  idx_t count = 1;
-  TableCatalogEntry * table = Catalog::GetCatalog(context)
-	                             .GetEntry<TableCatalogEntry>(context,
-	                                                          DEFAULT_SCHEMA,
-	                                                          QUERY_LIST_TABLE_NAME);
-  DataChunk insert_chunk;
-  insert_chunk.Initialize(table->GetTypes());
-  insert_chunk.SetCardinality(count);
-
-  // query id
-  Vector query_ids(Value::INTEGER(query_id++));
-
-  // query value
-  Vector payload(input_query);
-
-  // extra info, e.g size in bytes
-  Vector extra(extra_meta);
-
-  // populate chunk
-  insert_chunk.data[0].Reference(query_ids);
-  insert_chunk.data[1].Reference(payload);
-  insert_chunk.data[2].Reference(extra);
-
-  table->Persist(*table, context, insert_chunk);
 }
 
 } // namespace duckdb
