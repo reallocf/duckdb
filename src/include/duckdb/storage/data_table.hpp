@@ -83,8 +83,9 @@ private:
 };
 
 struct DataTableInfo {
-	DataTableInfo(DatabaseInstance &db, string schema, string table, bool isLineageTable)
-	    : db(db), cardinality(0), schema(move(schema)), table(move(table)), isLineageTable(move(isLineageTable)) {
+	DataTableInfo(DatabaseInstance &db, string schema, string table, bool isLineageTable, bool lineage_query_as_table)
+	    : db(db), cardinality(0), schema(move(schema)), table(move(table)), isLineageTable(move(isLineageTable)),
+	      lineage_query_as_table(lineage_query_as_table) {
 	}
 
 	//! The database instance of the table
@@ -103,7 +104,9 @@ struct DataTableInfo {
 		return schema == TEMP_SCHEMA;
 	}
 
-public:bool isLineageTable = false;
+public:
+	bool isLineageTable = false;
+	bool lineage_query_as_table = false;
 };
 
 struct ParallelTableScanState {
@@ -117,7 +120,7 @@ class DataTable {
 public:
 	//! Constructs a new data table from an (optional) set of persistent segments
 	DataTable(DatabaseInstance &db, const string &schema, const string &table, vector<LogicalType> types,
-	          unique_ptr<PersistentTableData> data = nullptr, bool isLineageTable = false);
+	          unique_ptr<PersistentTableData> data = nullptr, bool isLineageTable = false, bool lineage_query_as_table = false);
 	//! Constructs a DataTable as a delta on an existing data table with a newly added column
 	DataTable(ClientContext &context, DataTable &parent, ColumnDefinition &new_column, Expression *default_value);
 	//! Constructs a DataTable as a delta on an existing data table but with one column removed

@@ -41,6 +41,8 @@ public:
 	idx_t LogQuery(const string& input_query, idx_t lineage_size=0);
 	static shared_ptr<PipelineLineage> GetPipelineLineageNodeForOp(PhysicalOperator *op, int thd_id=-1);
 	static void CreateOperatorLineage(PhysicalOperator *op, int thd_id=-1, bool trace_lineage=true, bool should_index=true);
+	void IncrementQueryId();
+	void CreateRelationalLineageTable(const shared_ptr<PhysicalOperator>& op);
 
 private:
 	ClientContext &context;

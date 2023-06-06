@@ -1,0 +1,31 @@
+# name: test/sql/lineage/relational/hash_join_multiple.test
+# description: Test Multiple Hash Joins with Relational API
+# group: [perm]
+
+statement ok
+CREATE TABLE t1(i INTEGER);
+CREATE TABLE t2(i INTEGER);
+CREATE TABLE t3(i INTEGER);
+CREATE TABLE t4(i INTEGER);
+
+statement ok
+INSERT INTO t1 VALUES (1), (2), (3), (4);
+INSERT INTO t2 VALUES (5), (1), (6), (7);
+INSERT INTO t3 VALUES (8), (9), (1), (10);
+INSERT INTO t4 VALUES (11), (12), (13), (1);
+
+statement ok
+PRAGMA trace_lineage = "ON";
+
+query I
+select t1.i from t1 inner join t2 on t1.i = t2.i inner join t3 on t2.i = t3.i inner join t4 on t3.i = t4.i;
+----
+1
+
+statement ok
+PRAGMA trace_lineage = "OFF";
+
+query IIIII
+SELECT * FROM LINEAGE_1
+----
+0	1	2	3	0

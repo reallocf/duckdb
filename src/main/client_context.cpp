@@ -245,25 +245,15 @@ shared_ptr<PreparedStatementData> ClientContext::CreatePreparedStatement(ClientC
 			lineage_id_chunk->SetCardinality(num_vals_in_chunk);
 			lineage_ids.Append(move(lineage_id_chunk));
 
-			vector<unique_ptr<PhysicalOperator>> other_plans;
-			unique_ptr<PhysicalOperator> first_plan = GenerateCustomLineagePlan(
+			unique_ptr<PhysicalOperator> final_plan = GenerateLineageQueryPlan(
 			    op.get(),
 			    *this,
 			    &lineage_ids,
-			    nullptr,
-			    false,
-			    &other_plans
-			);
-			// We construct other_plans in reverse execution order, swap here
-			Reverse(&other_plans);
-			unique_ptr<PhysicalOperator> final_plan = CombineByMode(
-			    *this,
 			    mode,
 			    should_count,
-			    input_table_name,
-			    move(first_plan),
-			    move(other_plans)
+			    input_table_name
 			);
+
 			result->types.resize(final_plan->types.size());
  			copy(final_plan->types.begin(), final_plan->types.end(), result->types.begin());
  			result->plan = move(final_plan);
@@ -317,6 +307,16 @@ shared_ptr<PreparedStatementData> ClientContext::CreatePreparedStatement(ClientC
 		D_ASSERT(!physical_plan->ToString().empty());
 #endif
 		result->plan = move(physical_plan);
+
+		// Check to see if any tables are relational lineage tables - swap these
+		unique_ptr<PhysicalOperator> final_plan = SwapRelationalLineageTablesForLineageQueryPlans(
+		    move(result->plan),
+		    *this
+		);
+
+		result->types.resize(final_plan->types.size());
+		copy(final_plan->types.begin(), final_plan->types.end(), result->types.begin());
+		result->plan = move(final_plan);
 	}
 	return result;
 }
@@ -396,6 +396,8 @@ unique_ptr<QueryResult> ClientContext::ExecutePreparedStatement(ClientContextLoc
 		shared_ptr<PhysicalOperator> plan(move(statement.plan));
 		query_to_plan[query] = plan;
 		query_id_to_plan[this_query_id] = plan;
+		lineage_manager->CreateRelationalLineageTable(plan);
+		lineage_manager->IncrementQueryId();
 	}
 #endif
 	if (enable_progress_bar) {

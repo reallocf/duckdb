@@ -455,6 +455,34 @@ idx_t LineageManager::CreateLineageTables(PhysicalOperator *op) {
 	return total_size;
 }
 
+void LineageManager::CreateRelationalLineageTable(const shared_ptr<PhysicalOperator>& op) {
+	// Create full relational lineage table with name like LINEAGE_1
+	string table_name = "LINEAGE_" + to_string(query_id);
+	vector<string> lineage_table_names = GetLineageTableNames(op.get());
+
+	auto info = make_unique<CreateTableInfo>();
+	info->schema = DEFAULT_SCHEMA;
+	info->table = table_name;
+	info->on_conflict = OnCreateConflict::ERROR_ON_CONFLICT;
+	info->temporary = false;
+	// TODO: handle self-joins more gracefully
+	for (const string& name : lineage_table_names) {
+		info->columns.emplace_back(name, LogicalType::UBIGINT);
+	}
+	info->columns.emplace_back("out_col", LogicalType::UBIGINT);
+	auto binder = Binder::CreateBinder(context);
+	auto bound_create_info = binder->BindCreateTableInfo(move(info));
+	bound_create_info->lineage_query_as_table = true;
+	bound_create_info->isLineageTable = true;
+	auto &catalog = Catalog::GetCatalog(context);
+	TableCatalogEntry *table =
+	    dynamic_cast<TableCatalogEntry *>(catalog.CreateTable(context, bound_create_info.get()));
+
+	table->lineage_id = query_id;
+	// TODO: handle multithreading
+	table->lineage_output_count = GetLineageOpSize(op->lineage_op.at(-1).get());
+}
+
 /*
  * Create table to store executed queries with their IDs
  * Table name: queries_list
@@ -490,7 +518,7 @@ idx_t LineageManager::LogQuery(const string& input_query, idx_t lineage_size) {
   insert_chunk.SetCardinality(count);
 
   // query id
-  idx_t this_query_id = query_id++;
+  idx_t this_query_id = query_id;
   Vector query_ids(Value::INTEGER(this_query_id));
   Vector lineage_size_vec(Value::UBIGINT(lineage_size));
 
@@ -505,6 +533,10 @@ idx_t LineageManager::LogQuery(const string& input_query, idx_t lineage_size) {
   table->Persist(*table, context, insert_chunk);
 
   return this_query_id;
+}
+
+void LineageManager::IncrementQueryId() {
+	query_id++;
 }
 
 } // namespace duckdb

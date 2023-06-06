@@ -1,24 +1,26 @@
 #ifdef LINEAGE
-#include "duckdb/execution/lineage/lineage_manager.hpp"
-#include "duckdb/execution/lineage/operator_lineage.hpp"
 #include "duckdb/execution/lineage/lineage_query.hpp"
 
-#include "duckdb/main/client_context.hpp"
 #include "duckdb/common/enums/join_type.hpp"
 #include "duckdb/common/enums/logical_operator_type.hpp"
+#include "duckdb/execution/index/lineage_index/lineage_index.hpp"
+#include "duckdb/execution/lineage/lineage_manager.hpp"
+#include "duckdb/execution/lineage/operator_lineage.hpp"
+#include "duckdb/execution/operator/aggregate/physical_simple_aggregate.hpp"
+#include "duckdb/execution/operator/helper/physical_limit.hpp"
+#include "duckdb/execution/operator/join/physical_cross_product.hpp"
 #include "duckdb/execution/operator/join/physical_delim_join.hpp"
 #include "duckdb/execution/operator/join/physical_hash_join.hpp"
-#include "duckdb/execution/operator/join/physical_join.hpp"
 #include "duckdb/execution/operator/join/physical_index_join.hpp"
-#include "duckdb/execution/operator/helper/physical_limit.hpp"
-#include "duckdb/execution/index/lineage_index/lineage_index.hpp"
+#include "duckdb/execution/operator/join/physical_join.hpp"
+#include "duckdb/execution/operator/projection/physical_projection.hpp"
 #include "duckdb/execution/operator/scan/physical_chunk_scan.hpp"
 #include "duckdb/execution/operator/scan/physical_empty_result.hpp"
+#include "duckdb/execution/operator/scan/physical_lineage_scan.hpp"
 #include "duckdb/execution/operator/set/physical_union.hpp"
-#include "duckdb/execution/operator/aggregate/physical_simple_aggregate.hpp"
 #include "duckdb/function/aggregate/distributive_functions.hpp"
-#include "duckdb/execution/operator/join/physical_cross_product.hpp"
-#include "duckdb/execution/operator/projection/physical_projection.hpp"
+#include "duckdb/function/table/table_scan.hpp"
+#include "duckdb/main/client_context.hpp"
 
 #include <utility>
 
@@ -212,6 +214,30 @@ LineageProcessStruct OperatorLineage::PostProcess(idx_t chunk_count, idx_t count
 
 // Lineage Query Plan Constructing
 
+unique_ptr<PhysicalOperator> GenerateLineageQueryPlan(
+    PhysicalOperator* op,
+    ClientContext &cxt,
+    ChunkCollection* lineage_ids,
+    const string& mode,
+    bool should_count,
+    const string& input_table_name
+) {
+	vector<unique_ptr<PhysicalOperator>> other_plans;
+	unique_ptr<PhysicalOperator> first_plan =
+	    BuildLineagePipeline(op, cxt, lineage_ids, nullptr, false, &other_plans);
+	// We construct other_plans in reverse execution order, swap here
+	Reverse(&other_plans);
+	unique_ptr<PhysicalOperator> final_plan = CombineByMode(
+	    cxt,
+	    mode,
+	    should_count,
+	    input_table_name,
+	    move(first_plan),
+	    move(other_plans)
+	);
+	return final_plan;
+}
+
 unique_ptr<PhysicalIndexJoin> PreparePhysicalIndexJoin(PhysicalOperator *op, unique_ptr<PhysicalOperator> left, ClientContext &cxt, ChunkCollection *chunk_collection) {
 	auto logical_join = make_unique<LogicalComparisonJoin>(JoinType::INNER);
 	logical_join->types = {LogicalType::UBIGINT, LogicalType::UBIGINT};
@@ -255,7 +281,7 @@ unique_ptr<PhysicalIndexJoin> PreparePhysicalIndexJoin(PhysicalOperator *op, uni
 	);
 }
 
-unique_ptr<PhysicalOperator> GenerateCustomLineagePlan(
+unique_ptr<PhysicalOperator> BuildLineagePipeline(
 	PhysicalOperator* op,
 	ClientContext &cxt,
 	ChunkCollection* lineage_ids,
@@ -268,11 +294,11 @@ unique_ptr<PhysicalOperator> GenerateCustomLineagePlan(
 	}
 	if (op->type == PhysicalOperatorType::HASH_JOIN && dynamic_cast<PhysicalJoin *>(op)->join_type == JoinType::MARK) {
 		// Skip Mark Joins
-		return GenerateCustomLineagePlan(op->children[0].get(), cxt, lineage_ids, move(left), simple_agg_flag, pipelines);
+		return BuildLineagePipeline(op->children[0].get(), cxt, lineage_ids, move(left), simple_agg_flag, pipelines);
 	}
 	if (op->type == PhysicalOperatorType::PROJECTION) {
 		// Skip Projections
-		return GenerateCustomLineagePlan(op->children[0].get(), cxt, lineage_ids, move(left), simple_agg_flag, pipelines);
+		return BuildLineagePipeline(op->children[0].get(), cxt, lineage_ids, move(left), simple_agg_flag, pipelines);
 	}
 	if (op->type == PhysicalOperatorType::DELIM_SCAN) {
 		// Skip DELIM_SCANs since they never affect the lineage
@@ -288,7 +314,7 @@ unique_ptr<PhysicalOperator> GenerateCustomLineagePlan(
 		op->type == PhysicalOperatorType::ORDER_BY ||
 		op->type == PhysicalOperatorType::PROJECTION
 	)) {
-		return GenerateCustomLineagePlan(op->children[0].get(), cxt, lineage_ids, move(left), true, pipelines);
+		return BuildLineagePipeline(op->children[0].get(), cxt, lineage_ids, move(left), true, pipelines);
 	}
 	vector<LogicalType> types = {LogicalType::UBIGINT, LogicalType::UBIGINT};
 	PhysicalOperatorType op_type = PhysicalOperatorType::CHUNK_SCAN;
@@ -312,7 +338,8 @@ unique_ptr<PhysicalOperator> GenerateCustomLineagePlan(
 			// we only want to do the child reordering once
 			op->delim_handled = true;
 		}
-		return GenerateCustomLineagePlan(dynamic_cast<PhysicalDelimJoin *>(op)->join.get(), cxt, lineage_ids, move(left), simple_agg_flag, pipelines);
+		return BuildLineagePipeline(dynamic_cast<PhysicalDelimJoin *>(op)->join.get(), cxt, lineage_ids, move(left),
+		                            simple_agg_flag, pipelines);
 	}
 	if (left == nullptr) {
 		unique_ptr<PhysicalChunkScan> chunk_scan = make_unique<PhysicalChunkScan>(types, op_type, estimated_cardinality, true);
@@ -327,25 +354,23 @@ unique_ptr<PhysicalOperator> GenerateCustomLineagePlan(
 			build_chunk_scan->collection = new ChunkCollection();
 
 			// Probe side of join
-			unique_ptr<PhysicalOperator> custom_plan = GenerateCustomLineagePlan(op->children[0].get(), cxt, lineage_ids, PreparePhysicalIndexJoin(op, move(chunk_scan), cxt, build_chunk_scan->collection), false, pipelines);
+			unique_ptr<PhysicalOperator> custom_plan = BuildLineagePipeline(
+			    op->children[0].get(), cxt, lineage_ids,
+			    PreparePhysicalIndexJoin(op, move(chunk_scan), cxt, build_chunk_scan->collection), false, pipelines);
 
 			// Push build side chunk scan to pipelines
 			if (op->type == PhysicalOperatorType::INDEX_JOIN) {
 				pipelines->push_back(move(build_chunk_scan));
 			} else {
-				pipelines->push_back(GenerateCustomLineagePlan(op->children[1].get(), cxt, lineage_ids, move(build_chunk_scan), false, pipelines));
+				pipelines->push_back(BuildLineagePipeline(op->children[1].get(), cxt, lineage_ids,
+				                                          move(build_chunk_scan), false, pipelines));
 			}
 
 			return custom_plan;
 		}
-		return GenerateCustomLineagePlan(
-			op->children[0].get(),
-			cxt,
-			lineage_ids,
-			PreparePhysicalIndexJoin(op, move(chunk_scan), cxt, nullptr),
-			op->type == PhysicalOperatorType::SIMPLE_AGGREGATE,
-			pipelines
-		);
+		return BuildLineagePipeline(op->children[0].get(), cxt, lineage_ids,
+		                            PreparePhysicalIndexJoin(op, move(chunk_scan), cxt, nullptr),
+		                            op->type == PhysicalOperatorType::SIMPLE_AGGREGATE, pipelines);
 	} else {
 		if (op->children.size() == 2 && dynamic_cast<PhysicalJoin *>(op)->join_type != JoinType::ANTI) {
 			// Chunk scan that refers to build side of join
@@ -353,26 +378,24 @@ unique_ptr<PhysicalOperator> GenerateCustomLineagePlan(
 			build_chunk_scan->collection = new ChunkCollection();
 
 			// Probe side of join
-			unique_ptr<PhysicalOperator> custom_plan = GenerateCustomLineagePlan(op->children[0].get(), cxt, lineage_ids, PreparePhysicalIndexJoin(op, move(left), cxt,  build_chunk_scan->collection), false, pipelines);
+			unique_ptr<PhysicalOperator> custom_plan = BuildLineagePipeline(
+			    op->children[0].get(), cxt, lineage_ids,
+			    PreparePhysicalIndexJoin(op, move(left), cxt, build_chunk_scan->collection), false, pipelines);
 
 			// Push build side chunk scan to pipelines
 			if (op->type == PhysicalOperatorType::INDEX_JOIN) {
 				pipelines->push_back(move(build_chunk_scan));
 			} else {
-				pipelines->push_back(GenerateCustomLineagePlan(op->children[1].get(), cxt, lineage_ids, move(build_chunk_scan), false, pipelines));
+				pipelines->push_back(BuildLineagePipeline(op->children[1].get(), cxt, lineage_ids,
+				                                          move(build_chunk_scan), false, pipelines));
 			}
 
 			// probe side of hash join
 			return custom_plan;
 		}
-		return GenerateCustomLineagePlan(
-			op->children[0].get(),
-			cxt,
-		    lineage_ids,
-			PreparePhysicalIndexJoin(op, move(left), cxt, nullptr),
-			op->type == PhysicalOperatorType::SIMPLE_AGGREGATE,
-			pipelines
-		);
+		return BuildLineagePipeline(op->children[0].get(), cxt, lineage_ids,
+		                            PreparePhysicalIndexJoin(op, move(left), cxt, nullptr),
+		                            op->type == PhysicalOperatorType::SIMPLE_AGGREGATE, pipelines);
 	}
 }
 
@@ -570,6 +593,90 @@ vector<string> GetLineageTableNames(PhysicalOperator *op) {
 	}
 
 	return res;
+}
+
+idx_t GetLineageOpSize(OperatorLineage *op) {
+	switch (op->type) {
+	case PhysicalOperatorType::FILTER:
+	case PhysicalOperatorType::INDEX_JOIN:
+	case PhysicalOperatorType::LIMIT:
+	case PhysicalOperatorType::ORDER_BY:
+	case PhysicalOperatorType::TABLE_SCAN: {
+		return op->GetThisOffset(LINEAGE_UNARY);
+	}
+	case PhysicalOperatorType::BLOCKWISE_NL_JOIN:
+	case PhysicalOperatorType::CROSS_PRODUCT:
+	case PhysicalOperatorType::HASH_JOIN:
+	case PhysicalOperatorType::PIECEWISE_MERGE_JOIN:
+	case PhysicalOperatorType::NESTED_LOOP_JOIN: {
+		return op->GetThisOffset(LINEAGE_PROBE);
+	}
+	case PhysicalOperatorType::HASH_GROUP_BY:
+	case PhysicalOperatorType::PERFECT_HASH_GROUP_BY: {
+		return op->GetThisOffset(LINEAGE_SOURCE);
+	}
+	case PhysicalOperatorType::PROJECTION: {
+		return GetLineageOpSize(op->children[0].get());
+	}
+	case PhysicalOperatorType::PRAGMA: {
+		return 0; // No op - we see this for PRAGMA TRACE_LINEAGE = 'ON'
+	}
+	default: {
+		throw std::logic_error("Unsupported PhysicalOperatorType for relational lineage querying");
+	}
+	}
+}
+
+unique_ptr<PhysicalOperator> SwapRelationalLineageTablesForLineageQueryPlans(unique_ptr<PhysicalOperator> op, ClientContext &ctx) {
+	if (op->type == PhysicalOperatorType::LINEAGE_SCAN) {
+		TableScanBindData* tbldata = dynamic_cast<TableScanBindData *>(dynamic_cast<PhysicalLineageScan *>(op.get())->bind_data.get());
+		DataTable* tbl = tbldata->table->storage.get();
+		shared_ptr<DataTableInfo> info = tbl->info;
+		TableCatalogEntry * table = Catalog::GetCatalog(ctx).GetEntry<TableCatalogEntry>(ctx,  DEFAULT_SCHEMA, info->table);
+
+		if (tbl->info->lineage_query_as_table) {
+			// Set up lineage querying
+			string mode = "PERM"; // TODO: thread through mode as metadata
+			shared_ptr<PhysicalOperator> base_op = ctx.query_id_to_plan[table->lineage_id];
+
+			// Build chunk with all out ids from base query result to be scanned
+			// Two columns: in_col, out_col
+			// They start as the same (out_col) and in_col is replaced throughout lineage querying
+			ChunkCollection lineage_ids;
+			unique_ptr<DataChunk> lineage_id_chunk = make_unique<DataChunk>();
+			lineage_id_chunk->Initialize({LogicalTypeId::UBIGINT, LogicalTypeId::UBIGINT});
+			idx_t cnt = 0;
+			for (idx_t i = 0; i < table->lineage_output_count; i++) {
+				lineage_id_chunk->data[0].SetValue(cnt, Value::UBIGINT(i));
+				lineage_id_chunk->data[1].SetValue(cnt++, Value::UBIGINT(i));
+				if (cnt == STANDARD_VECTOR_SIZE) {
+					lineage_id_chunk->SetCardinality(STANDARD_VECTOR_SIZE);
+					lineage_ids.Append(move(lineage_id_chunk));
+					lineage_id_chunk = make_unique<DataChunk>();
+					lineage_id_chunk->Initialize({LogicalTypeId::UBIGINT, LogicalTypeId::UBIGINT});
+					cnt = 0;
+				}
+			}
+			lineage_id_chunk->SetCardinality(cnt);
+			lineage_ids.Append(move(lineage_id_chunk));
+
+			// Generate lineage query plan
+			// No need to recurse through children because lineage scans don't have any
+			return GenerateLineageQueryPlan(
+			    base_op.get(),
+			    ctx,
+			    &lineage_ids,
+			    mode
+			);
+		}
+	}
+
+	// Recurse for other relational lineage scans and swap them in place when they're found
+	for (idx_t i = 0; i < op->children.size(); i++) {
+		op->children[i] = SwapRelationalLineageTablesForLineageQueryPlans(move(op->children[i]), ctx);
+	}
+
+	return op;
 }
 
 // Lineage Querying

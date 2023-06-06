@@ -74,6 +74,8 @@ void StreamQueryResult::Close() {
 		shared_ptr<PhysicalOperator> plan(move(prepared->plan));
 		context->query_to_plan[context->query] = plan;
 		context->query_id_to_plan[this_query_id] = plan;
+		context->lineage_manager->CreateRelationalLineageTable(plan);
+		context->lineage_manager->IncrementQueryId();
 	}
 #endif
 	context->Cleanup();

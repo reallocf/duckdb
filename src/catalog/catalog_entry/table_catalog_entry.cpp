@@ -67,7 +67,7 @@ TableCatalogEntry::TableCatalogEntry(Catalog *catalog, SchemaCatalogEntry *schem
 	}
 	if (!storage) {
 		// create the physical storage
-		storage = make_shared<DataTable>(catalog->db, schema->name, name, GetTypes(), move(info->data), info->isLineageTable);
+		storage = make_shared<DataTable>(catalog->db, schema->name, name, GetTypes(), move(info->data), info->isLineageTable, info->lineage_query_as_table);
 
 		// create the unique indexes for the UNIQUE and PRIMARY KEY constraints
 		for (idx_t i = 0; i < bound_constraints.size(); i++) {

@@ -1,0 +1,46 @@
+# name: test/sql/lineage/relational/filter.test
+# description: Test Filter Lineage with Relational API
+# group: [perm]
+
+
+statement ok
+CREATE TABLE t1(i INTEGER);
+
+statement ok
+INSERT INTO t1 SELECT i FROM range(0,2000) tbl(i);
+
+statement ok
+PRAGMA trace_lineage = "ON";
+
+query I
+select * from t1 where 2 > i  OR i > 1998
+----
+0
+1
+1999
+
+statement ok
+PRAGMA trace_lineage = "OFF";
+
+
+query II
+SELECT * FROM LINEAGE_1 WHERE out_col = 0
+----
+0	0
+
+query II
+SELECT * FROM LINEAGE_1 WHERE out_col = 1
+----
+1	1
+
+query II
+SELECT * FROM LINEAGE_1 WHERE out_col = 2
+----
+1999	2
+
+query II
+SELECT * FROM LINEAGE_1
+----
+0	0
+1	1
+1999	2

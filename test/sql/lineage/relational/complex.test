@@ -1,5 +1,5 @@
-# name: test/sql/lineage/perm/test_complex.test
-# description: Test complex, multi-operator lineage with PERM mode
+# name: test/sql/lineage/relational/test_complex.test
+# description: Test complex, multi-operator lineage with Relational API
 # group: [perm]
 
 statement ok
@@ -42,17 +42,17 @@ statement ok
 PRAGMA trace_lineage = "OFF";
 
 query IIII
-PRAGMA lineage_query('SELECT t1.i, t2.i, t3.i FROM t1, t2, t3 WHERE t1.i = t2.i AND t2.i = t3.i AND t1.j + t2.i > 12 ORDER BY t3.i LIMIT 5', '0', 'PERM', 0)
+SELECT * FROM LINEAGE_1 WHERE out_col = 0
 ----
 6	6	6	0
 
 query IIII
-PRAGMA lineage_query('SELECT t1.i, t2.i, t3.i FROM t1, t2, t3 WHERE t1.i = t2.i AND t2.i = t3.i AND t1.j + t2.i > 12 ORDER BY t3.i LIMIT 5', '4', 'PERM', 0)
+SELECT * FROM LINEAGE_1 WHERE out_col = 4
 ----
 30	2010	30	4
 
 query IIII
-PRAGMA lineage_query('SELECT t1.i, t2.i, t3.i FROM t1, t2, t3 WHERE t1.i = t2.i AND t2.i = t3.i AND t1.j + t2.i > 12 ORDER BY t3.i LIMIT 5', '0,1,2,3,4', 'PERM', 0)
+SELECT * FROM LINEAGE_1
 ----
 6	6	6	0
 7	7	7	1
@@ -61,7 +61,7 @@ PRAGMA lineage_query('SELECT t1.i, t2.i, t3.i FROM t1, t2, t3 WHERE t1.i = t2.i 
 30	2010	30	4
 
 query III
-PRAGMA lineage_query('SELECT a_res.i, a_res.a_sum, b_res.b_sum FROM (SELECT i, SUM(j) AS a_sum FROM a GROUP BY i) AS a_res, (SELECT i, SUM(j) AS b_sum FROM b GROUP BY i) AS b_res WHERE a_res.i = b_res.i', '0', 'PERM', 0)
+SELECT * FROM LINEAGE_2 WHERE out_col = 0
 ----
 7	0	0
 7	1	0
@@ -71,7 +71,7 @@ PRAGMA lineage_query('SELECT a_res.i, a_res.a_sum, b_res.b_sum FROM (SELECT i, S
 0	1	0
 
 query III
-PRAGMA lineage_query('SELECT a_res.i, a_res.a_sum, b_res.b_sum FROM (SELECT i, SUM(j) AS a_sum FROM a GROUP BY i) AS a_res, (SELECT i, SUM(j) AS b_sum FROM b GROUP BY i) AS b_res WHERE a_res.i = b_res.i', '0,1,2', 'PERM', 0)
+SELECT * FROM LINEAGE_2
 ----
 7	0	0
 7	1	0

@@ -45,7 +45,9 @@ struct BoundCreateTableInfo {
 		return (CreateTableInfo &)*base;
 	}
 
-	public: bool isLineageTable = false;
+	public:
+	    bool isLineageTable = false;
+	    bool lineage_query_as_table = false;
 };
 
 } // namespace duckdb

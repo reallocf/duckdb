@@ -83,7 +83,9 @@ public:
 	//! If if_exists is false, throws an exception
 	idx_t GetColumnIndex(string &name, bool if_exists = false);
 
-	std::shared_ptr<OperatorLineage> opLineage;
+	shared_ptr<OperatorLineage> opLineage;
+	idx_t lineage_id;
+	idx_t lineage_output_count;
 private:
 	unique_ptr<CatalogEntry> RenameColumn(ClientContext &context, RenameColumnInfo &info);
 	unique_ptr<CatalogEntry> AddColumn(ClientContext &context, AddColumnInfo &info);

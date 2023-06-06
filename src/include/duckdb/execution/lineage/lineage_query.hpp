@@ -6,18 +6,29 @@
 //
 //===----------------------------------------------------------------------===//
 #ifdef LINEAGE
+#include "duckdb/execution/physical_operator.hpp"
 
 namespace duckdb {
 
-unique_ptr<PhysicalOperator> GenerateCustomLineagePlan(
-	PhysicalOperator* op,
-	ClientContext &cxt,
-	ChunkCollection* lineage_ids,
-	unique_ptr<PhysicalOperator> left,
-	bool simple_agg_flag,
-	vector<unique_ptr<PhysicalOperator>> *pipelines
+unique_ptr<PhysicalOperator> GenerateLineageQueryPlan(
+    PhysicalOperator* op,
+    ClientContext &cxt,
+    ChunkCollection* lineage_ids,
+    const string& mode,
+    bool should_count = false,
+    const string& input_table_name = ""
 );
 
+unique_ptr<PhysicalOperator> BuildLineagePipeline(
+    PhysicalOperator* op,
+    ClientContext &cxt,
+    ChunkCollection* lineage_ids,
+    unique_ptr<PhysicalOperator> left,
+    bool simple_agg_flag,
+    vector<unique_ptr<PhysicalOperator>> *pipelines
+);
+
+unique_ptr<PhysicalOperator> SwapRelationalLineageTablesForLineageQueryPlans(unique_ptr<PhysicalOperator> op, ClientContext &cxt);
 
 template <typename T>
 void Reverse(vector<unique_ptr<T>> *vec) {
@@ -38,6 +49,7 @@ unique_ptr<PhysicalOperator> CombineByMode(
 );
 
 vector<string> GetLineageTableNames(PhysicalOperator *op);
+idx_t GetLineageOpSize(OperatorLineage *op);
 
 } // namespace duckdb
 #endif
