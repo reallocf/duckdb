@@ -150,7 +150,7 @@ LineageProcessStruct OperatorLineage::GetLineageAsChunk(const vector<LogicalType
 				// Left side / probe side
 				if (dynamic_cast<LineageBinary&>(*this_data->data).left == nullptr) {
 					lhs_payload.SetVectorType(VectorType::CONSTANT_VECTOR);
-					ConstantVector::SetNull(rhs_payload, true);
+					ConstantVector::SetNull(lhs_payload, true);
 				} else {
 					Vector temp(types[0],  this_data->data->Process(this_data->child_offset));
 					lhs_payload.Reference(temp);
