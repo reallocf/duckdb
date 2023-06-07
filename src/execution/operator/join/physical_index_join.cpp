@@ -137,7 +137,7 @@ void PhysicalIndexJoin::Output(ExecutionContext &context, DataChunk &chunk, Phys
 	std::copy(fetch_rows.begin(), fetch_rows.end(), array.get());
 	auto lhs_lineage = make_unique<LineageSelVec>(move(sel), output_sel_idx);
 	auto rhs_lineage = make_unique<LineageDataArray<row_t>>(move(array), output_sel_idx);
-	lineage_op.at(context.task.thread_id)->Capture(make_shared<LineageBinary>(move(lhs_lineage), move(rhs_lineage)), LINEAGE_PROBE);
+	lineage_op.at(context.task.thread_id)->Capture(make_shared<LineageBinary>(move(lhs_lineage), move(rhs_lineage)), LINEAGE_PROBE, -1, state->child_state->out_start);
 #endif
 
 	state->result_size = output_sel_idx;

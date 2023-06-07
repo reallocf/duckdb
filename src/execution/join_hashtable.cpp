@@ -791,11 +791,8 @@ void ScanStructure::NextSingleJoin(DataChunk &keys, DataChunk &input, DataChunk 
 	// like the SEMI, ANTI and MARK join types, the SINGLE join only ever does one pass over the HT per input chunk
 	finished = true;
 }
-#ifdef LINEAGE
-void JoinHashTable::ScanFullOuter(DataChunk &result, JoinHTScanState &state, shared_ptr<OperatorLineage> lineage_op) {
-#else
+
 void JoinHashTable::ScanFullOuter(DataChunk &result, JoinHTScanState &state) {
-#endif
 	// scan the HT starting from the current position and check which rows from the build side did not find a match
 	Vector addresses(LogicalType::POINTER);
 	auto key_locations = FlatVector::GetData<data_ptr_t>(addresses);
@@ -841,14 +838,11 @@ void JoinHashTable::ScanFullOuter(DataChunk &result, JoinHTScanState &state) {
 			RowOperations::Gather(addresses, sel_vector, vector, sel_vector, found_entries, col_offset, col_no);
 		}
 #ifdef LINEAGE
-		auto rhs_lineage = make_unique<LineageDataArray<data_t>>(move(addresses.GetBuffer()->data), found_entries);
-		auto lineage_data = make_shared<LineageBinary>(nullptr, move(rhs_lineage));
-
-		auto nested_lineage = lineage_op->ConstructNestedData(move(lineage_data),
-		                                                                          LINEAGE_PROBE);
-		lineage_op->Capture(make_shared<LineageNested>(LineageNested(nested_lineage)), LINEAGE_PROBE);
-
-		lineage_op->MarkChunkReturned();
+		if (result.trace_lineage) {
+			auto rhs_lineage = make_unique<LineageDataArray<data_t>>(move(addresses.GetBuffer()->data), found_entries);
+			auto lineage_data = make_shared<LineageBinary>(nullptr, move(rhs_lineage));
+			result.cached_lineage_data = move(lineage_data);
+		}
 #endif
 	}
 }

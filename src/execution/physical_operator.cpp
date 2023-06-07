@@ -44,6 +44,12 @@ void PhysicalOperator::GetChunk(ExecutionContext &context, DataChunk &chunk, Phy
 	context.thread.profiler.StartOperator(this);
 	GetChunkInternal(context, chunk, state);
 #ifdef LINEAGE
+	// offset into the output partition
+	state->out_start = state->out_end;
+	state->out_end += chunk.size();
+#endif
+
+#ifdef LINEAGE
 	if (context.client.lineage_manager->persist_intermediate) {
 		lineage_op.at(context.task.thread_id)->chunk_collection.Append(chunk);
 	}

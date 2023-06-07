@@ -75,12 +75,12 @@ static void TableScanFunc(ClientContext &context, const FunctionData *bind_data_
 
 #ifdef LINEAGE
 	auto scan_lop = context.lineage_manager->GetCurrentLineageOp();
-	scan_lop->SetChunkId(state.scan_state.row_group_scan_state.chunk_id);
+	idx_t in_start = state.scan_state.row_group_scan_state.chunk_id * STANDARD_VECTOR_SIZE;
 	if (state.scan_state.row_group_scan_state.scan_lineage_data) {
-		scan_lop->Capture(move(state.scan_state.row_group_scan_state.scan_lineage_data), LINEAGE_UNARY);
+		scan_lop->Capture(move(state.scan_state.row_group_scan_state.scan_lineage_data), LINEAGE_UNARY, -1, in_start);
 	} else {
 		if (output.size() > 0) {
-			scan_lop->Capture( make_shared<LineageRange>(0, output.size()), LINEAGE_UNARY);
+			scan_lop->Capture( make_shared<LineageRange>(0, output.size()), LINEAGE_UNARY, -1, in_start);
 		}
 	}
 #endif
