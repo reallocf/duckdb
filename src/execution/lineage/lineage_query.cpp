@@ -597,21 +597,6 @@ unique_ptr<PhysicalOperator> CombineByMode(
 	return final_plan;
 }
 
-string FindNextLineageTableName(const unordered_set<string>& so_far, string name) {
-	string orig_name = name;
-	idx_t j = 0;
-	while (so_far.count(name) > 0) {
-		if (orig_name == name) {
-			// Add suffix for the first time
-			name = name + "_" + to_string(j++);
-		} else {
-			// Remove latest number and add the next one
-			name = name.substr(0, name.size() - 1) + to_string(j++);
-		}
-	}
-	return name;
-}
-
 unique_ptr<PhysicalOperator> SwapRelationalLineageTablesForLineageQueryPlans(unique_ptr<PhysicalOperator> op, ClientContext &ctx) {
 	if (op->type == PhysicalOperatorType::LINEAGE_SCAN) {
 		PhysicalLineageScan* lineage_scan = dynamic_cast<PhysicalLineageScan *>(op.get());

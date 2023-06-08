@@ -533,6 +533,21 @@ void LineageManager::IncrementQueryId() {
 	query_id++;
 }
 
+string FindNextLineageTableName(const unordered_set<string>& so_far, string name) {
+	string orig_name = name;
+	idx_t j = 0;
+	while (so_far.count(name) > 0) {
+		if (orig_name == name) {
+			// Add suffix for the first time
+			name = name + "_" + to_string(j++);
+		} else {
+			// Remove latest number and add the next one
+			name = name.substr(0, name.size() - 1) + to_string(j++);
+		}
+	}
+	return name;
+}
+
 vector<string> GetLineageTableNames(PhysicalOperator *op) {
 	vector<string> res;
 	unordered_set<string> res_set;
