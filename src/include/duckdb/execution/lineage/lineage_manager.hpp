@@ -49,6 +49,8 @@ private:
 	idx_t query_id = 0;
 };
 
+vector<string> GetLineageTableNames(PhysicalOperator *op);
+idx_t GetLineageOpSize(OperatorLineage *op);
 
 } // namespace duckdb
 #endif

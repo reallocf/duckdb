@@ -1,20 +1,15 @@
 #ifdef LINEAGE
 #include "duckdb/execution/lineage/lineage_manager.hpp"
 
-#include "duckdb/catalog/catalog_entry/index_catalog_entry.hpp"
-#include "duckdb/execution/index/lineage_index/lineage_index.hpp"
 #include "duckdb/execution/operator/join/physical_delim_join.hpp"
 #include "duckdb/execution/operator/join/physical_join.hpp"
 #include "duckdb/execution/operator/scan/physical_table_scan.hpp"
-#include "duckdb/function/table/table_scan.hpp"
 #include "duckdb/main/client_context.hpp"
 #include "duckdb/parser/parsed_data/create_index_info.hpp"
 #include "duckdb/parser/parsed_data/create_table_info.hpp"
 #include "duckdb/parser/statement/create_statement.hpp"
 #include "duckdb/planner/binder.hpp"
-#include "duckdb/planner/expression_binder/index_binder.hpp"
 #include "duckdb/planner/parsed_data/bound_create_table_info.hpp"
-#include "duckdb/storage/data_table.hpp"
 
 #include <utility>
 
@@ -536,6 +531,67 @@ idx_t LineageManager::LogQuery(const string& input_query, idx_t lineage_size) {
 
 void LineageManager::IncrementQueryId() {
 	query_id++;
+}
+
+vector<string> GetLineageTableNames(PhysicalOperator *op) {
+	vector<string> res;
+	unordered_set<string> res_set;
+
+	for (idx_t i = 0; i < op->children.size(); i++) {
+		vector<string> found = GetLineageTableNames(op->children[i].get());
+		// Resolve naming conflicts (self-joins)
+		// We do not always have an available alias, for example when there's a semi-join like
+		// select * from foo where id in (select id from foo) so instead we name these:
+		// foo, foo_1, foo_2, ...
+		// Note that we don't do foo_0 since many queries do not have self-joins, so we avoid the ugly suffix when possible
+		for (string name : found) {
+			name = FindNextLineageTableName(res_set, name);
+			res.push_back(name);
+			res_set.insert(name);
+		}
+	}
+
+	// TODO: multithreading
+	string table_name = op->lineage_op[-1]->table_name;
+	if (!table_name.empty()) {
+		table_name = FindNextLineageTableName(res_set, table_name);
+		res.push_back(table_name);
+		res_set.insert(table_name);
+	}
+
+	return res;
+}
+
+idx_t GetLineageOpSize(OperatorLineage *op) {
+	switch (op->type) {
+	case PhysicalOperatorType::FILTER:
+	case PhysicalOperatorType::INDEX_JOIN:
+	case PhysicalOperatorType::LIMIT:
+	case PhysicalOperatorType::ORDER_BY:
+	case PhysicalOperatorType::TABLE_SCAN: {
+		return op->GetThisOffset(LINEAGE_UNARY);
+	}
+	case PhysicalOperatorType::BLOCKWISE_NL_JOIN:
+	case PhysicalOperatorType::CROSS_PRODUCT:
+	case PhysicalOperatorType::HASH_JOIN:
+	case PhysicalOperatorType::PIECEWISE_MERGE_JOIN:
+	case PhysicalOperatorType::NESTED_LOOP_JOIN: {
+		return op->GetThisOffset(LINEAGE_PROBE);
+	}
+	case PhysicalOperatorType::HASH_GROUP_BY:
+	case PhysicalOperatorType::PERFECT_HASH_GROUP_BY: {
+		return op->GetThisOffset(LINEAGE_SOURCE);
+	}
+	case PhysicalOperatorType::PROJECTION: {
+		return GetLineageOpSize(op->children[0].get());
+	}
+	case PhysicalOperatorType::PRAGMA: {
+		return 0; // No op - we see this for PRAGMA TRACE_LINEAGE = 'ON'
+	}
+	default: {
+		throw std::logic_error("Unsupported PhysicalOperatorType for relational lineage querying");
+	}
+	}
 }
 
 } // namespace duckdb

@@ -38,5 +38,7 @@ struct SourceAndMaybeData {
 	shared_ptr<LineageDataWithOffset> data;
 };
 
+static LogicalType lineage_col_type = LogicalType::BIGINT;
+
 } // namespace duckdb
 #endif

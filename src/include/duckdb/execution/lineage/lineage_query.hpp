@@ -50,8 +50,5 @@ unique_ptr<PhysicalOperator> CombineByMode(
     vector<unique_ptr<PhysicalOperator>> other_plans
 );
 
-vector<string> GetLineageTableNames(PhysicalOperator *op);
-idx_t GetLineageOpSize(OperatorLineage *op);
-
 } // namespace duckdb
 #endif
