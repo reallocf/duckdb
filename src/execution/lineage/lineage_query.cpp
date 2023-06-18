@@ -774,8 +774,7 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 						auto this_data = agg_vec_ptr->at(key.chunk.inner_agg_idx);
 						idx_t val = this_data.data->data->Backward(this_data.source) + this_data.data->child_offset;
 						key.chunk.SetValue(0, out_idx, LineageColValue(val));
-						key.chunk.SetValue(1, out_idx, key.chunk.lineage_agg_out_cols->at(key.chunk.outer_agg_idx));
-						out_idx++;
+						key.chunk.SetValue(1, out_idx++, key.chunk.lineage_agg_out_cols->at(key.chunk.outer_agg_idx));
 						key.chunk.inner_agg_idx++;
 					}
 					if (key.chunk.inner_agg_idx < agg_vec_ptr->size()) {
@@ -790,8 +789,8 @@ void OperatorLineage::AccessIndex(LineageIndexStruct key) {
 					LineageDataWithOffset this_data = key.chunk.lineage_simple_agg_data->at(key.chunk.outer_simple_agg_idx);
 					while(out_idx < STANDARD_VECTOR_SIZE && key.chunk.inner_simple_agg_idx < this_data.data->Count()) {
 						idx_t val = this_data.data->Backward(key.chunk.inner_simple_agg_idx) + this_data.child_offset;
-						key.chunk.SetValue(0, out_idx++, LineageColValue(val));
-						key.chunk.SetValue(1, out_idx, key.chunk.lineage_simple_agg_out_col);
+						key.chunk.SetValue(0, out_idx, LineageColValue(val));
+						key.chunk.SetValue(1, out_idx++, key.chunk.lineage_simple_agg_out_col);
 						key.chunk.inner_simple_agg_idx++;
 					}
 					if (key.chunk.inner_simple_agg_idx < this_data.data->Count()) {

@@ -1,7 +1,6 @@
 import duckdb
 import psycopg2
 
-print("Loading TPC-H sf=1 into DuckDB")
 duckdb_conn = duckdb.connect(database=':memory:', read_only=False)
 sf = 0.1
 print(f"Loading TPC-H data with sf {sf}")
@@ -18,7 +17,7 @@ tables = [
     'region',
 ]
 
-print("Outputting TPC-H sf=1 from DuckDB into CSVs")
+print(f"Outputting TPC-H sf={sf} from DuckDB into CSVs")
 for table in tables:
     print(f"Outputting {table}.csv")
     duckdb_conn.execute(f"COPY {table} TO '{table}.csv' (HEADER, DELIMITER ',');")
@@ -136,7 +135,7 @@ print("Creating tables in ProvSQL")
 for table_sql in tables_to_create:
     cursor.execute(table_sql)
 
-print("Loading TPC-H sf=1 data from CSVs into ProvSQL")
+print(f"Loading TPC-H sf={sf} data from CSVs into ProvSQL")
 for table in tables:
     print(f"Loading table {table}")
     csv_file = f"{table}.csv"

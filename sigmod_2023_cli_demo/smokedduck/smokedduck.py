@@ -8,7 +8,7 @@ print(f"Loading TPC-H data with sf {sf}")
 con.execute(f"CALL dbgen(sf={sf});")
 sf2 = 1
 print(f"Also loading TPC-H data with sf {sf2}")
-con.execute(f"CALL dbgen(sf={sf2}, suffix=_sf{sf2})")
+con.execute(f"CALL dbgen(sf={sf2}, suffix='_sf{sf2}')")
 
 @app.route('/')
 def hello_world():

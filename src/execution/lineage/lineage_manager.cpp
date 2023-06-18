@@ -597,6 +597,9 @@ idx_t GetLineageOpSize(OperatorLineage *op) {
 	case PhysicalOperatorType::PERFECT_HASH_GROUP_BY: {
 		return op->GetThisOffset(LINEAGE_SOURCE);
 	}
+	case PhysicalOperatorType::SIMPLE_AGGREGATE: {
+		return 1;
+	}
 	case PhysicalOperatorType::PROJECTION: {
 		return GetLineageOpSize(op->children[0].get());
 	}

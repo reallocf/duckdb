@@ -2,7 +2,6 @@
 # description: Test Filter Lineage with Relational API
 # group: [relational]
 
-
 statement ok
 CREATE TABLE t1(i INTEGER);
 

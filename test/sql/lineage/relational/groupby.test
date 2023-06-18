@@ -3,9 +3,6 @@
 # group: [relational]
 
 statement ok
-PRAGMA trace_lineage = "OFF";
-
-statement ok
 CREATE TABLE t2(i VARCHAR(10), j INTEGER);
 
 statement ok

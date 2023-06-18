@@ -188,6 +188,7 @@ void PhysicalIndexJoin::Output(ExecutionContext &context, DataChunk &chunk, Phys
 		if (!state->child_chunk.next_lineage_simple_agg_data->empty()) {
 			chunk.lineage_simple_agg_data = move(state->child_chunk.next_lineage_simple_agg_data);
 			state->child_chunk.next_lineage_simple_agg_data = make_unique<vector<LineageDataWithOffset>>();
+			chunk.lineage_simple_agg_out_col = state->child_chunk.next_lineage_simple_agg_out_col;
 		}
 		state->result_size = state->child_chunk.size();
 		state->lhs_idx += state->child_chunk.size();
