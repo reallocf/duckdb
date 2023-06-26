@@ -42,8 +42,6 @@ public:
 	//! Create empty lineage tables for each operator
 	void CreateLineageTables(PhysicalOperator *op, idx_t query_id);
 
-	static shared_ptr<PipelineLineage> GetPipelineLineageNodeForOp(PhysicalOperator *op, int thd_id=-1);
-
 	void StoreQueryLineage(std::unique_ptr<PhysicalOperator> op, string query);
 
 	void SetCurrentLineageOp(shared_ptr<OperatorLineage> lop) {

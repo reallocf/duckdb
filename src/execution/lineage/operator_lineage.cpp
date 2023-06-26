@@ -7,16 +7,12 @@
 
 namespace duckdb {
 
-void OperatorLineage::Capture(const shared_ptr<LineageData>& datum, idx_t lineage_idx, int thread_id) {
+void OperatorLineage::Capture(const shared_ptr<LineageData>& datum, idx_t lineage_idx, int thread_id, idx_t child_offset) {
 	if (!trace_lineage || datum->Count() == 0) return;
-	// Prepare this vector's chunk to be passed on to future operators
-	pipeline_lineage->AdjustChunkOffsets(datum->Count(), lineage_idx);
 
 	// Set child ptr
 	datum->SetChild(GetChildLatest(lineage_idx));
 
-	// Capture this vector
-	idx_t child_offset = pipeline_lineage->GetChildChunkOffset(lineage_idx);
 	idx_t this_offset = GetThisOffset(lineage_idx);
 	if (lineage_idx == LINEAGE_COMBINE) {
 		data[lineage_idx].push_back(LineageDataWithOffset{datum, thread_id, this_offset});
@@ -26,21 +22,12 @@ void OperatorLineage::Capture(const shared_ptr<LineageData>& datum, idx_t lineag
 }
 
 
-shared_ptr<LineageDataWithOffset> OperatorLineage::ConstructNestedData(const shared_ptr<LineageData>& datum, idx_t lineage_idx) {
-	int child_offset = GetPipelineLineage()->GetChildChunkOffset(lineage_idx);
+shared_ptr<LineageDataWithOffset> OperatorLineage::ConstructNestedData(const shared_ptr<LineageData>& datum, idx_t lineage_idx, idx_t child_offset) {
 	idx_t this_offset =  GetThisOffset(lineage_idx);
 	datum->SetChild(GetChildLatest(lineage_idx));
 	auto lineage = make_shared<LineageDataWithOffset>(LineageDataWithOffset{
-	    move(datum), child_offset, this_offset});
+	    move(datum), (int)child_offset, this_offset});
 	return lineage;
-}
-
-shared_ptr<PipelineLineage> OperatorLineage::GetPipelineLineage() {
-	return pipeline_lineage;
-}
-
-void OperatorLineage::MarkChunkReturned() {
-	dynamic_cast<PipelineJoinLineage *>(pipeline_lineage.get())->MarkChunkReturned();
 }
 
 void fillBaseChunk(DataChunk &insert_chunk, idx_t res_count, Vector &lhs_payload, Vector &rhs_payload, idx_t count_so_far, Vector &thread_id_vec) {
@@ -230,10 +217,6 @@ LineageProcessStruct OperatorLineage::GetLineageAsChunk(const vector<LogicalType
 	}
 	data_idx++;
 	return LineageProcessStruct{ count_so_far, size, data_idx, stage_idx, data[stage_idx].size() > data_idx };
-}
-
-void OperatorLineage::SetChunkId(idx_t idx) {
-	dynamic_cast<PipelineScanLineage *>(pipeline_lineage.get())->SetChunkId(idx);
 }
 
 idx_t OperatorLineage::Size() {

@@ -129,6 +129,10 @@ public:
 	//! export data chunk as a arrow struct array that can be imported as arrow record batch
 	DUCKDB_API void ToArrowArray(ArrowArray *out_array);
 
+#ifdef LINEAGE
+	bool trace_lineage = false;
+	shared_ptr<LineageData> cached_lineage_data;
+#endif
 private:
 	//! The amount of tuples stored in the data chunk
 	idx_t count;

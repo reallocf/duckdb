@@ -268,17 +268,22 @@ void PhysicalHashJoin::GetChunkInternal(ExecutionContext &context, DataChunk &ch
 							state->cached_lineage.reset();
 							state->cached_lineage = make_shared<LineageNested>(LineageNested());
 						}
-						lineage_op.at(context.task.thread_id)->MarkChunkReturned();
 				}
 #endif
 			} else
 #endif
 			    if (IsRightOuterJoin(join_type)) {
-				// check if we need to scan any unmatched tuples from the RHS for the full/right outer join
 #ifdef LINEAGE
-				sink.hash_table->ScanFullOuter(chunk, sink.ht_scan_state, lineage_op.at(context.task.thread_id));
-#else
+				chunk.trace_lineage = context.client.lineage_manager->trace_lineage;
+#endif
+				// check if we need to scan any unmatched tuples from the RHS for the full/right outer join
 				sink.hash_table->ScanFullOuter(chunk, sink.ht_scan_state);
+#ifdef LINEAGE
+				if (chunk.cached_lineage_data) {
+					    auto nested_lineage = lineage_op.at(context.task.thread_id)->ConstructNestedData(move(chunk.cached_lineage_data ), LINEAGE_PROBE, state->child_state->out_start);
+					    lineage_op.at(context.task.thread_id)->Capture(make_shared<LineageNested>(LineageNested(nested_lineage)), LINEAGE_PROBE, -1, state->child_state->out_start);
+					    chunk.cached_lineage_data = nullptr;
+				}
 #endif
 			}
 			return;
@@ -291,7 +296,7 @@ void PhysicalHashJoin::GetChunkInternal(ExecutionContext &context, DataChunk &ch
 				if (context.client.lineage_manager->trace_lineage) {
 					// If we haven't pushed to the parent operator, child_offset remains the same (chunk merge)
 					auto lineage = lineage_op.at(context.task.thread_id)->ConstructNestedData(move(state->scan_structure->lineage_probe_data),
-					                                                                          LINEAGE_PROBE);
+					                                                                          LINEAGE_PROBE, state->child_state->out_start);
 					state->cached_lineage->AddLineage(lineage);
 				}
 #endif
@@ -306,7 +311,6 @@ void PhysicalHashJoin::GetChunkInternal(ExecutionContext &context, DataChunk &ch
 							state->cached_lineage.reset();
 							state->cached_lineage = make_shared<LineageNested>(LineageNested());
 						}
-						lineage_op.at(context.task.thread_id)->MarkChunkReturned();
 					}
 #endif
 					return;
@@ -320,10 +324,9 @@ void PhysicalHashJoin::GetChunkInternal(ExecutionContext &context, DataChunk &ch
 				if (context.client.lineage_manager->trace_lineage) {
 					if (state->scan_structure && state->scan_structure->lineage_probe_data) {
 						auto lineage = lineage_op.at(context.task.thread_id)->ConstructNestedData(move(state->scan_structure->lineage_probe_data),
-						                                                                          LINEAGE_PROBE);
+						                                                                          LINEAGE_PROBE, state->child_state->out_start);
 						lineage_op.at(context.task.thread_id)->Capture(make_shared<LineageNested>(LineageNested(lineage)), LINEAGE_PROBE);
 					}
-					lineage_op.at(context.task.thread_id)->MarkChunkReturned();
 				}
 #endif
 				return;
@@ -335,7 +338,6 @@ void PhysicalHashJoin::GetChunkInternal(ExecutionContext &context, DataChunk &ch
 				                                                                          LINEAGE_PROBE);
 				lineage_op.at(context.task.thread_id)->Capture(make_shared<LineageNested>(LineageNested(lineage)), LINEAGE_PROBE);
 			}
-			lineage_op.at(context.task.thread_id)->MarkChunkReturned();
 #endif
 			return;
 #endif

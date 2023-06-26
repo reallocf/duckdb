@@ -121,11 +121,7 @@ public:
 	//! Probe the HT with the given input chunk, resulting in the given result
 	unique_ptr<ScanStructure> Probe(DataChunk &keys);
 	//! Scan the HT to construct the final full outer join result after
-#ifdef LINEAGE
-	void ScanFullOuter(DataChunk &result, JoinHTScanState &state, shared_ptr<OperatorLineage> lineage_op);
-#else
 	void ScanFullOuter(DataChunk &result, JoinHTScanState &state);
-#endif
 	idx_t Count() {
 		return block_collection->count;
 	}

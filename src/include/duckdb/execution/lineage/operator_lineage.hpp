@@ -17,7 +17,6 @@
 #include "duckdb/catalog/catalog.hpp"
 #include "duckdb/common/types/chunk_collection.hpp"
 #include "duckdb/execution/lineage/lineage_data.hpp"
-#include "duckdb/execution/lineage/pipeline_lineage.hpp"
 
 #include <iostream>
 #include <utility>
@@ -42,25 +41,18 @@ struct LineageProcessStruct;
 class OperatorLineage {
 public:
 	explicit OperatorLineage(
-		shared_ptr<PipelineLineage> pipeline_lineage,
 		std::vector<shared_ptr<OperatorLineage>> children,
 	    PhysicalOperatorType type,
 	    idx_t opid,
 	    bool should_index
-	) : opid(opid), pipeline_lineage(move(pipeline_lineage)), type(type), children(move(children)), should_index(should_index) {}
+	) : opid(opid), type(type), children(move(children)), should_index(should_index) {}
 
-	void Capture(const shared_ptr<LineageData>& datum, idx_t lineage_idx, int thread_id=-1);
+	void Capture(const shared_ptr<LineageData>& datum, idx_t lineage_idx, int thread_id=-1, idx_t child_offset=0);
 
-	shared_ptr<PipelineLineage> GetPipelineLineage();
-	// Leaky... should refactor this so we don't need a pure pass-through function like this
-	void MarkChunkReturned();
-
-	shared_ptr<LineageDataWithOffset> ConstructNestedData(const shared_ptr<LineageData>& datum, idx_t lineage_idx);
+	shared_ptr<LineageDataWithOffset> ConstructNestedData(const shared_ptr<LineageData>& datum, idx_t lineage_idx, idx_t child_offset);
 
 	LineageProcessStruct GetLineageAsChunk(const vector<LogicalType>& types, idx_t count_so_far, DataChunk &insert_chunk, idx_t size= 0, int thread_id= -1, idx_t data_idx = 0, idx_t stage_idx = 0);
 
-	// Leaky... should refactor this so we don't need a pure pass-through function like this
-	void SetChunkId(idx_t idx);
 	idx_t Size();
 	shared_ptr<LineageDataWithOffset> GetMyLatest();
 	shared_ptr<LineageDataWithOffset> GetChildLatest(idx_t lineage_idx);
@@ -70,7 +62,6 @@ public:
 	idx_t opid;
 	bool trace_lineage;
 	ChunkCollection chunk_collection;
-	shared_ptr<PipelineLineage> pipeline_lineage;
 	// data[0] used by all ops; data[1] used by pipeline breakers
 	// Lineage data in here!
 	std::vector<LineageDataWithOffset> data[3];

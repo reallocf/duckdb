@@ -93,7 +93,7 @@ void PhysicalCrossProduct::GetChunkInternal(ExecutionContext &context, DataChunk
 	if (lineage_op.count(context.task.thread_id)) {
 		lineage_op.at(context.task.thread_id)->Capture(make_shared<LineageConstant>(
 			state->right_position,
-			left_chunk.size()), LINEAGE_PROBE);
+			left_chunk.size()), LINEAGE_PROBE, -1, state->child_state->out_start);
 	}
 #endif
 
