@@ -227,6 +227,17 @@ idx_t OperatorLineage::Size() {
 	}
 	return size;
 }
+idx_t OperatorLineage::Count() {
+  idx_t size = 0;
+  for (const auto& lineage_data : data[0]) {
+    size += lineage_data.data->Count();
+  }
+  for (const auto& lineage_data : data[1]) {
+    size += lineage_data.data->Size();
+  }
+  return size;
+}
+
 
 shared_ptr<LineageDataWithOffset> OperatorLineage::GetMyLatest() {
 	switch (type) {

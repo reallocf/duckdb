@@ -64,6 +64,7 @@ public:
 	void Debug() override;
 	data_ptr_t Process(idx_t offset) override;
 	idx_t Size() override {
+    if (count == 0) return 0;
 		return count * sizeof(vec.get_index(0));
 	}
 	idx_t At(idx_t) override;
