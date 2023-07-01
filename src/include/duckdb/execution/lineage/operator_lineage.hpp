@@ -49,8 +49,6 @@ public:
 
 	void Capture(const shared_ptr<LineageData>& datum, idx_t lineage_idx, int thread_id=-1, idx_t child_offset=0);
 
-	shared_ptr<LineageDataWithOffset> ConstructNestedData(const shared_ptr<LineageData>& datum, idx_t lineage_idx, idx_t child_offset);
-
 	LineageProcessStruct GetLineageAsChunk(const vector<LogicalType>& types, idx_t count_so_far, DataChunk &insert_chunk, idx_t size= 0, int thread_id= -1, idx_t data_idx = 0, idx_t stage_idx = 0);
 
 	idx_t Size();
@@ -67,7 +65,7 @@ public:
 	std::vector<LineageDataWithOffset> data[3];
 	idx_t op_offset[3];
 	PhysicalOperatorType type;
-	shared_ptr<LineageNested> cached_internal_lineage = nullptr;
+	shared_ptr<LineageVec> cached_internal_lineage = nullptr;
 	std::vector<shared_ptr<OperatorLineage>> children;
     bool should_index;
 	JoinType join_type;

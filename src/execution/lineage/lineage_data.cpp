@@ -83,35 +83,40 @@ idx_t LineageBinary::Size() {
 
 // LineageNested
 
-void LineageNested::Debug() {
-	std::cout << "LineageNested:" << std::endl;
-	for (const shared_ptr<LineageDataWithOffset>& lineage_data : lineage) {
-		std::cout << "    ";
-		lineage_data->data->Debug();
-	}
-	std::cout << "End LineageNested" << std::endl;
+void LineageVec::Debug() {
+	std::cout << "LineageVec:" << std::endl;
+  for (idx_t j = 0; j < lineage_vec->size(); ++j) {
+    (*lineage_vec)[j]->Debug();
+  }
+	std::cout << "End LineageVec" << std::endl;
 }
 
-void LineageNested::AddLineage(const shared_ptr<LineageDataWithOffset>& lineage_data) {
-	count += lineage_data->data->Count();
-	size += lineage_data->data->Size();
-	lineage.push_back(lineage_data);
-	index.push_back(count);
+idx_t LineageVec::BuildInnerIndex() {
+  if (index.size() > 0) return count;
+  idx_t inner_count = 0;
+  for (idx_t j = 0; j < lineage_vec->size(); ++j) {
+    inner_count += (*lineage_vec)[j]->Count();
+	  index.push_back(inner_count);
+  }
+  count = inner_count;
+  return inner_count;
 }
 
-shared_ptr<LineageDataWithOffset> LineageNested::GetInternal() {
-	return lineage[ret_idx++];
+LineageDataWithOffset LineageVec::GetInternal() {
+  auto data = (*lineage_vec)[ret_idx++];
+  return LineageDataWithOffset{ data, data->child_offset, 0 };
 }
 
-bool LineageNested::IsComplete() {
-	auto flag = ret_idx >= lineage.size();
+
+bool LineageVec::IsComplete() {
+	auto flag = ret_idx >= lineage_vec->size();
 	if (flag) {
 		ret_idx = 0;
 	}
 	return flag;
 }
 
-int LineageNested::LocateChunkIndex(idx_t source) {
+int LineageVec::LocateChunkIndex(idx_t source) {
 	// (1) locate which internal lineage_data to use
 	auto lower = lower_bound(index.begin(), index.end(), source);
 	if (lower == index.end()) {
@@ -125,11 +130,12 @@ int LineageNested::LocateChunkIndex(idx_t source) {
 	return lower-index.begin();
 }
 
-shared_ptr<LineageDataWithOffset>& LineageNested::GetChunkAt(idx_t index) {
-	return lineage[index];
+LineageDataWithOffset LineageVec::GetChunkAt(idx_t index) {
+  auto data = (*lineage_vec)[index++];
+  return LineageDataWithOffset{ data, data->child_offset, 0 };
 }
 
-idx_t LineageNested::GetAccCount(idx_t i) {
+idx_t LineageVec::GetAccCount(idx_t i) {
 	return index[i];
 }
 

@@ -18,16 +18,6 @@ void OperatorLineage::Capture(const shared_ptr<LineageData>& datum, idx_t lineag
 	data[lineage_idx].push_back(LineageDataWithOffset{datum, (int)child_offset, this_offset});
 }
 
-shared_ptr<LineageDataWithOffset> OperatorLineage::ConstructNestedData(const shared_ptr<LineageData>& datum, idx_t lineage_idx, idx_t child_offset) {
-	idx_t this_offset = op_offset[lineage_idx];
-	op_offset[lineage_idx] += datum->Count();
-
-	datum->SetChild(GetChildLatest(lineage_idx));
-	auto lineage = make_shared<LineageDataWithOffset>(LineageDataWithOffset{
-	    move(datum), (int)child_offset, this_offset});
-	return lineage;
-}
-
 void fillBaseChunk(DataChunk &insert_chunk, idx_t res_count, Vector &lhs_payload, Vector &rhs_payload, idx_t count_so_far, Vector &thread_id_vec) {
 	insert_chunk.SetCardinality(res_count);
 	insert_chunk.data[0].Reference(lhs_payload);
@@ -110,50 +100,54 @@ LineageProcessStruct OperatorLineage::GetLineageAsChunk(const vector<LogicalType
 				size += this_data.data->Size();
 			} else {
 				// schema: [INTEGER lhs_index, BIGINT rhs_index, INTEGER out_index]
+        auto pdata = data[LINEAGE_PROBE][data_idx].data;
 
 				// This is pretty hacky, but it's fine since we're just validating that we haven't broken HashJoins
 				// when introducing LineageNested
-				if (cached_internal_lineage == nullptr) {
-					cached_internal_lineage = make_shared<LineageNested>(
-					    dynamic_cast<LineageNested &>(*data[LINEAGE_PROBE][data_idx].data)
-					);
+				if (cached_internal_lineage == nullptr && (typeid(*pdata) == typeid(LineageVec))) {
+            cached_internal_lineage = make_shared<LineageVec>(dynamic_cast<LineageVec &>(*pdata));
 				}
 
-				shared_ptr<LineageDataWithOffset> this_data = cached_internal_lineage->GetInternal();
+        LineageDataWithOffset this_data;
+        if (cached_internal_lineage) {
+          this_data = cached_internal_lineage->GetInternal();
 
-				if (cached_internal_lineage->IsComplete()) {
-					cached_internal_lineage = nullptr; // Clear to prepare for next LineageNested
-				} else {
-					data_idx--; // Subtract one since later we'll add one and we don't want to move to the next data_idx yet
-				}
+          if (cached_internal_lineage->IsComplete()) {
+            cached_internal_lineage = nullptr; // Clear to prepare for next LineageNested
+          } else {
+            data_idx--; // Subtract one since later we'll add one and we don't want to move to the next data_idx yet
+          }
+        } else {
+          this_data = data[LINEAGE_PROBE][data_idx];
+        }
 
 				Vector lhs_payload(types[0]);
 				Vector rhs_payload(types[1]);
 
-				idx_t res_count = this_data->data->Count();
+				idx_t res_count = this_data.data->Count();
 
 				// Left side / probe side
-				if (dynamic_cast<LineageBinary&>(*this_data->data).left == nullptr) {
+				if (dynamic_cast<LineageBinary&>(*this_data.data).left == nullptr) {
 					lhs_payload.SetVectorType(VectorType::CONSTANT_VECTOR);
 					ConstantVector::SetNull(lhs_payload, true);
 				} else {
-					Vector temp(types[0],  this_data->data->Process(this_data->child_offset));
+					Vector temp(types[0],  this_data.data->Process(this_data.child_offset));
 					lhs_payload.Reference(temp);
 				}
 
 				// Right side / build side
-				if (dynamic_cast<LineageBinary&>(*this_data->data).right == nullptr) {
+				if (dynamic_cast<LineageBinary&>(*this_data.data).right == nullptr) {
 					rhs_payload.SetVectorType(VectorType::CONSTANT_VECTOR);
 					ConstantVector::SetNull(rhs_payload, true);
 				} else {
-					Vector temp(types[1],  this_data->data->Process(0));
+					Vector temp(types[1],  this_data.data->Process(0));
 					rhs_payload.Reference(temp);
 				}
 
 				fillBaseChunk(insert_chunk, res_count, lhs_payload, rhs_payload, count_so_far, thread_id_vec);
 
 				count_so_far += res_count;
-				size += this_data->data->Size();
+				size += this_data.data->Size();
 			}
 			break;
 		}

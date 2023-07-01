@@ -55,6 +55,7 @@ public:
 	idx_t count;
 	shared_ptr<LineageDataWithOffset> child;
 	bool processed;
+  idx_t child_offset;
 };
 
 struct LineageDataWithOffset {

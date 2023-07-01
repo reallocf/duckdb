@@ -174,52 +174,45 @@ private:
 	bool switch_on_left = true;
 };
 
-class LineageNested : public LineageData {
+class LineageVec : public LineageData {
 public:
-	LineageNested() : LineageData(0)  {
-#ifdef LINEAGE_DEBUG
-		Debug();
-#endif
-	}
-
-	explicit LineageNested(const shared_ptr<LineageDataWithOffset>& lineage_data) :
-	      LineageData(lineage_data->data->Count()), lineage({lineage_data}) {
-		size = lineage_data->data->Size();
-		index.push_back(count);
-#ifdef LINEAGE_DEBUG
-		Debug();
-#endif
+	LineageVec(shared_ptr<vector<shared_ptr<LineageData>>> lineage_vec) : LineageData(1),
+	          lineage_vec(lineage_vec) {
 	}
 	void Debug() override;
+  
 	data_ptr_t Process(idx_t offset) override {
 		throw std::logic_error("Can't call process on LineageNested");
 	}
+
 	// Do nothing since the children are set on the internal LineageData
 	void SetChild(shared_ptr<LineageDataWithOffset> c) override {}
+
 	shared_ptr<LineageDataWithOffset> GetChild() override {
 		throw std::logic_error("Can't call GetChild on LineageNested");
 	}
-	idx_t Size() override {
+	
+  idx_t Size() override {
 		return size;
 	}
+
 	idx_t At(idx_t) override {
 		throw std::logic_error("Can't call backward directly on LineageNested");
 	}
 
-	void AddLineage(const shared_ptr<LineageDataWithOffset>& lineage_data);
-	shared_ptr<LineageDataWithOffset> GetInternal();
+  idx_t BuildInnerIndex();
+	LineageDataWithOffset GetInternal();
 	bool IsComplete();
-	shared_ptr<LineageDataWithOffset>& GetChunkAt(idx_t index);
 	int LocateChunkIndex(idx_t source);
+	LineageDataWithOffset GetChunkAt(idx_t index);
 	idx_t GetAccCount(idx_t i);
-
+  
 private:
-	vector<shared_ptr<LineageDataWithOffset>> lineage = {};
-	idx_t ret_idx = 0;
-	idx_t size = 0;
+	shared_ptr<vector<shared_ptr<LineageData>>> lineage_vec;
 	vector<idx_t> index;
+	idx_t size = 0;
+	idx_t ret_idx = 0;
 };
-
 
 } // namespace duckdb
 #endif
