@@ -611,9 +611,8 @@ void ScanStructure::ConstructMarkJoinResult(DataChunk &join_keys, DataChunk &chi
 		memset(bool_result, 0, sizeof(bool) * child.size());
 	}
 #ifdef LINEAGE
-	SelectionVector lhs_sel(0, child.size());
 	auto rhs_lineage = make_unique<LineageDataArray<uintptr_t>>(move(key_locations_lineage), child.size());
-	auto lhs_lineage = make_unique<LineageSelVec>(move(lhs_sel), child.size());
+	auto lhs_lineage = make_unique<LineageRange>(0, child.size());
 	lineage_probe_data = make_shared<LineageBinary>(move(lhs_lineage), move(rhs_lineage));
 #endif
 	// if the right side contains NULL values, the result of any FALSE becomes NULL
@@ -783,9 +782,8 @@ void ScanStructure::NextSingleJoin(DataChunk &keys, DataChunk &input, DataChunk 
 	}
 	result.SetCardinality(input.size());
 #ifdef LINEAGE
-	SelectionVector lhs_sel(0, input.size());
 	auto rhs_lineage = make_unique<LineageDataArray<uintptr_t>>(move(key_locations_lineage), result_count);
-	auto lhs_lineage = make_unique<LineageSelVec>(move(lhs_sel),  input.size());
+	auto lhs_lineage = make_unique<LineageRange>(0, input.size());
 	lineage_probe_data = make_shared<LineageBinary>(move(lhs_lineage), move(rhs_lineage));
 #endif
 	// like the SEMI, ANTI and MARK join types, the SINGLE join only ever does one pass over the HT per input chunk
@@ -848,3 +846,4 @@ void JoinHashTable::ScanFullOuter(DataChunk &result, JoinHTScanState &state) {
 }
 
 } // namespace duckdb
+
