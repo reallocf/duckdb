@@ -12,7 +12,7 @@
 #include "duckdb/common/types/chunk_collection.hpp"
 #include "duckdb/common/types/value.hpp"
 #include "duckdb/common/unordered_map.hpp"
-#include "lineage_top.h"
+#include "lineage_top.hpp"
 
 #include <iostream>
 #include <utility>
