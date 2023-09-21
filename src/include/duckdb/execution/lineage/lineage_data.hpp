@@ -54,6 +54,28 @@ private:
 	unique_ptr<T[]> data;
 };
 
+// TODO get templating working like before - that would be better
+class LineageDataRowVector : public LineageData {
+public:
+	LineageDataRowVector(vector<row_t> vec_p, idx_t count) : LineageData(count), vec(move(vec_p)) {
+	}
+
+	void Debug() override;
+	data_ptr_t Process(idx_t offset) override;
+	
+  idx_t At(idx_t source) override {
+		D_ASSERT(source < count);
+		return (idx_t)vec[source];
+	}
+
+	idx_t Size() override { return count * sizeof(row_t); }
+
+private:
+	vector<row_t> vec;
+	idx_t count;
+};
+
+
 class LineageSelVec : public LineageData {
 public:
 	LineageSelVec(const SelectionVector& vec_p, idx_t count, idx_t in_offset=0) : LineageData(count), vec(vec_p), in_offset(in_offset) {

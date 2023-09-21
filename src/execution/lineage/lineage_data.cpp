@@ -4,6 +4,22 @@
 
 namespace duckdb {
 
+// LineageDataRowVector
+void LineageDataRowVector::Debug() {
+	std::cout << "LineageDataVector " << " " << typeid(vec).name() << std::endl;
+	for (idx_t i = 0; i < count; i++) {
+		std::cout << " (" << i << " -> " << vec[i] << ") ";
+	}
+	std::cout << std::endl;
+}
+
+data_ptr_t LineageDataRowVector::Process(idx_t offset) {
+	for (idx_t i = 0; i < count; i++) {
+		vec[i] += offset;
+	}
+	return (data_ptr_t)vec.data();
+}
+
 // LineageSelVec
 
 void LineageSelVec::Debug() {
