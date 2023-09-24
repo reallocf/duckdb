@@ -38,6 +38,11 @@ enum class PhysicalOperatorType : uint8_t;
 struct LineageDataWithOffset;
 struct LineageProcessStruct;
 
+struct SourceAndMaybeData {
+	idx_t source;
+	shared_ptr<LineageDataWithOffset> data;
+};
+
 class OperatorLineage {
 public:
 	explicit OperatorLineage(
@@ -55,6 +60,7 @@ public:
 	idx_t Count();
 	shared_ptr<LineageDataWithOffset> GetMyLatest();
 	shared_ptr<LineageDataWithOffset> GetChildLatest(idx_t lineage_idx);
+	void BuildIndexes();
 
 public:
 	idx_t opid;
@@ -69,6 +75,21 @@ public:
 	std::vector<shared_ptr<OperatorLineage>> children;
     bool should_index;
 	JoinType join_type;
+
+  /*  Indexes */
+  // index: used to index selection vectors
+  //        it stores the size of SV from each chunk
+  //        which helps in locating the one needed
+  //        using binary-search.
+  // Index for when we need to identify the chunk from a global offset
+  vector<idx_t> index;
+
+	// Index for hash aggregate
+  std::unordered_map<idx_t, vector<SourceAndMaybeData>> hash_map_agg;
+	// hash_chunk_count: maintain count of data that belong to previous ranges
+	vector<idx_t> hash_chunk_count;
+	// hm_range: maintains the existing ranges in hash join build side
+	std::vector<std::pair<idx_t, idx_t>> hm_range;
 };
 
 struct LineageProcessStruct {

@@ -374,5 +374,152 @@ LineageProcessStruct::LineageProcessStruct(idx_t i, idx_t i1, idx_t i2, idx_t i3
 	finished_idx = i3;
 	still_processing = b;
 }
+
+void OperatorLineage::BuildIndexes() {
+		switch (this->type) {
+		case PhysicalOperatorType::ORDER_BY:
+		case PhysicalOperatorType::FILTER:
+		case PhysicalOperatorType::INDEX_JOIN:
+		case PhysicalOperatorType::LIMIT:
+		case PhysicalOperatorType::TABLE_SCAN: {
+      // Binary Search Index
+			auto size = data[LINEAGE_UNARY].size();
+			index.reserve(size);
+      idx_t count_so_far = 0;
+      // O(number of chunks)
+      for (auto i=0; i < size; ++i) {
+			  count_so_far += data[LINEAGE_UNARY][i].data->Count();
+				index.push_back(count_so_far);
+      }
+
+			break;
+		}
+		case PhysicalOperatorType::HASH_JOIN: {
+      // Binary Search Index
+			auto size = data[LINEAGE_PROBE].size();
+			index.reserve(size);
+      idx_t count_so_far = 0;
+      // O(number of chunks)
+      for (auto i=0; i < size; ++i) {
+			  auto pdata = data[LINEAGE_PROBE][i].data;
+				if (typeid(*pdata) == typeid(LineageVec)) {
+          count_so_far += dynamic_cast<LineageVec&>(*pdata).BuildInnerIndex();
+        } else {
+			    count_so_far += data[LINEAGE_PROBE][i].data->Count();
+        }
+				index.push_back(count_so_far);
+      }
+
+			size = data[LINEAGE_BUILD].size();
+      idx_t start_base = 0;
+      idx_t last_base = 0;
+      uint64_t offset = 0;
+      if (size > 0) {
+        LineageDataWithOffset this_data = data[LINEAGE_BUILD][0];
+        auto payload = (uint64_t*)this_data.data->Process(0);
+        idx_t res_count = this_data.data->Count();
+        start_base = payload[0];
+        last_base = payload[res_count - 1];
+        hm_range.emplace_back(start_base, last_base);
+        hash_chunk_count.push_back(0);
+        if (offset == 0 && res_count > 1) {
+          offset = payload[1] - payload[0];
+        }
+      }
+
+      for (auto i=1; i < size; ++i) {
+        // build hash table with range -> acc
+        // if x in range -> then use range.start and adjust the value using acc
+        LineageDataWithOffset this_data = data[LINEAGE_BUILD][i];
+        auto payload = (uint64_t*)this_data.data->Process(0);
+        idx_t count_so_far = this_data.this_offset;
+        idx_t res_count = this_data.data->Count();
+        if (offset == 0) offset = payload[res_count - 1] - start_base;
+        auto diff = (payload[res_count - 1] - start_base) / offset;
+        if (diff + 1 !=  count_so_far + res_count - hash_chunk_count.back()) {
+          // update the range and log the old one
+          // range -> count
+          // if value fall in this range, then remove the start / offset
+          for (idx_t j = 0; j < res_count; ++j) {
+            auto f = ((payload[j] - start_base) / offset);
+            auto s = count_so_far + j - hash_chunk_count.back();
+            if ( f !=  s) {
+              if (j > 1) {
+                hm_range.back().second = payload[j - 1]; // the previous one
+              }
+              hash_chunk_count.push_back(count_so_far + j);
+              start_base = payload[j];
+              last_base = payload[res_count - 1];
+              hm_range.emplace_back(start_base, last_base);
+              break;
+            }
+          }
+        } else {
+          hm_range.back().second = payload[res_count - 1];
+        }
+      }
+			break;
+		}
+		case PhysicalOperatorType::HASH_GROUP_BY:
+		case PhysicalOperatorType::PERFECT_HASH_GROUP_BY: {
+			// Hash Aggregate / Perfect Hash Aggregate
+			auto size = data[LINEAGE_SINK].size();
+      idx_t count_so_far = 0;
+			// build hash table
+      if (type == PhysicalOperatorType::PERFECT_HASH_GROUP_BY) {
+        for (auto i=0; i < size; i++) {
+          LineageDataWithOffset this_data = data[LINEAGE_SINK][i];
+          idx_t res_count = this_data.data->Count();
+          auto payload = (sel_t*)this_data.data->Process(0);
+          for (idx_t j=0; j < res_count; ++j) {
+            hash_map_agg[(idx_t)payload[j]].push_back({j + count_so_far, nullptr});
+          }
+          count_so_far += res_count;
+        }
+      } else {
+        for (auto i=0; i < size; i++) {
+          LineageDataWithOffset this_data = data[LINEAGE_SINK][i];
+          idx_t res_count = this_data.data->Count();
+          auto payload = (uint64_t*)this_data.data->Process(0);
+          for (idx_t j=0; j < res_count; ++j) {
+            hash_map_agg[(idx_t)payload[j]].push_back({j + count_so_far, nullptr});
+          }
+          count_so_far += res_count;
+        }
+      }
+
+      // Scan side
+      // Binary Search Index
+			size = data[LINEAGE_SOURCE].size();
+			index.reserve(size);
+      count_so_far = 0;
+      // O(number of chunks)
+      for (auto i=0; i < size; ++i) {
+			  count_so_far += data[LINEAGE_UNARY][i].data->Count();
+				index.push_back(count_so_far);
+      }
+			break;
+		}
+		case PhysicalOperatorType::BLOCKWISE_NL_JOIN:
+		case PhysicalOperatorType::CROSS_PRODUCT:
+		case PhysicalOperatorType::PIECEWISE_MERGE_JOIN:
+		case PhysicalOperatorType::NESTED_LOOP_JOIN: {
+      // Binary Search Index
+			auto size = data[LINEAGE_PROBE].size();
+			index.reserve(size);
+      idx_t count_so_far = 0;
+      // O(number of chunks)
+      for (auto i=0; i < size; ++i) {
+			  count_so_far += data[LINEAGE_PROBE][i].data->Count();
+				index.push_back(count_so_far);
+      }
+			break;
+		}
+		default:
+			// We must capture lineage for everything getting post-processed
+			D_ASSERT(false);
+		}
+}
+
 } // namespace duckdb
 #endif

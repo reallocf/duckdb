@@ -51,6 +51,26 @@ unique_ptr<FunctionOperatorData> DuckDBQueriesListInit(ClientContext &context, c
 	return std::move(result);
 }
 
+void PostProcess(PhysicalOperator *op, bool should_index) {
+	// massage the data to make it easier to query
+  // for hash join, build hash table on the build side that map the address to id
+  // for group by, build hash table on the unique groups
+  for (auto const& lineage_op : op->lineage_op) {
+    lineage_op.second->BuildIndexes();
+  }
+
+	if (op->type == PhysicalOperatorType::DELIM_JOIN) {
+		PostProcess( dynamic_cast<PhysicalDelimJoin *>(op)->children[0].get(), true);
+		PostProcess( dynamic_cast<PhysicalDelimJoin *>(op)->join.get(), true);
+		PostProcess( (PhysicalOperator *)dynamic_cast<PhysicalDelimJoin *>(op)->distinct.get(), true);
+		return;
+	}
+
+	for (idx_t i = 0; i < op->children.size(); i++) {
+		PostProcess(op->children[i].get(), should_index);
+	}
+}
+
 std::vector<idx_t> GetStats(PhysicalOperator *op) {
   if (!op) {
     std::cout << "null" << std::endl;
@@ -115,9 +135,10 @@ void DuckDBQueriesListFunction(ClientContext &context, const FunctionData *bind_
 		string query = queryid_to_query[data.offset];
     std::cout << "id: " << data.offset << " " << query << std::endl;
     auto plan = context.lineage_manager->queryid_to_plan[data.offset].get();
-    clock_t start = clock();
 
     auto stats = GetStats(plan);
+    clock_t start = clock();
+    PostProcess(plan, true);
     clock_t end = clock();
 		idx_t col = 0;
 		// query_id, INT
