@@ -92,7 +92,11 @@ def lineage_capture_provsql(q):
         provsql_cursor.execute(q)
         res = provsql_cursor.fetchall()
     except psycopg2.Error:
-        red_print('Timeout or unsupported ProvSQL semantics')
+        end = time.time()
+        if end - start > timeout:
+            red_print(f'Timeout after {timeout} seconds')
+        else:
+            red_print('Unsupported ProvSQL semantics')
     else:
         end = time.time()
         t = end - start
@@ -106,6 +110,17 @@ def lineage_query_smokedduck(q):
     }
     resp = requests.post(smokedduck_url, json=payload)
     print_relation(resp.json()['res'])
+
+def no_lineage_capture_smokedduck(q):
+    start = time.time()
+    payload = {
+        'query': q,
+        'capture': False,
+    }
+    resp = requests.post(smokedduck_url, json=payload)
+    print_relation(resp.json()['res'])
+    end = time.time()
+    print(f'SmokedDuck w/o Lineage Capture Time: {end - start}')
 
 def build_figure(smokedduck_t, perm_t, provsql_t):
     df_map = {'System': [], 'Duration': []}
@@ -169,22 +184,32 @@ Type ? to view other commands.
         args = inp.split()
         if len(args) == 0:
             print("Must provide a query id")
-        elif len(args) == 1:
+        elif len(args) == 1 or (len(args) == 2 and args[1] == 'nolin'):
             query = tpch_queries.sf01[int(args[0]) - 1]
-            print("Executing the following query:")
-            print(query)
-            smokedduck_res, smokedduck_t = lineage_capture_smokedduck(query)
-            _, perm_t = lineage_capture_perm(query)
-            _, provsql_t = lineage_capture_provsql(query)
-            print("Query results:")
-            print_relation(smokedduck_res)
-            build_figure(smokedduck_t, perm_t, provsql_t)
+            if len(args) == 2 and args[1] == 'nolin':
+                print("Executing the following query without lineage capture:")
+                print(query)
+                no_lineage_capture_smokedduck(query)
+            else:
+                print("Executing the following query:")
+                print(query)
+                smokedduck_res, smokedduck_t = lineage_capture_smokedduck(query)
+                _, perm_t = lineage_capture_perm(query)
+                _, provsql_t = lineage_capture_provsql(query)
+                print("Query results:")
+                print_relation(smokedduck_res)
+                build_figure(smokedduck_t, perm_t, provsql_t)
         elif args[1] == 'sf1':
             query = tpch_queries.sf1[int(args[0]) - 1]
-            print("Executing the following query at sf1:")
-            print(query)
-            smokedduck_res, _ = lineage_capture_smokedduck(query)
-            print_relation(smokedduck_res)
+            if len(args) == 3 and args[2] == 'nolin':
+                print("Executing the following query without lineage capture at sf1:")
+                print(query)
+                no_lineage_capture_smokedduck(query)
+            else:
+                print("Executing the following query at sf1:")
+                print(query)
+                smokedduck_res, _ = lineage_capture_smokedduck(query)
+                print_relation(smokedduck_res)
 
     def default(self, inp):
         if 'lineage' in inp.lower():
