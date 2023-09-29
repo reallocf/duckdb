@@ -56,7 +56,6 @@ public:
 	idx_t Size();
 	shared_ptr<LineageDataWithOffset> GetMyLatest();
 	shared_ptr<LineageDataWithOffset> GetChildLatest(idx_t lineage_idx);
-	idx_t GetThisOffset(idx_t lineage_idx);
 
 public:
 	idx_t opid;
@@ -65,6 +64,7 @@ public:
 	// data[0] used by all ops; data[1] used by pipeline breakers
 	// Lineage data in here!
 	std::vector<LineageDataWithOffset> data[3];
+	idx_t op_offset[3];
 	PhysicalOperatorType type;
 	shared_ptr<LineageNested> cached_internal_lineage = nullptr;
 	std::vector<shared_ptr<OperatorLineage>> children;

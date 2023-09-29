@@ -13,17 +13,15 @@ void OperatorLineage::Capture(const shared_ptr<LineageData>& datum, idx_t lineag
 	// Set child ptr
 	datum->SetChild(GetChildLatest(lineage_idx));
 
-	idx_t this_offset = GetThisOffset(lineage_idx);
-	if (lineage_idx == LINEAGE_COMBINE) {
-		data[lineage_idx].push_back(LineageDataWithOffset{datum, thread_id, this_offset});
-	} else {
-		data[lineage_idx].push_back(LineageDataWithOffset{datum, (int)child_offset, this_offset});
-	}
+	idx_t this_offset = op_offset[lineage_idx];
+	op_offset[lineage_idx] += datum->Count();
+	data[lineage_idx].push_back(LineageDataWithOffset{datum, (int)child_offset, this_offset});
 }
 
-
 shared_ptr<LineageDataWithOffset> OperatorLineage::ConstructNestedData(const shared_ptr<LineageData>& datum, idx_t lineage_idx, idx_t child_offset) {
-	idx_t this_offset =  GetThisOffset(lineage_idx);
+	idx_t this_offset = op_offset[lineage_idx];
+	op_offset[lineage_idx] += datum->Count();
+
 	datum->SetChild(GetChildLatest(lineage_idx));
 	auto lineage = make_shared<LineageDataWithOffset>(LineageDataWithOffset{
 	    move(datum), (int)child_offset, this_offset});
@@ -362,11 +360,6 @@ shared_ptr<LineageDataWithOffset> OperatorLineage::GetChildLatest(idx_t lineage_
 		// Lineage unimplemented! TODO these :)
 		return {};
 	}
-}
-
-idx_t OperatorLineage::GetThisOffset(idx_t lineage_idx) {
-	idx_t last_data_idx = data[lineage_idx].size() - 1;
-	return data[lineage_idx].empty() ? 0 : data[lineage_idx][last_data_idx].this_offset + data[lineage_idx][last_data_idx].data->Count();
 }
 
 LineageProcessStruct::LineageProcessStruct(idx_t i, idx_t i1, idx_t i2, idx_t i3, bool b) {
