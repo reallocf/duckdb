@@ -50,9 +50,9 @@ void PhysicalOperator::GetChunk(ExecutionContext &context, DataChunk &chunk, Phy
 #endif
 
 #ifdef LINEAGE
-	if (context.client.lineage_manager->persist_intermediate) {
+	/*if (context.client.lineage_manager->persist_intermediate) {
 		lineage_op.at(context.task.thread_id)->chunk_collection.Append(chunk);
-	}
+	}*/
 #endif
 	context.thread.profiler.EndOperator(&chunk);
 
