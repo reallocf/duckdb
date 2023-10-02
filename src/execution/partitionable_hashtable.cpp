@@ -113,13 +113,28 @@ idx_t PartitionableHashTable::AddChunk(DataChunk &groups, DataChunk &payload, bo
 	D_ASSERT(total_count == groups.size());
 #endif
 	idx_t group_count = 0;
+	shared_ptr<vector<shared_ptr<LineageData>>> lineage_per_partition = make_shared<vector<shared_ptr<LineageData>>>();
 	for (hash_t r = 0; r < partition_info.n_partitions; r++) {
 		group_subset.Slice(groups, sel_vectors[r], sel_vector_sizes[r]);
 		payload_subset.Slice(payload, sel_vectors[r], sel_vector_sizes[r]);
 		hashes_subset.Slice(hashes, sel_vectors[r], sel_vector_sizes[r]);
-
 		group_count += ListAddChunk(radix_partitioned_hts[r], group_subset, hashes_subset, payload_subset);
+#ifdef LINEAGE
+		if (radix_partitioned_hts[r].back()->lineage_data) {
+			auto sel = make_shared<LineageSelVec>(sel_vectors[r], sel_vector_sizes[r]);
+			auto partition_lineage = make_shared<LineageBinary>(move(sel), move(radix_partitioned_hts[r].back()->lineage_data));
+			lineage_per_partition->push_back(move(partition_lineage));
+			sel_vectors[r].Initialize();
+		}
+#endif
 	}
+#ifdef LINEAGE
+	// if partition, include partition lineage
+	if (lineage_data) {
+		lineage_data = make_unique<LineageBinary>(make_shared<LineageVec>(move(lineage_per_partition)), move(lineage_data));
+	}
+#endif
+
 	return group_count;
 }
 
@@ -129,6 +144,7 @@ void PartitionableHashTable::Partition() {
 	D_ASSERT(partition_info.n_partitions > 1);
 
 	vector<GroupedAggregateHashTable *> partition_hts;
+	shared_ptr<vector<shared_ptr<LineageData>>> lineage_per_ht = make_shared<vector<shared_ptr<LineageData>>>();
 	for (auto &unpartitioned_ht : unpartitioned_hts) {
 		for (idx_t r = 0; r < partition_info.n_partitions; r++) {
 			radix_partitioned_hts[r].push_back(make_unique<GroupedAggregateHashTable>(
@@ -136,8 +152,19 @@ void PartitionableHashTable::Partition() {
 			partition_hts.push_back(radix_partitioned_hts[r].back().get());
 		}
 		unpartitioned_ht->Partition(partition_hts, partition_info.radix_mask, partition_info.RADIX_SHIFT);
+#ifdef LINEAGE
+		if (unpartitioned_ht->lineage_data) {
+			// "capture lineage from partition: 1. gather data from unpartitioned_hts"
+			// " 2. scatter data to new partition hts from each partition in the partition_hts; n partitions per unpartitioned_hts"
+			lineage_per_ht->push_back(move(unpartitioned_ht->lineage_data));
+		}
+
+#endif
 		unpartitioned_ht.reset();
 	}
+#ifdef LINEAGE
+	lineage_data = make_unique<LineageVec>(move(lineage_per_ht));
+#endif
 	unpartitioned_hts.clear();
 	is_partitioned = true;
 }

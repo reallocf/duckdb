@@ -27,6 +27,7 @@
 #define LINEAGE_UNARY 0
 #define LINEAGE_SINK 0
 #define LINEAGE_COMBINE 2
+#define LINEAGE_FINALIZE 3
 #define LINEAGE_SOURCE 1
 #define LINEAGE_BUILD 0
 #define LINEAGE_PROBE 1
@@ -68,8 +69,8 @@ public:
 	ChunkCollection chunk_collection;
 	// data[0] used by all ops; data[1] used by pipeline breakers
 	// Lineage data in here!
-	std::vector<LineageDataWithOffset> data[3];
-	idx_t op_offset[3];
+	std::vector<LineageDataWithOffset> data[4];
+	idx_t op_offset[4];
 	PhysicalOperatorType type;
 	shared_ptr<LineageVec> cached_internal_lineage = nullptr;
 	std::vector<shared_ptr<OperatorLineage>> children;

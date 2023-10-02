@@ -554,9 +554,9 @@ void GroupedAggregateHashTable::FlushMove(Vector &source_addresses, Vector &sour
 	RowOperations::CombineStates(layout, source_addresses, group_addresses, count);
 
 #ifdef LINEAGE
-	auto source_lineage = make_unique<LineageDataArray<data_t>>(move(source_addresses.GetBuffer()->data),  count);
+	/*auto source_lineage = make_unique<LineageDataArray<data_t>>(move(source_addresses.GetBuffer()->data),  count);
 	auto new_lineage =  make_unique<LineageDataArray<data_t>>(move(group_addresses.GetBuffer()->data),  count);
-	combine_lineage_data.push_back(make_unique<LineageBinary>(move(source_lineage), move(new_lineage)));
+	combine_lineage_data->push_back(make_unique<LineageBinary>(move(source_lineage), move(new_lineage)));*/
 #endif
 }
 
@@ -632,6 +632,11 @@ void GroupedAggregateHashTable::Partition(vector<GroupedAggregateHashTable *> &p
 		if (info.group_count == STANDARD_VECTOR_SIZE) {
 			D_ASSERT(partition_hts[partition]);
 			partition_hts[partition]->FlushMove(info.addresses, info.hashes, info.group_count);
+
+#ifdef LINEAGE
+			info.addresses.Initialize();
+			info.addresses_ptr = FlatVector::GetData<data_ptr_t>(info.addresses);
+#endif
 			info.group_count = 0;
 		}
 	});
@@ -641,7 +646,6 @@ void GroupedAggregateHashTable::Partition(vector<GroupedAggregateHashTable *> &p
 	for (auto &partition_entry : partition_hts) {
 		auto &info = partition_info[info_idx++];
 		partition_entry->FlushMove(info.addresses, info.hashes, info.group_count);
-
 		partition_entry->string_heap->Merge(*string_heap);
 		partition_entry->Verify();
 		total_count += partition_entry->Size();

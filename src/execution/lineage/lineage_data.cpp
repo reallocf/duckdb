@@ -120,7 +120,7 @@ idx_t LineageVec::BuildInnerIndex() {
 
 LineageDataWithOffset LineageVec::GetInternal() {
   auto data = (*lineage_vec)[ret_idx++];
-  return LineageDataWithOffset{ data, data->child_offset, 0 };
+  return LineageDataWithOffset{ data, (int)data->child_offset, 0 };
 }
 
 
@@ -148,7 +148,7 @@ int LineageVec::LocateChunkIndex(idx_t source) {
 
 LineageDataWithOffset LineageVec::GetChunkAt(idx_t index) {
   auto data = (*lineage_vec)[index++];
-  return LineageDataWithOffset{ data, data->child_offset, 0 };
+  return LineageDataWithOffset{ data, (int)data->child_offset, 0 };
 }
 
 idx_t LineageVec::GetAccCount(idx_t i) {

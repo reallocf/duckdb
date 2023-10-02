@@ -187,6 +187,8 @@ void PhysicalHashAggregate::Sink(ExecutionContext &context, GlobalOperatorState 
 
 	// if we have non-combinable aggregates (e.g. string_agg) or any distinct aggregates we cannot keep parallel hash
 	// tables
+	// 	return !all_combinable || any_distinct || gstate.partition_info.n_partitions < 2;
+	// gstate.partition_info.n_partitions  -> number of threads
 	if (ForceSingleHT(state)) {
 		lock_guard<mutex> glock(gstate.lock);
 		gstate.is_empty = gstate.is_empty && group_chunk.size() == 0;
@@ -222,11 +224,18 @@ void PhysicalHashAggregate::Sink(ExecutionContext &context, GlobalOperatorState 
 	    llstate.ht->AddChunk(group_chunk, aggregate_input_chunk,
 	                         gstate.total_groups > radix_limit && gstate.partition_info.n_partitions > 1);
 #ifdef LINEAGE
+	// single threaded or multi threaded each can be partitioned or unpartitioned
 	if (!llstate.ht->IsPartitioned()) {
-		lineage_op.at(context.task.thread_id)->Capture(move(llstate.ht->unpartitioned_hts.back()->lineage_data), LINEAGE_SINK);
+		if (llstate.ht->unpartitioned_hts.back()->lineage_data) {
+			lineage_op.at(context.task.thread_id)->Capture(move(llstate.ht->unpartitioned_hts.back()->lineage_data), LINEAGE_SINK);
+		}
 	} else {
-		// handle radix_partitioned_hts case
-		// persist: sel_vectors[partition]  radix_partitioned_hts[partition]->lineage_data
+#ifdef LINEAGE
+		if (llstate.ht->lineage_data) {
+			lineage_op.at(context.task.thread_id)->Capture(move(llstate.ht->lineage_data), LINEAGE_SINK);
+			llstate.ht->lineage_data = nullptr;
+		}
+#endif
 	}
 
 #endif
@@ -270,6 +279,8 @@ void PhysicalHashAggregate::Combine(ExecutionContext &context, GlobalOperatorSta
 
 	if (!llstate.ht->IsPartitioned() && gstate.partition_info.n_partitions > 1 && gstate.total_groups > radix_limit) {
 		llstate.ht->Partition();
+		lineage_op.at(context.task.thread_id)->Capture(move(llstate.ht->lineage_data), LINEAGE_COMBINE, context.task.thread_id);
+		llstate.ht->lineage_data = nullptr;
 	}
 
 	lock_guard<mutex> glock(gstate.lock);
@@ -302,7 +313,8 @@ public:
 			for (auto &ht : pht->GetPartition(radix)) {
 				gstate.finalized_hts[radix]->Combine(*ht);
 #ifdef LINEAGE
-				gstate.finalized_hts[radix]->combine_lineage_data.clear();
+				gstate.op.lineage_op.at(pht->thread_id)->Capture(make_shared<LineageVec>(move(gstate.finalized_hts[radix]->combine_lineage_data)), LINEAGE_FINALIZE, pht->thread_id);
+				gstate.finalized_hts[radix]->combine_lineage_data = make_shared<vector<shared_ptr<LineageData>>>();
 #endif
 				ht.reset();
 			}
@@ -398,9 +410,9 @@ bool PhysicalHashAggregate::FinalizeInternal(ClientContext &context, unique_ptr<
 				D_ASSERT(unpartitioned_ht);
 				gstate.finalized_hts[0]->Combine(*unpartitioned_ht);
 #ifdef LINEAGE
-				for (idx_t i=0; gstate.finalized_hts[0]->combine_lineage_data.size(); ++i) {
-				  lineage_op.begin()->second->Capture(move(gstate.finalized_hts[0]->combine_lineage_data[i]), LINEAGE_COMBINE, pht->thread_id);
-				  gstate.finalized_hts[0]->combine_lineage_data.clear();
+				if (lineage_op.size() > 0 && gstate.finalized_hts[0]->combine_lineage_data->size() > 0) {
+					lineage_op.begin()->second->Capture(make_shared<LineageVec>(move(gstate.finalized_hts[0]->combine_lineage_data)), LINEAGE_COMBINE, pht->thread_id);
+					gstate.finalized_hts[0]->combine_lineage_data = make_shared<vector<shared_ptr<LineageData>>>();
 				}
 #endif
 				unpartitioned_ht.reset();

@@ -12,6 +12,10 @@
 #include "duckdb/function/function.hpp"
 #include "duckdb/storage/statistics/node_statistics.hpp"
 
+#ifdef LINEAGE
+#include "duckdb/execution/lineage/operator_lineage.hpp"
+#endif
+
 #include <functional>
 
 namespace duckdb {
@@ -23,6 +27,10 @@ class TableFilterSet;
 struct FunctionOperatorData {
 	virtual ~FunctionOperatorData() {
 	}
+#ifdef LINEAGE
+	//! cached operator lineage to be accessed from function calls that don't have access to operator members
+	shared_ptr<OperatorLineage> current_lop;
+#endif
 };
 
 struct TableFilterCollection {

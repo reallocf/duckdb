@@ -39,9 +39,6 @@ void PhysicalTableScan::GetChunkInternal(ExecutionContext &context, DataChunk &c
 	if (column_ids.empty()) {
 		return;
 	}
-#ifdef LINEAGE
-    context.client.lineage_manager->SetCurrentLineageOp(lineage_op.at(context.task.thread_id));
-#endif
 	if (!state.initialized) {
 		state.parallel_state = nullptr;
 		if (function.init) {
@@ -59,6 +56,9 @@ void PhysicalTableScan::GetChunkInternal(ExecutionContext &context, DataChunk &c
 				// sequential scan init
 				state.operator_data = function.init(context.client, bind_data.get(), column_ids, &filters);
 			}
+#ifdef LINEAGE
+			state.operator_data->current_lop = lineage_op.at(context.task.thread_id);
+#endif
 			if (!state.operator_data) {
 				// no operator data returned: nothing to scan
 				return;
@@ -66,6 +66,7 @@ void PhysicalTableScan::GetChunkInternal(ExecutionContext &context, DataChunk &c
 		}
 		state.initialized = true;
 	}
+
 	if (!state.parallel_state) {
 		// sequential scan
 		function.function(context.client, bind_data.get(), state.operator_data.get(), nullptr, chunk);

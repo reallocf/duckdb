@@ -74,7 +74,7 @@ static void TableScanFunc(ClientContext &context, const FunctionData *bind_data_
 	bind_data.table->storage->Scan(transaction, output, state.scan_state, state.column_ids);
 
 #ifdef LINEAGE
-	auto scan_lop = context.lineage_manager->GetCurrentLineageOp();
+	auto scan_lop = state.current_lop;
 	idx_t in_start = state.scan_state.row_group_scan_state.chunk_id * STANDARD_VECTOR_SIZE;
 	if (state.scan_state.row_group_scan_state.scan_lineage_data) {
 		scan_lop->Capture(move(state.scan_state.row_group_scan_state.scan_lineage_data), LINEAGE_UNARY, -1, in_start);

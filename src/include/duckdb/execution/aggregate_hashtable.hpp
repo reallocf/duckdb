@@ -117,7 +117,7 @@ public:
 
 #ifdef LINEAGE
 	unique_ptr<LineageData> lineage_data;
-	vector<unique_ptr<LineageData>> combine_lineage_data;
+	shared_ptr<vector<shared_ptr<LineageData>>> combine_lineage_data = make_shared<vector<shared_ptr<LineageData>>>();
 #endif
 
 private:

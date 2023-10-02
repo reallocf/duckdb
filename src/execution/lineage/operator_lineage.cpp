@@ -505,11 +505,11 @@ void OperatorLineage::BuildIndexes() {
 		case PhysicalOperatorType::PIECEWISE_MERGE_JOIN:
 		case PhysicalOperatorType::NESTED_LOOP_JOIN: {
       // Binary Search Index
-			auto size = data[LINEAGE_PROBE].size();
+			idx_t size = data[LINEAGE_PROBE].size();
 			index.reserve(size);
       idx_t count_so_far = 0;
       // O(number of chunks)
-      for (auto i=0; i < size; ++i) {
+      for (idx_t i=0; i < size; ++i) {
 			  count_so_far += data[LINEAGE_PROBE][i].data->Count();
 				index.push_back(count_so_far);
       }

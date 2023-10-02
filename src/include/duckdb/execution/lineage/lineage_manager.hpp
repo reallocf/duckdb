@@ -44,19 +44,8 @@ public:
 
 	void StoreQueryLineage(std::unique_ptr<PhysicalOperator> op, string query);
 
-	void SetCurrentLineageOp(shared_ptr<OperatorLineage> lop) {
-		current_lop = lop;
-	}
-
-	shared_ptr<OperatorLineage> GetCurrentLineageOp() {
-		return current_lop;
-	}
-
 private:
 	ClientContext &context;
-
-	//! cached operator lineage to be accessed from function calls that don't have access to operator members
-	shared_ptr<OperatorLineage> current_lop;
 
 public:
 	//! Whether or not lineage is currently being captured
@@ -66,7 +55,7 @@ public:
 	bool persist_intermediate = false;
 
 	//! map between lineage relational table name and its in-mem lineage
-	unordered_map<string, shared_ptr<OperatorLineage>> table_lineage_op;
+	unordered_map<string, std::unordered_map<int, shared_ptr<OperatorLineage>>> table_lineage_op;
 
 	//! in_memory storage of physical query plan per query
 	std::unordered_map<idx_t, std::unique_ptr<PhysicalOperator>> queryid_to_plan;

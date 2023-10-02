@@ -98,7 +98,7 @@ unique_ptr<PhysicalOperator> PhysicalPlanGenerator::CreatePlan(LogicalGet &op) {
 				c = toupper(c);
 			}
 			auto map = context.lineage_manager->table_lineage_op;
-			shared_ptr<OperatorLineage> lineage_op = nullptr;
+			std::unordered_map<int, shared_ptr<OperatorLineage>> lineage_op;
 			if (map.find(table_name_upper) != map.end()) {
 				lineage_op = map[table_name_upper];
 				size_t underscorePos = table_name_upper.rfind('_');

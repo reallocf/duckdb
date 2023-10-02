@@ -118,7 +118,7 @@ void LineageManager::CreateLineageTables(PhysicalOperator *op, idx_t query_id) {
 			info->columns.push_back(move(table_column_types[i][col_i]));
 		}
 
-		table_lineage_op[table_name] = op->lineage_op.at(-1);
+		table_lineage_op[table_name] = op->lineage_op;
 
 		// add column_stats, cardinality
 		auto binder = Binder::CreateBinder(context);
@@ -145,7 +145,7 @@ void LineageManager::CreateLineageTables(PhysicalOperator *op, idx_t query_id) {
 		auto bound_create_info = binder->BindCreateTableInfo(move(info));
 		auto &catalog = Catalog::GetCatalog(context);
 		catalog.CreateTable(context, bound_create_info.get());
-		table_lineage_op[table_name] = op->lineage_op.at(-1);
+		table_lineage_op[table_name] = op->lineage_op;
 	}
 
 	if (op->type == PhysicalOperatorType::DELIM_JOIN) {

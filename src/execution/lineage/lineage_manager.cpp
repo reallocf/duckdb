@@ -180,7 +180,7 @@ void LineageManager::StoreQueryLineage(std::unique_ptr<PhysicalOperator> op, str
 	// id of a query is their offset in query_to_id vector
 	idx_t query_id = query_to_id.size();
 	query_to_id.push_back(query);
-	//CreateLineageTables(op.get(), query_id);
+	CreateLineageTables(op.get(), query_id);
 	queryid_to_plan[query_id] = move(op);
 }
 

@@ -150,7 +150,13 @@ bool Pipeline::LaunchScanTasks(PhysicalOperator *op, idx_t max_threads, unique_p
 		// too small to parallelize
 		return false;
 	}
-
+#ifdef LINEAGE
+	if (executor.context.lineage_manager->trace_lineage) {
+		for (idx_t i = 0; i < max_threads; i++) {
+			LineageManager::CreateOperatorLineage(sink, i, true, false);
+		}
+	}
+#endif
 	this->parallel_node = op;
 	this->parallel_state = move(pstate);
 
@@ -158,6 +164,9 @@ bool Pipeline::LaunchScanTasks(PhysicalOperator *op, idx_t max_threads, unique_p
 	this->total_tasks = max_threads;
 	for (idx_t i = 0; i < max_threads; i++) {
 		auto task = make_unique<PipelineTask>(shared_from_this());
+#ifdef LINEAGE
+		task->task.thread_id = i;
+#endif
 		scheduler.ScheduleTask(*executor.producer, move(task));
 	}
 

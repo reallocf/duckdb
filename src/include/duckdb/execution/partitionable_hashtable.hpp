@@ -54,6 +54,7 @@ public:
 	unordered_map<hash_t, HashTableList> radix_partitioned_hts;
 #ifdef LINEAGE
 	int thread_id=-1;
+	unique_ptr<LineageData> lineage_data;
 #endif
 
 private:

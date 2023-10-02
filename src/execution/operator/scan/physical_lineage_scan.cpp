@@ -18,7 +18,7 @@ class PhysicalTableScan;
 class PhysicalLineageTableScanOperatorState : public PhysicalOperatorState {
 public:
 	explicit PhysicalLineageTableScanOperatorState(PhysicalOperator &op)
-	    : PhysicalOperatorState(op, nullptr), initialized(false), chunk_index(0), count_so_far(0) {
+	    : PhysicalOperatorState(op, nullptr), initialized(false), chunk_index(0), count_so_far(0), thread_id(-1), thread_pos(0) {
 	}
 
 	ParallelState *parallel_state;
@@ -28,16 +28,22 @@ public:
 	std::shared_ptr<LineageProcessStruct> lineageProcessStruct;
 	idx_t chunk_index;
 	idx_t count_so_far;
+	int thread_id;
+	idx_t thread_pos;
 };
 
 
-PhysicalLineageScan::PhysicalLineageScan(ClientContext &context, shared_ptr<OperatorLineage> lineage_op, vector<LogicalType> types, TableFunction function_p,
+PhysicalLineageScan::PhysicalLineageScan(ClientContext &context, std::unordered_map<int, shared_ptr<OperatorLineage>> lineage_op, vector<LogicalType> types, TableFunction function_p,
                                          unique_ptr<FunctionData> bind_data_p, vector<column_t> column_ids_p,
                                          vector<string> names_p, unique_ptr<TableFilterSet> table_filters_p,
                                          idx_t estimated_cardinality, idx_t stage_idx)
     : PhysicalOperator(PhysicalOperatorType::LINEAGE_SCAN, move(types), estimated_cardinality),
       function(move(function_p)), bind_data(move(bind_data_p)), column_ids(move(column_ids_p)), names(move(names_p)),
-      table_filters(move(table_filters_p)), stage_idx(stage_idx), lineage_op(lineage_op) {}
+      table_filters(move(table_filters_p)), stage_idx(stage_idx), lineage_op(lineage_op) {
+	for(auto kv : lineage_op) {
+		thread_id_list.push_back(kv.first);
+	}
+}
 
 void PhysicalLineageScan::GetChunkInternal(ExecutionContext &context, DataChunk &chunk, PhysicalOperatorState *state_p) const {
 	auto &state = (PhysicalLineageTableScanOperatorState &)*state_p;
@@ -47,33 +53,48 @@ void PhysicalLineageScan::GetChunkInternal(ExecutionContext &context, DataChunk 
 	DataChunk result;
 	result.Initialize(lineage_table_types);
 
+	if (state.thread_pos < thread_id_list.size())
+		state.thread_id = thread_id_list[state.thread_pos];
+
 	// else if projection and chunk_collection is not empty, return everything in chunk_collection
 	if (stage_idx == 100) {
 		start = state.count_so_far;
-		if (lineage_op->chunk_collection.Count() == 0) {
+		if (lineage_op.at(state.thread_id)->chunk_collection.Count() == 0) {
 			return;
 		}
-		D_ASSERT(result.GetTypes() == lineage_op->chunk_collection.Types());
-		if (state.chunk_index >= lineage_op->chunk_collection.ChunkCount()) {
+		D_ASSERT(result.GetTypes() == lineage_op.at(state.thread_id)->chunk_collection.Types());
+		if (state.chunk_index >= lineage_op.at(state.thread_id)->chunk_collection.ChunkCount()) {
 			return;
 		}
-		auto &collection_chunk = lineage_op->chunk_collection.GetChunk(state.chunk_index);
+		auto &collection_chunk = lineage_op.at(state.thread_id)->chunk_collection.GetChunk(state.chunk_index);
 		result.Reference(collection_chunk);
 		state.chunk_index++;
 		state.count_so_far += result.size();
 	} else {
-		start = state.lineageProcessStruct == nullptr ? 0 : state.lineageProcessStruct->count_so_far;
-		if (state.lineageProcessStruct == nullptr) {
-			LineageProcessStruct lps =
-			    lineage_op->GetLineageAsChunk(lineage_table_types, 0, result, 0, -1, 0, stage_idx);
-			state.lineageProcessStruct = std::make_shared<LineageProcessStruct>(lps);
-		} else {
-			LineageProcessStruct lps = lineage_op->GetLineageAsChunk(
-			    lineage_table_types, state.lineageProcessStruct->count_so_far, result,
-			    state.lineageProcessStruct->size_so_far, -1, state.lineageProcessStruct->data_idx,
-			    state.lineageProcessStruct->finished_idx);
-			state.lineageProcessStruct = std::make_shared<LineageProcessStruct>(lps);
-		}
+		do {
+			start = state.lineageProcessStruct == nullptr ? 0 : state.lineageProcessStruct->count_so_far;
+			if (state.lineageProcessStruct == nullptr) {
+				LineageProcessStruct lps =
+				    lineage_op.at(state.thread_id)->GetLineageAsChunk(lineage_table_types, 0, result, 0, state.thread_id, 0, stage_idx);
+				state.lineageProcessStruct = std::make_shared<LineageProcessStruct>(lps);
+			} else {
+				LineageProcessStruct lps = lineage_op.at(state.thread_id)->GetLineageAsChunk(
+				    lineage_table_types, state.lineageProcessStruct->count_so_far, result,
+				    state.lineageProcessStruct->size_so_far, state.thread_id, state.lineageProcessStruct->data_idx,
+				    state.lineageProcessStruct->finished_idx);
+				state.lineageProcessStruct = std::make_shared<LineageProcessStruct>(lps);
+			}
+			if (!state.lineageProcessStruct->still_processing) {
+				if (state.thread_pos + 1 < thread_id_list.size())  {
+					state.lineageProcessStruct->count_so_far = 0;
+					state.thread_pos++;
+					state.lineageProcessStruct->data_idx = 0;
+					state.lineageProcessStruct->finished_idx = 0;
+					state.lineageProcessStruct->still_processing = true;
+					state.thread_id = thread_id_list[state.thread_pos];
+				}
+			}
+		} while (result.size() == 0 && state.lineageProcessStruct->still_processing);
 	}
 
 	// Apply projection list
