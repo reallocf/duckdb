@@ -56,13 +56,15 @@ void PhysicalTableScan::GetChunkInternal(ExecutionContext &context, DataChunk &c
 				// sequential scan init
 				state.operator_data = function.init(context.client, bind_data.get(), column_ids, &filters);
 			}
-#ifdef LINEAGE
-			state.operator_data->current_lop = lineage_op.at(context.task.thread_id);
-#endif
 			if (!state.operator_data) {
 				// no operator data returned: nothing to scan
 				return;
 			}
+#ifdef LINEAGE
+      if (lineage_op.find(context.task.thread_id) != lineage_op.end()) {
+        state.operator_data->current_lop = lineage_op.at(context.task.thread_id);
+      }
+#endif
 		}
 		state.initialized = true;
 	}

@@ -11,7 +11,7 @@ void OperatorLineage::Capture(const shared_ptr<LineageData>& datum, idx_t lineag
 	if (!trace_lineage || datum->Count() == 0) return;
 
 	// Set child ptr
-	datum->SetChild(GetChildLatest(lineage_idx));
+	//datum->SetChild(GetChildLatest(lineage_idx));
 
 	idx_t this_offset = op_offset[lineage_idx];
 	op_offset[lineage_idx] += datum->Count();
