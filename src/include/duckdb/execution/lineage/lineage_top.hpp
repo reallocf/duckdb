@@ -49,6 +49,11 @@ public:
 
 	virtual idx_t At(idx_t) = 0;
 
+
+	virtual void Compress() {
+		return;
+	}
+
 	virtual ~LineageData() {};
 
 public:

@@ -49,6 +49,13 @@ public:
 	}
 
 	idx_t Size() override { return count * sizeof(T); }
+  void Compress() override {
+		if (count < STANDARD_VECTOR_SIZE/2) {
+			std::unique_ptr<T[]> destination_ptr(new T[count]);
+			std::copy(data.get(), data.get() + count, destination_ptr.get());
+			data = move(destination_ptr);
+		}
+	 }
 
 private:
 	unique_ptr<T[]> data;
@@ -93,6 +100,7 @@ public:
 
 	// TODO: should this be a func shared across all LineageData?
 	vector<LineageDataWithOffset> Divide(idx_t child_offset);
+  void Compress() override;
 
 private:
 	SelectionVector vec;
@@ -189,6 +197,8 @@ public:
 	idx_t At(idx_t) override {
 		throw std::logic_error("Can't call backward directly on LineageBinary");
 	}
+  
+  void Compress() override;
 
 	shared_ptr<LineageData> left;
 	shared_ptr<LineageData> right;
@@ -228,6 +238,7 @@ public:
 	int LocateChunkIndex(idx_t source);
 	LineageDataWithOffset GetChunkAt(idx_t index);
 	idx_t GetAccCount(idx_t i);
+  void Compress() override;
   
 private:
 	shared_ptr<vector<shared_ptr<LineageData>>> lineage_vec;

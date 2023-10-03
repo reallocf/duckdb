@@ -66,6 +66,13 @@ vector<LineageDataWithOffset> LineageSelVec::Divide(idx_t child_offset) {
 	return res;
 }
 
+void LineageSelVec::Compress() {
+	if (count < STANDARD_VECTOR_SIZE/2) {
+		SelectionVector dst(count);
+		std::copy(vec.data(), vec.data() + count, dst.data());
+		vec.Initialize(dst);
+	}
+}
 // LineageBinary
 
 idx_t LineageBinary::Count() {
@@ -95,6 +102,11 @@ idx_t LineageBinary::Size() {
 	if (left) size += left->Size();
 	if (right) size += right->Size();
 	return size;
+}
+
+void LineageBinary::Compress() {
+	left->Compress();
+	right->Compress();
 }
 
 // LineageNested
@@ -153,6 +165,12 @@ LineageDataWithOffset LineageVec::GetChunkAt(idx_t index) {
 
 idx_t LineageVec::GetAccCount(idx_t i) {
 	return index[i];
+}
+
+void LineageVec::Compress() {
+	for (idx_t j = 0; j < lineage_vec->size(); ++j) {
+		(*lineage_vec)[j]->Compress();
+	}
 }
 
 } // namespace duckdb
