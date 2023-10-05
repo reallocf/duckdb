@@ -18,6 +18,7 @@
 #include "duckdb/common/types/chunk_collection.hpp"
 #include "duckdb/execution/lineage/lineage_data.hpp"
 
+#include <forward_list>
 #include <iostream>
 #include <utility>
 
@@ -51,7 +52,13 @@ public:
 	    PhysicalOperatorType type,
 	    idx_t opid,
 	    bool should_index
-	) : opid(opid), type(type), children(move(children)), should_index(should_index) {}
+	) : opid(opid), type(type), children(move(children)), should_index(should_index) {
+   /* log.resize(4);
+    log[0].emplace_back(); // Create an empty partition
+    log[1].emplace_back(); // Create an empty partition
+    log[2].emplace_back(); // Create an empty partition
+    log[3].emplace_back();*/ // Create an empty partition
+  }
 
 	void Capture(const shared_ptr<LineageData>& datum, idx_t lineage_idx, int thread_id=-1, idx_t child_offset=0);
 
@@ -59,6 +66,7 @@ public:
 
 	idx_t Size();
 	idx_t Count();
+	idx_t ChunksCount();
 	shared_ptr<LineageDataWithOffset> GetMyLatest();
 	shared_ptr<LineageDataWithOffset> GetChildLatest(idx_t lineage_idx);
 	void BuildIndexes();
@@ -70,6 +78,9 @@ public:
 	// data[0] used by all ops; data[1] used by pipeline breakers
 	// Lineage data in here!
 	std::vector<LineageDataWithOffset> data[4];
+	LineageDataWithOffset data_single[4];
+	//std::forward_list<LineageDataWithOffset> data_test[4];
+  //std::vector<std::vector<std::vector<LineageDataWithOffset>>> log;
 	idx_t op_offset[4];
 	PhysicalOperatorType type;
 	shared_ptr<LineageVec> cached_internal_lineage = nullptr;

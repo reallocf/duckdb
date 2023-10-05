@@ -12,10 +12,21 @@ void OperatorLineage::Capture(const shared_ptr<LineageData>& datum, idx_t lineag
 
 	// Set child ptr
 	//datum->SetChild(GetChildLatest(lineage_idx));
+  //datum->Compress();
 
 	idx_t this_offset = op_offset[lineage_idx];
 	op_offset[lineage_idx] += datum->Count();
-	data[lineage_idx].push_back(LineageDataWithOffset{datum, (int)child_offset, this_offset});
+  data[lineage_idx].push_back(LineageDataWithOffset{datum, (int)child_offset, this_offset});
+	//data_test[lineage_idx].push_front(LineageDataWithOffset{datum, (int)child_offset, this_offset});
+	//data_single[lineage_idx] = LineageDataWithOffset{datum, (int)child_offset, this_offset};
+  /*if (log[lineage_idx].back().size() >= 1000) {
+      // Create a new partition if needed
+      //log[lineage_idx].back().clear();
+      log[lineage_idx].emplace_back(); // Create an empty partition
+      log[lineage_idx].back().reserve(1000);
+  }
+  // Insert data into the appropriate partition
+  log[lineage_idx].back().push_back(LineageDataWithOffset{datum, (int)child_offset, this_offset});*/
 }
 
 void fillBaseChunk(DataChunk &insert_chunk, idx_t res_count, Vector &lhs_payload, Vector &rhs_payload, idx_t count_so_far, Vector &thread_id_vec) {
@@ -221,15 +232,27 @@ idx_t OperatorLineage::Size() {
 	}
 	return size;
 }
-idx_t OperatorLineage::Count() {
-  idx_t size = 0;
+
+idx_t OperatorLineage::ChunksCount() {
+  idx_t count = 0;
   for (const auto& lineage_data : data[0]) {
-    size += lineage_data.data->Count();
+    count += lineage_data.data->ChunksCount();
   }
   for (const auto& lineage_data : data[1]) {
-    size += lineage_data.data->Size();
+    count += lineage_data.data->ChunksCount();
   }
-  return size;
+  return count;
+}
+
+idx_t OperatorLineage::Count() {
+  idx_t count = 0;
+  for (const auto& lineage_data : data[0]) {
+    count += lineage_data.data->Count();
+  }
+  for (const auto& lineage_data : data[1]) {
+    count += lineage_data.data->Count();
+  }
+  return count;
 }
 
 

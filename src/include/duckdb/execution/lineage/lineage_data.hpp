@@ -23,6 +23,7 @@ template<typename T>
 class LineageDataArray : public LineageData {
 public:
 	LineageDataArray(unique_ptr<T[]> data, idx_t count) : LineageData(count), data(move(data)) {
+    Compress();
 	}
 	
   void Debug() override {
@@ -50,7 +51,7 @@ public:
 
 	idx_t Size() override { return count * sizeof(T); }
   void Compress() override {
-		if (count < STANDARD_VECTOR_SIZE/2) {
+		if (count < 600) {
 			std::unique_ptr<T[]> destination_ptr(new T[count]);
 			std::copy(data.get(), data.get() + count, destination_ptr.get());
 			data = move(destination_ptr);
@@ -86,6 +87,7 @@ private:
 class LineageSelVec : public LineageData {
 public:
 	LineageSelVec(const SelectionVector& vec_p, idx_t count, idx_t in_offset=0) : LineageData(count), vec(vec_p), in_offset(in_offset) {
+    Compress();
 #ifdef LINEAGE_DEBUG
 		Debug();
 #endif
@@ -239,6 +241,12 @@ public:
 	LineageDataWithOffset GetChunkAt(idx_t index);
 	idx_t GetAccCount(idx_t i);
   void Compress() override;
+  idx_t ChunksCount() override {
+    if (lineage_vec)
+      return lineage_vec->size();
+    else
+      return 0;
+  }
   
 private:
 	shared_ptr<vector<shared_ptr<LineageData>>> lineage_vec;

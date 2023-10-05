@@ -67,7 +67,7 @@ vector<LineageDataWithOffset> LineageSelVec::Divide(idx_t child_offset) {
 }
 
 void LineageSelVec::Compress() {
-	if (count < STANDARD_VECTOR_SIZE/2) {
+	if (count < 600) {
 		SelectionVector dst(count);
 		std::copy(vec.data(), vec.data() + count, dst.data());
 		vec.Initialize(dst);
@@ -105,8 +105,8 @@ idx_t LineageBinary::Size() {
 }
 
 void LineageBinary::Compress() {
-	left->Compress();
-	right->Compress();
+	if (left) left->Compress();
+	if (right) right->Compress();
 }
 
 // LineageNested
@@ -124,6 +124,7 @@ idx_t LineageVec::BuildInnerIndex() {
   idx_t inner_count = 0;
   for (idx_t j = 0; j < lineage_vec->size(); ++j) {
     inner_count += (*lineage_vec)[j]->Count();
+    size += (*lineage_vec)[j]->Count();
 	  index.push_back(inner_count);
   }
   count = inner_count;

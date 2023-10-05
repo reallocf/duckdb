@@ -80,8 +80,9 @@ std::vector<idx_t> GetStats(PhysicalOperator *op) {
   idx_t chunks_processed = 0;
   idx_t count = 0;
   for (auto const& lineage_op : op->lineage_op) {
-    lineage_size = lineage_op.second->Size();
-    chunks_processed = lineage_op.second->data[0].size();
+    lineage_size = lineage_op.second->Size() / (1024*1024);
+    chunks_processed = lineage_op.second->ChunksCount();
+    //data[0].size();
     count = lineage_op.second->Count();
   }
 

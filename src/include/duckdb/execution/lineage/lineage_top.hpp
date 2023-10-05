@@ -22,6 +22,11 @@ public:
 	virtual idx_t Count() {
 		return count;
 	}
+  
+  //! Return number of chunks this artifacts associate with
+	virtual idx_t ChunksCount() {
+		return 1;
+	}
    
   //! Return a Vector container for artifact with 'type' as LogicalType
   //! and 'offset' added to every entry
