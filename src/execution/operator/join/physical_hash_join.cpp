@@ -262,11 +262,9 @@ void PhysicalHashJoin::GetChunkInternal(ExecutionContext &context, DataChunk &ch
 				chunk.Move(state->cached_chunk);
 				state->cached_chunk.Initialize(types);
 #ifdef LINEAGE
-				if (context.client.lineage_manager->trace_lineage) {
-					if (state->cached_lineage->size() > 0) {
-						lineage_op.at(context.task.thread_id)->Capture(make_shared<LineageVec>(move(state->cached_lineage)), LINEAGE_PROBE);
-						state->cached_lineage = make_shared<vector<shared_ptr<LineageData>>>();
-					}
+				if (state->cached_lineage->size() > 0) {
+          lineage_op.at(context.task.thread_id)->Capture(make_shared<LineageVec>(move(state->cached_lineage)), LINEAGE_PROBE);
+          state->cached_lineage = make_shared<vector<shared_ptr<LineageData>>>();
 				}
 #endif
 			} else
@@ -291,7 +289,7 @@ void PhysicalHashJoin::GetChunkInternal(ExecutionContext &context, DataChunk &ch
 				// small chunk: add it to chunk cache and continue
 				state->cached_chunk.Append(chunk);
 #ifdef LINEAGE
-				if (context.client.lineage_manager->trace_lineage) {
+			if (context.client.lineage_manager->trace_lineage) {
 					// If we haven't pushed to the parent operator, child_offset remains the same (chunk merge)
           state->scan_structure->lineage_probe_data->child_offset = state->child_state->out_start;
 					state->cached_lineage->push_back(move(state->scan_structure->lineage_probe_data));
@@ -302,11 +300,9 @@ void PhysicalHashJoin::GetChunkInternal(ExecutionContext &context, DataChunk &ch
 					chunk.Move(state->cached_chunk);
 					state->cached_chunk.Initialize(types);
 #ifdef LINEAGE
-					if (context.client.lineage_manager->trace_lineage) {
-						if (state->cached_lineage->size() > 0) {
-							lineage_op.at(context.task.thread_id)->Capture(make_shared<LineageVec>(move(state->cached_lineage)), LINEAGE_PROBE);
-							state->cached_lineage = make_shared<vector<shared_ptr<LineageData>>>();
-						}
+				if (state->cached_lineage->size() > 0) {
+            lineage_op.at(context.task.thread_id)->Capture(make_shared<LineageVec>(move(state->cached_lineage)), LINEAGE_PROBE);
+            state->cached_lineage = make_shared<vector<shared_ptr<LineageData>>>();
 					}
 #endif
 					return;
@@ -327,7 +323,7 @@ void PhysicalHashJoin::GetChunkInternal(ExecutionContext &context, DataChunk &ch
 			}
 #else
 #ifdef LINEAGE
-				if (context.client.lineage_manager->trace_lineage) {
+			if (context.client.lineage_manager->trace_lineage) {
 					if (state->scan_structure && state->scan_structure->lineage_probe_data) {
 						lineage_op.at(context.task.thread_id)->Capture(move(state->scan_structure->lineage_probe_data), LINEAGE_PROBE, -1, state->child_state->out_start);
 					}

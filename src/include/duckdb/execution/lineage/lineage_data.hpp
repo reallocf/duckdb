@@ -22,7 +22,7 @@ namespace duckdb {
 template<typename T>
 class LineageDataArray : public LineageData {
 public:
-	LineageDataArray(unique_ptr<T[]> data, idx_t count) : LineageData(count), data(move(data)) {
+	LineageDataArray(unique_ptr<T[]> data, idx_t count, idx_t capacity=STANDARD_VECTOR_SIZE) : LineageData(count), data(move(data)), capacity(capacity) {
     Compress();
 	}
 	
@@ -51,7 +51,7 @@ public:
 
 	idx_t Size() override { return count * sizeof(T); }
   void Compress() override {
-		if (count < 600) {
+		if ((capacity-count) > 500) {
 			std::unique_ptr<T[]> destination_ptr(new T[count]);
 			std::copy(data.get(), data.get() + count, destination_ptr.get());
 			data = move(destination_ptr);
@@ -60,6 +60,7 @@ public:
 
 private:
 	unique_ptr<T[]> data;
+  idx_t capacity;
 };
 
 // TODO get templating working like before - that would be better

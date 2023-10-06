@@ -12,12 +12,11 @@ void OperatorLineage::Capture(const shared_ptr<LineageData>& datum, idx_t lineag
 
 	// Set child ptr
 	//datum->SetChild(GetChildLatest(lineage_idx));
-  //datum->Compress();
 
 	idx_t this_offset = op_offset[lineage_idx];
 	op_offset[lineage_idx] += datum->Count();
   data[lineage_idx].push_back(LineageDataWithOffset{datum, (int)child_offset, this_offset});
-	//data_test[lineage_idx].push_front(LineageDataWithOffset{datum, (int)child_offset, this_offset});
+	////data_test[lineage_idx].push_front(LineageDataWithOffset{datum, (int)child_offset, this_offset});
 	//data_single[lineage_idx] = LineageDataWithOffset{datum, (int)child_offset, this_offset};
   /*if (log[lineage_idx].back().size() >= 1000) {
       // Create a new partition if needed
