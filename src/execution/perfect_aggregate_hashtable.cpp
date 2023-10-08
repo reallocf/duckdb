@@ -126,7 +126,7 @@ void PerfectAggregateHashTable::AddChunk(DataChunk &groups, DataChunk &payload) 
 	RowOperations::InitializeStates(layout, addresses, sel, needs_init);
 
 #ifdef LINEAGE
-	sink_per_chunk_lineage = make_shared<LineageSelVec>(move(tuples_lineage), groups.size());
+	sink_per_chunk_lineage = make_unique<LineageSelVec>(move(tuples_lineage), groups.size());
 #endif
 	// after finding the group location we update the aggregates
 	idx_t payload_idx = 0;
@@ -272,8 +272,8 @@ void PerfectAggregateHashTable::Scan(idx_t &scan_position, DataChunk &result) {
 
 #ifdef LINEAGE
 	// Log group_values & count for this chunk. This maps output to groups
-	auto per_chunk_lineage = make_shared<LineageDataArray<uint32_t>>(move(group_values_smrt), entry_count);
-	lineage_op->Capture(move(per_chunk_lineage), LINEAGE_SOURCE);
+	auto per_chunk_lineage = make_unique<LineageDataArray<uint32_t>>(move(group_values_smrt), entry_count);
+	lineage_op->CaptureUnq(move(per_chunk_lineage), LINEAGE_SOURCE);
 #endif
 }
 

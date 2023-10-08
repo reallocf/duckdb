@@ -134,7 +134,7 @@ public:
 
 #ifdef LINEAGE
 	//! Captured lineage for this local sort
-	shared_ptr<LineageSelVec> lineage;
+	unique_ptr<LineageSelVec> lineage;
 #endif
 
 private:

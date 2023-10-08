@@ -60,7 +60,8 @@ public:
     log[3].emplace_back();*/ // Create an empty partition
   }
 
-	void Capture(const shared_ptr<LineageData>& datum, idx_t lineage_idx, int thread_id=-1, idx_t child_offset=0);
+	//void Capture(const shared_ptr<LineageData>& datum, idx_t lineage_idx, int thread_id=-1, idx_t child_offset=0);
+	void CaptureUnq(unique_ptr<LineageData> datum, idx_t lineage_idx, idx_t child_offset=0);
 
 	LineageProcessStruct GetLineageAsChunk(const vector<LogicalType>& types, idx_t count_so_far, DataChunk &insert_chunk, idx_t size= 0, int thread_id= -1, idx_t data_idx = 0, idx_t stage_idx = 0);
 
@@ -77,7 +78,12 @@ public:
 	ChunkCollection chunk_collection;
 	// data[0] used by all ops; data[1] used by pipeline breakers
 	// Lineage data in here!
+	//std::vector<LineageBinary> data_binary;
+	//std::vector<LineageBinary> data_sel;
+	//std::vector<LineageBinary> data_range;
+	//std::vector<std::reference_wrapper<LineageData>> data_ref[4];
 	std::vector<LineageDataWithOffset> data[4];
+	std::vector<unique_ptr<LineageData>> data_ptr[4];
 	LineageDataWithOffset data_single[4];
 	//std::forward_list<LineageDataWithOffset> data_test[4];
   //std::vector<std::vector<std::vector<LineageDataWithOffset>>> log;

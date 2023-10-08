@@ -23,7 +23,8 @@ template<typename T>
 class LineageDataArray : public LineageData {
 public:
 	LineageDataArray(unique_ptr<T[]> data, idx_t count, idx_t capacity=STANDARD_VECTOR_SIZE) : LineageData(count), data(move(data)), capacity(capacity) {
-    Compress();
+    capacity -= count;
+    //Compress();
 	}
 	
   void Debug() override {
@@ -51,7 +52,7 @@ public:
 
 	idx_t Size() override { return count * sizeof(T); }
   void Compress() override {
-		if ((capacity-count) > 500) {
+		if (capacity > 500) {
 			std::unique_ptr<T[]> destination_ptr(new T[count]);
 			std::copy(data.get(), data.get() + count, destination_ptr.get());
 			data = move(destination_ptr);
@@ -88,7 +89,7 @@ private:
 class LineageSelVec : public LineageData {
 public:
 	LineageSelVec(const SelectionVector& vec_p, idx_t count, idx_t in_offset=0) : LineageData(count), vec(vec_p), in_offset(in_offset) {
-    Compress();
+//    Compress();
 #ifdef LINEAGE_DEBUG
 		Debug();
 #endif
@@ -184,6 +185,32 @@ private:
 };
 
 // Captures two lineage data of the same side - used for Joins
+class LineageBinaryUnq : public LineageData {
+public:
+	LineageBinaryUnq(unique_ptr<LineageData> lhs, unique_ptr<LineageData> rhs) :
+	      LineageData(0), left(move(lhs)), right(move(rhs)) {
+#ifdef LINEAGE_DEBUG
+		Debug();
+#endif
+	}
+
+	idx_t Count() override;
+	void Debug() override;
+	data_ptr_t Process(idx_t offset) override;
+	idx_t Size() override;
+	idx_t At(idx_t) override {
+		throw std::logic_error("Can't call backward directly on LineageBinary");
+	}
+  
+  void Compress() override;
+
+	unique_ptr<LineageData> left;
+	unique_ptr<LineageData> right;
+private:
+	bool switch_on_left = true;
+};
+
+// Captures two lineage data of the same side - used for Joins
 class LineageBinary : public LineageData {
 public:
 	LineageBinary(shared_ptr<LineageData> lhs, shared_ptr<LineageData> rhs) :
@@ -251,6 +278,53 @@ public:
   
 private:
 	shared_ptr<vector<shared_ptr<LineageData>>> lineage_vec;
+	vector<idx_t> index;
+	idx_t size = 0;
+	idx_t ret_idx = 0;
+};
+
+class LineageVecUnq : public LineageData {
+public:
+	LineageVecUnq(unique_ptr<vector<unique_ptr<LineageData>>> lineage_vec_p) : LineageData(1),
+	          lineage_vec(move(lineage_vec_p)) {
+	}
+	void Debug() override;
+  
+	data_ptr_t Process(idx_t offset) override {
+		throw std::logic_error("Can't call process on LineageNested");
+	}
+
+	// Do nothing since the children are set on the internal LineageData
+	void SetChild(shared_ptr<LineageDataWithOffset> c) override {}
+
+	shared_ptr<LineageDataWithOffset> GetChild() override {
+		throw std::logic_error("Can't call GetChild on LineageNested");
+	}
+	
+  idx_t Size() override {
+		return size;
+	}
+
+	idx_t At(idx_t) override {
+		throw std::logic_error("Can't call backward directly on LineageNested");
+	}
+
+  idx_t BuildInnerIndex();
+	LineageDataWithOffset GetInternal();
+	bool IsComplete();
+	int LocateChunkIndex(idx_t source);
+	LineageDataWithOffset GetChunkAt(idx_t index);
+	idx_t GetAccCount(idx_t i);
+  void Compress() override;
+  idx_t ChunksCount() override {
+    if (lineage_vec)
+      return lineage_vec->size();
+    else
+      return 0;
+  }
+  
+private:
+	unique_ptr<vector<unique_ptr<LineageData>>> lineage_vec;
 	vector<idx_t> index;
 	idx_t size = 0;
 	idx_t ret_idx = 0;

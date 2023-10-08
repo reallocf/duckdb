@@ -6,7 +6,31 @@
 #include "duckdb/planner/parsed_data/bound_create_table_info.hpp"
 
 namespace duckdb {
+void OperatorLineage::CaptureUnq(unique_ptr<LineageData> datum, idx_t lineage_idx, idx_t child_offset) {
+	if (!trace_lineage || datum->Count() == 0) return;
 
+	// Set child ptr
+	//datum->SetChild(GetChildLatest(lineage_idx));
+
+	idx_t this_offset = op_offset[lineage_idx];
+	op_offset[lineage_idx] += datum->Count();
+	
+ /* if (typeid(*datum) == typeid(LineageBinary)) {
+    data_binary.push_back(datum);
+    data_ref[lineage_idx].push_back(data_binary.back());
+  } else if (typeid(*datum) == typeid(LineageSelVec)) {
+    data_sel.push_back(datum);
+    data_ref[lineage_idx].push_back(data_sel.back());
+  } else if (typeid(*datum) == typeid(LineageRange)) {
+    data_range.push_back(datum);
+    data_ref[lineage_idx].push_back(data_range.back());
+  } else {*/
+   // data_ptr[lineage_idx].push_back(move(datum));
+ // }
+  data[lineage_idx].push_back(LineageDataWithOffset{move(datum), (int)child_offset, this_offset});
+}
+
+/*
 void OperatorLineage::Capture(const shared_ptr<LineageData>& datum, idx_t lineage_idx, int thread_id, idx_t child_offset) {
 	if (!trace_lineage || datum->Count() == 0) return;
 
@@ -17,16 +41,16 @@ void OperatorLineage::Capture(const shared_ptr<LineageData>& datum, idx_t lineag
 	op_offset[lineage_idx] += datum->Count();
   data[lineage_idx].push_back(LineageDataWithOffset{datum, (int)child_offset, this_offset});
 	////data_test[lineage_idx].push_front(LineageDataWithOffset{datum, (int)child_offset, this_offset});
-	//data_single[lineage_idx] = LineageDataWithOffset{datum, (int)child_offset, this_offset};
-  /*if (log[lineage_idx].back().size() >= 1000) {
+  //data_single[lineage_idx] = LineageDataWithOffset{datum, (int)child_offset, this_offset};
+ *if (log[lineage_idx].back().size() >= 1000) {
       // Create a new partition if needed
       //log[lineage_idx].back().clear();
       log[lineage_idx].emplace_back(); // Create an empty partition
       log[lineage_idx].back().reserve(1000);
   }
   // Insert data into the appropriate partition
-  log[lineage_idx].back().push_back(LineageDataWithOffset{datum, (int)child_offset, this_offset});*/
-}
+  log[lineage_idx].back().push_back(LineageDataWithOffset{datum, (int)child_offset, this_offset});
+}*/
 
 void fillBaseChunk(DataChunk &insert_chunk, idx_t res_count, Vector &lhs_payload, Vector &rhs_payload, idx_t count_so_far, Vector &thread_id_vec) {
 	insert_chunk.SetCardinality(res_count);

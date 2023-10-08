@@ -107,7 +107,7 @@ public:
 
 #ifdef LINEAGE
 	//! Captured scan selection vector
-	shared_ptr<LineageSelVec> scan_lineage_data;
+	unique_ptr<LineageSelVec> scan_lineage_data;
 	idx_t chunk_id;
 #endif
 public:

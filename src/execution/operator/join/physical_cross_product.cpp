@@ -91,9 +91,9 @@ void PhysicalCrossProduct::GetChunkInternal(ExecutionContext &context, DataChunk
 #ifdef LINEAGE
     // right_position -> tuple id from right side + all tuples from the left side
 	if (lineage_op.count(context.task.thread_id)) {
-		lineage_op.at(context.task.thread_id)->Capture(make_shared<LineageConstant>(
+		lineage_op.at(context.task.thread_id)->CaptureUnq(make_unique<LineageConstant>(
 			state->right_position,
-			left_chunk.size()), LINEAGE_PROBE, -1, state->child_state->out_start);
+			left_chunk.size()), LINEAGE_PROBE,state->child_state->out_start);
 	}
 #endif
 

@@ -30,7 +30,7 @@ public:
 #ifdef LINEAGE
 	void Scan(idx_t &scan_position, DataChunk &result, shared_ptr<OperatorLineage> lineage_op);
 	// Used to map input to groups
-	shared_ptr<LineageSelVec> sink_per_chunk_lineage;
+	unique_ptr<LineageSelVec> sink_per_chunk_lineage;
 #else
 	void Scan(idx_t &scan_position, DataChunk &result);
 #endif

@@ -174,5 +174,103 @@ void LineageVec::Compress() {
 	}
 }
 
+// LineageBinaryUnq
+
+idx_t LineageBinaryUnq::Count() {
+	if (left) return left->Count();
+	else return right->Count();
+}
+
+void LineageBinaryUnq::Debug() {
+	if (left) left->Debug();
+	if (right) right->Debug();
+}
+
+data_ptr_t LineageBinaryUnq::Process(idx_t offset) {
+	if (switch_on_left && left) {
+		switch_on_left = !switch_on_left;
+		return left->Process(offset);
+	} else if (right) {
+		switch_on_left = !switch_on_left;
+		return right->Process(offset);
+	} else {
+		return nullptr;
+	}
+}
+
+idx_t LineageBinaryUnq::Size() {
+	auto size = 0;
+	if (left) size += left->Size();
+	if (right) size += right->Size();
+	return size;
+}
+void LineageBinaryUnq::Compress() {
+	if (left) left->Compress();
+	if (right) right->Compress();
+}
+
+// LineageVec Unique
+
+void LineageVecUnq::Debug() {
+	std::cout << "LineageVec:" << std::endl;
+  for (idx_t j = 0; j < lineage_vec->size(); ++j) {
+    (*lineage_vec)[j]->Debug();
+  }
+	std::cout << "End LineageVec" << std::endl;
+}
+
+idx_t LineageVecUnq::BuildInnerIndex() {
+  if (index.size() > 0) return count;
+  idx_t inner_count = 0;
+  for (idx_t j = 0; j < lineage_vec->size(); ++j) {
+    inner_count += (*lineage_vec)[j]->Count();
+    size += (*lineage_vec)[j]->Count();
+	  index.push_back(inner_count);
+  }
+  count = inner_count;
+  return inner_count;
+}
+
+LineageDataWithOffset LineageVecUnq::GetInternal() {
+  return LineageDataWithOffset{ nullptr, 0, 0 };
+}
+
+
+bool LineageVecUnq::IsComplete() {
+	auto flag = ret_idx >= lineage_vec->size();
+	if (flag) {
+		ret_idx = 0;
+	}
+	return flag;
+}
+
+int LineageVecUnq::LocateChunkIndex(idx_t source) {
+	// (1) locate which internal lineage_data to use
+	auto lower = lower_bound(index.begin(), index.end(), source);
+	if (lower == index.end()) {
+		throw std::logic_error("Source not found in index");
+	}
+	// exact match, the value is in the next chunk
+	if (*lower == source) {
+		return lower-index.begin()+1;
+	}
+	return lower-index.begin();
+}
+
+LineageDataWithOffset LineageVecUnq::GetChunkAt(idx_t index) {
+ return LineageDataWithOffset{ nullptr, 0, 0 };
+}
+
+idx_t LineageVecUnq::GetAccCount(idx_t i) {
+	return index[i];
+}
+
+void LineageVecUnq::Compress() {
+	for (idx_t j = 0; j < lineage_vec->size(); ++j) {
+		(*lineage_vec)[j]->Compress();
+	}
+}
+
+
 } // namespace duckdb
 #endif

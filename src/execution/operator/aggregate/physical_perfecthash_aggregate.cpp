@@ -154,7 +154,7 @@ void PhysicalPerfectHashAggregate::Sink(ExecutionContext &context, GlobalOperato
 
 	lstate.ht->AddChunk(group_chunk, aggregate_input_chunk);
 #ifdef LINEAGE
-	lineage_op.at(context.task.thread_id)->Capture(move(lstate.ht->sink_per_chunk_lineage), LINEAGE_SINK);
+	lineage_op.at(context.task.thread_id)->CaptureUnq(move(lstate.ht->sink_per_chunk_lineage), LINEAGE_SINK);
 #endif
 }
 

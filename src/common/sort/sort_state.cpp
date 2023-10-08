@@ -173,7 +173,7 @@ void LocalSortState::Sort(GlobalSortState &global_sort_state) {
 	global_sort_state.lineage_sel = SelectionVector(count);
 	// Re-order before the merge sort
 	ReOrder(global_sort_state);
-	lineage = make_shared<LineageSelVec>(global_sort_state.lineage_sel, count);
+	lineage = make_unique<LineageSelVec>(global_sort_state.lineage_sel, count);
 #else
 	// Re-order before the merge sort
 	ReOrder(global_sort_state);

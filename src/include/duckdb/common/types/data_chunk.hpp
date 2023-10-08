@@ -131,7 +131,7 @@ public:
 
 #ifdef LINEAGE
 	bool trace_lineage = false;
-	shared_ptr<LineageData> cached_lineage_data;
+	unique_ptr<LineageData> cached_lineage_data;
 #endif
 private:
 	//! The amount of tuples stored in the data chunk

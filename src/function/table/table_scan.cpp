@@ -77,10 +77,10 @@ static void TableScanFunc(ClientContext &context, const FunctionData *bind_data_
 	auto scan_lop = state.current_lop;
 	idx_t in_start = state.scan_state.row_group_scan_state.chunk_id * STANDARD_VECTOR_SIZE;
 	if (state.scan_state.row_group_scan_state.scan_lineage_data) {
-		scan_lop->Capture(move(state.scan_state.row_group_scan_state.scan_lineage_data), LINEAGE_UNARY, -1, in_start);
+		scan_lop->CaptureUnq(move(state.scan_state.row_group_scan_state.scan_lineage_data), LINEAGE_UNARY, in_start);
 	} else {
 		if (output.size() > 0) {
-			scan_lop->Capture( make_shared<LineageRange>(0, output.size()), LINEAGE_UNARY, -1, in_start);
+			scan_lop->CaptureUnq( make_unique<LineageRange>(0, output.size()), LINEAGE_UNARY, in_start);
 		}
 	}
 #endif

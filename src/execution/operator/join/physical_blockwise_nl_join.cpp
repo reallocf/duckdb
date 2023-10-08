@@ -200,7 +200,7 @@ void PhysicalBlockwiseNLJoin::GetChunkInternal(ExecutionContext &context, DataCh
 			// left_position within the chunk retrieved from the child
 			auto lhs_lineage = make_unique<LineageConstant>(state->left_position, result_count);
 			auto rhs_lineage = make_unique<LineageSelVec>(move(match_sel), result_count, (state->right_position * STANDARD_VECTOR_SIZE));
-			lineage_op.at(context.task.thread_id)->Capture( make_shared<LineageBinary>(move(lhs_lineage), move(rhs_lineage)), LINEAGE_PROBE, -1, state->child_state->out_start);
+			lineage_op.at(context.task.thread_id)->CaptureUnq( make_unique<LineageBinaryUnq>(move(lhs_lineage), move(rhs_lineage)), LINEAGE_PROBE, state->child_state->out_start);
 #endif
 		} else {
 			// no result: reset the chunk

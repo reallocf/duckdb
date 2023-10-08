@@ -346,7 +346,7 @@ void PhysicalNestedLoopJoin::ResolveComplexJoin(ExecutionContext &context, DataC
 #ifdef LINEAGE
 			auto lineage_lhs = make_unique<LineageSelVec>(move(lvector), match_count);
 			auto lineage_rhs = make_unique<LineageSelVec>(move(rvector), match_count, state->right_chunk * STANDARD_VECTOR_SIZE );
-			lineage_op.at(context.task.thread_id)->Capture( make_shared<LineageBinary>(move(lineage_lhs), move(lineage_rhs)), LINEAGE_PROBE, -1, state->child_state->out_start);
+			lineage_op.at(context.task.thread_id)->CaptureUnq( make_unique<LineageBinaryUnq>(move(lineage_lhs), move(lineage_rhs)), LINEAGE_PROBE, state->child_state->out_start);
 #endif
 		}
 

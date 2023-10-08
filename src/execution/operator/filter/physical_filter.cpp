@@ -49,13 +49,13 @@ void PhysicalFilter::GetChunkInternal(ExecutionContext &context, DataChunk &chun
 	if (result_count == initial_count) {
 #ifdef LINEAGE
 		// nothing was filtered: skip adding any selection vectors
-		lineage_op.at(context.task.thread_id)->Capture( make_shared<LineageRange>(0, result_count), LINEAGE_UNARY, -1,state->child_state->out_start);
+		lineage_op.at(context.task.thread_id)->CaptureUnq( make_unique<LineageRange>(0, result_count), LINEAGE_UNARY, state->child_state->out_start);
 #endif
 		return;
 	}
 
 #ifdef LINEAGE
-	lineage_op.at(context.task.thread_id)->Capture(make_shared<LineageSelVec>(sel, result_count), LINEAGE_UNARY, -1, state->child_state->out_start);
+	lineage_op.at(context.task.thread_id)->CaptureUnq(make_unique<LineageSelVec>(sel, result_count), LINEAGE_UNARY, state->child_state->out_start);
 #endif
 
 	chunk.Slice(sel, result_count);

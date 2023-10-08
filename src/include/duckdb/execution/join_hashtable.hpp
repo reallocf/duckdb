@@ -62,7 +62,7 @@ public:
 		bool finished;
 
 #ifdef LINEAGE
-		shared_ptr<LineageBinary> lineage_probe_data;
+		unique_ptr<LineageBinaryUnq> lineage_probe_data_unq;
 #endif
 
 		explicit ScanStructure(JoinHashTable &ht);
