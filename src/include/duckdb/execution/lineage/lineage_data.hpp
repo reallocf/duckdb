@@ -187,6 +187,9 @@ private:
 // Captures two lineage data of the same side - used for Joins
 class LineageBinaryUnq : public LineageData {
 public:
+	LineageBinaryUnq() :
+	      LineageData(0), left(nullptr), right(nullptr) {
+        }
 	LineageBinaryUnq(unique_ptr<LineageData> lhs, unique_ptr<LineageData> rhs) :
 	      LineageData(0), left(move(lhs)), right(move(rhs)) {
 #ifdef LINEAGE_DEBUG

@@ -204,7 +204,10 @@ public:
 	DataChunk cached_chunk;
 #ifdef LINEAGE
 //	unique_ptr<vector<LineageBinaryUnq>> cached_lineage = make_unique<vector<LineageBinaryUnq>>();
-  unique_ptr<vector<unique_ptr<LineageData>>> cached_lineage_unq = make_unique<vector<unique_ptr<LineageData>>>();
+  //unique_ptr<vector<unique_ptr<LineageData>>> cached_lineage_unq = make_unique<vector<unique_ptr<LineageData>>>();
+  vector<LineageBinaryUnq> cached_lineage_unq;
+  vector<unique_ptr<LineageData>> lineage;
+  vector<LineageBinaryUnq> lineage_unq;
 #endif
 	DataChunk join_keys;
 	ExpressionExecutor probe_executor;
@@ -264,10 +267,16 @@ void PhysicalHashJoin::GetChunkInternal(ExecutionContext &context, DataChunk &ch
 				state->cached_chunk.Initialize(types);
 #ifdef LINEAGE
 				//if (state->cached_lineage->size() > 0) {
-				if (state->cached_lineage_unq->size() > 0) {
-          lineage_op.at(context.task.thread_id)->CaptureUnq(make_unique<LineageVecUnq>(move(state->cached_lineage_unq)), LINEAGE_PROBE);
+				if (state->cached_lineage_unq.size() > 0) {
+           for (auto& ptr : state->cached_lineage_unq) {
+            state->lineage_unq.push_back(std::move(ptr)); // Transfer ownership
+          }
+          state->cached_lineage_unq.clear();
+        //  lineage_op.at(context.task.thread_id)->CaptureUnq(
+          //  state->lineage.push_back( make_unique<LineageVecUnq>(move(state->cached_lineage_unq)));
+        //  lineage_op.at(context.task.thread_id)->CaptureUnq(make_unique<LineageVecUnq>(move(state->cached_lineage_unq)), LINEAGE_PROBE);
        //   state->cached_lineage = make_unique<vector<LineageBinaryUnq>>();
-          state->cached_lineage_unq = make_unique<vector<unique_ptr<LineageData>>>();
+        //  state->cached_lineage_unq = make_unique<vector<unique_ptr<LineageData>>>();
 				}
 #endif
 			} else
@@ -280,7 +289,8 @@ void PhysicalHashJoin::GetChunkInternal(ExecutionContext &context, DataChunk &ch
 				sink.hash_table->ScanFullOuter(chunk, sink.ht_scan_state);
 #ifdef LINEAGE
 				if (chunk.cached_lineage_data) {
-					lineage_op.at(context.task.thread_id)->CaptureUnq(move(chunk.cached_lineage_data), LINEAGE_PROBE, state->child_state->out_start);
+            state->lineage.push_back( move(chunk.cached_lineage_data) );
+			//		lineage_op.at(context.task.thread_id)->CaptureUnq(move(chunk.cached_lineage_data), LINEAGE_PROBE, state->child_state->out_start);
 					chunk.cached_lineage_data = nullptr;
 				}
 #endif
@@ -294,9 +304,10 @@ void PhysicalHashJoin::GetChunkInternal(ExecutionContext &context, DataChunk &ch
 #ifdef LINEAGE
 			if (context.client.lineage_manager->trace_lineage) {
 					// If we haven't pushed to the parent operator, child_offset remains the same (chunk merge)
-          state->scan_structure->lineage_probe_data_unq->child_offset = state->child_state->out_start;
+          state->scan_structure->lineage_probe_data_b.child_offset = state->child_state->out_start;
 					//state->cached_lineage->push_back(move(*state->scan_structure->lineage_probe_data_unq));
-					state->cached_lineage_unq->push_back(move(state->scan_structure->lineage_probe_data_unq));
+					//state->cached_lineage_unq->push_back(move(state->scan_structure->lineage_probe_data_unq));
+					state->cached_lineage_unq.push_back(move(state->scan_structure->lineage_probe_data_b));
 				}
 #endif
 				if (state->cached_chunk.size() >= (STANDARD_VECTOR_SIZE - 64)) {
@@ -305,11 +316,16 @@ void PhysicalHashJoin::GetChunkInternal(ExecutionContext &context, DataChunk &ch
 					state->cached_chunk.Initialize(types);
 #ifdef LINEAGE
 				//if (state->cached_lineage->size() > 0) {
-				if (state->cached_lineage_unq->size() > 0) {
-            lineage_op.at(context.task.thread_id)->CaptureUnq(make_unique<LineageVecUnq>(move(state->cached_lineage_unq)), LINEAGE_PROBE);
+				if (state->cached_lineage_unq.size() > 0) {
+           for (auto& ptr : state->cached_lineage_unq) {
+            state->lineage_unq.push_back(std::move(ptr)); // Transfer ownership
+          }
+          state->cached_lineage_unq.clear();
+           // lineage_op.at(context.task.thread_id)->CaptureUnq(make_unique<LineageVecUnq>(move(state->cached_lineage_unq)), LINEAGE_PROBE);
+           // state->lineage.push_back( make_unique<LineageVecUnq>(move(state->cached_lineage_unq)));
           //  state->cached_lineage = nullptr;
           //  state->cached_lineage = make_unique<vector<LineageBinaryUnq>>();
-            state->cached_lineage_unq = make_unique<vector<unique_ptr<LineageData>>>();
+           // state->cached_lineage_unq = make_unique<vector<unique_ptr<LineageData>>>();
 					}
 #endif
 					return;
@@ -320,20 +336,19 @@ void PhysicalHashJoin::GetChunkInternal(ExecutionContext &context, DataChunk &ch
 				}
 			} else {
 #ifdef LINEAGE
-				if (context.client.lineage_manager->trace_lineage) {
-					if (state->scan_structure && state->scan_structure->lineage_probe_data_unq) {
-					 lineage_op.at(context.task.thread_id)->CaptureUnq(move(state->scan_structure->lineage_probe_data_unq), LINEAGE_PROBE, state->child_state->out_start);
-					}
+			if (context.client.lineage_manager->trace_lineage && chunk.size() > 0) {
+				//	 lineage_op.at(context.task.thread_id)->CaptureUnq(move(state->scan_structure->lineage_probe_data_unq), LINEAGE_PROBE, state->child_state->out_start);
+            //state->lineage.push_back( move(state->scan_structure->lineage_probe_data_unq) );
+            state->lineage_unq.push_back( move(state->scan_structure->lineage_probe_data_b) );
 				}
 #endif
 				return;
 			}
 #else
 #ifdef LINEAGE
-			if (context.client.lineage_manager->trace_lineage) {
-					if (state->scan_structure && state->scan_structure->lineage_probe_data_unq) {
-						lineage_op.at(context.task.thread_id)->CaptureUnq(move(state->scan_structure->lineage_probe_data_unq), LINEAGE_PROBE, state->child_state->out_start);
-					}
+			if (context.client.lineage_manager->trace_lineage && chunk.size() > 0) {
+						//lineage_op.at(context.task.thread_id)->CaptureUnq(move(state->scan_structure->lineage_probe_data_unq), LINEAGE_PROBE, state->child_state->out_start);
+            state->lineage_unq.push_back( move(state->scan_structure->lineage_probe_data_b) );
 				}
 #endif
 			return;

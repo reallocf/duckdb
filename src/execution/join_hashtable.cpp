@@ -237,7 +237,7 @@ void JoinHashTable::Build(DataChunk &keys, DataChunk &payload) {
 #ifdef LINEAGE
 	// log lineage data that maps input to output ht payload entries
 	auto lineage_data = make_unique<LineageDataArray<data_t>>(move(addresses.GetBuffer()->data), added_count);
-  lineage_data->Compress();
+//  lineage_data->Compress();
 	// todo: handle the case when hash index key is null -> need to store current_sel
 	//       and store offset from address for hashtable payload instead of pointer value itself
 	lineage_op->CaptureUnq(move(lineage_data), LINEAGE_BUILD);
@@ -492,7 +492,10 @@ void ScanStructure::NextInnerJoin(DataChunk &keys, DataChunk &left, DataChunk &r
 		auto rhs_lineage = make_unique<LineageDataArray<uintptr_t>>(move(key_locations_lineage), result_count, result_count);
 		auto lhs_lineage = make_unique<LineageSelVec>(move(result_vector), result_count);
     lhs_lineage->Compress();
-		lineage_probe_data_unq = make_unique<LineageBinaryUnq>(move(lhs_lineage), move(rhs_lineage));
+		//lineage_probe_data_unq = make_unique<LineageBinaryUnq>(move(lhs_lineage), move(rhs_lineage));
+    lineage_probe_data_b.left = move(lhs_lineage);
+    lineage_probe_data_b.right = move(rhs_lineage);
+
 #endif
 		AdvancePointers();
 	}
@@ -546,10 +549,12 @@ void ScanStructure::NextSemiOrAntiJoin(DataChunk &keys, DataChunk &left, DataChu
 		result.Slice(left, sel, result_count);
 #ifdef LINEAGE
 		auto rhs_lineage = make_unique<LineageDataArray<uintptr_t>>(move(key_locations_lineage), result_count, keys.size());
-    rhs_lineage->Compress();
+//    rhs_lineage->Compress();
 		auto lhs_lineage = make_unique<LineageSelVec>(move(sel), result_count);
-    lhs_lineage->Compress();
-		lineage_probe_data_unq = make_unique<LineageBinaryUnq>(move(lhs_lineage), move(rhs_lineage));
+//    lhs_lineage->Compress();
+		//lineage_probe_data_unq = make_unique<LineageBinaryUnq>(move(lhs_lineage), move(rhs_lineage));
+    lineage_probe_data_b.left = move(lhs_lineage);
+    lineage_probe_data_b.right = move(rhs_lineage);
 #endif
 	} else {
 		D_ASSERT(result.size() == 0);
@@ -617,7 +622,9 @@ void ScanStructure::ConstructMarkJoinResult(DataChunk &join_keys, DataChunk &chi
 #ifdef LINEAGE
 	auto rhs_lineage = make_unique<LineageDataArray<uintptr_t>>(move(key_locations_lineage), child.size(), child.size());
 	auto lhs_lineage = make_unique<LineageRange>(0, child.size());
-	lineage_probe_data_unq = make_unique<LineageBinaryUnq>(move(lhs_lineage), move(rhs_lineage));
+	//lineage_probe_data_unq = make_unique<LineageBinaryUnq>(move(lhs_lineage), move(rhs_lineage));
+    lineage_probe_data_b.left = move(lhs_lineage);
+    lineage_probe_data_b.right = move(rhs_lineage);
 #endif
 	// if the right side contains NULL values, the result of any FALSE becomes NULL
 	if (ht.has_null) {
@@ -729,7 +736,9 @@ void ScanStructure::NextLeftJoin(DataChunk &keys, DataChunk &left, DataChunk &re
 			}
 #ifdef LINEAGE
 			auto lhs_lineage = make_unique<LineageSelVec>(move(sel),  remaining_count);
-			lineage_probe_data_unq = make_unique<LineageBinaryUnq>(move(lhs_lineage), nullptr);
+		//	lineage_probe_data_unq = make_unique<LineageBinaryUnq>(move(lhs_lineage), nullptr);
+    lineage_probe_data_b.left = move(lhs_lineage);
+    lineage_probe_data_b.right = nullptr;
 #endif
 		}
 		finished = true;
@@ -787,9 +796,11 @@ void ScanStructure::NextSingleJoin(DataChunk &keys, DataChunk &input, DataChunk 
 	result.SetCardinality(input.size());
 #ifdef LINEAGE
 	auto rhs_lineage = make_unique<LineageDataArray<uintptr_t>>(move(key_locations_lineage), result_count, input.size());
-  rhs_lineage->Compress();
+//  rhs_lineage->Compress();
 	auto lhs_lineage = make_unique<LineageRange>(0, input.size());
-	lineage_probe_data_unq = make_unique<LineageBinaryUnq>(move(lhs_lineage), move(rhs_lineage));
+	//lineage_probe_data_unq = make_unique<LineageBinaryUnq>(move(lhs_lineage), move(rhs_lineage));
+    lineage_probe_data_b.left = move(lhs_lineage);
+    lineage_probe_data_b.right = move(rhs_lineage);
 #endif
 	// like the SEMI, ANTI and MARK join types, the SINGLE join only ever does one pass over the HT per input chunk
 	finished = true;
@@ -843,7 +854,7 @@ void JoinHashTable::ScanFullOuter(DataChunk &result, JoinHTScanState &state) {
 #ifdef LINEAGE
 		if (result.trace_lineage) {
 			auto rhs_lineage = make_unique<LineageDataArray<data_t>>(move(addresses.GetBuffer()->data), found_entries);
-      rhs_lineage->Compress();
+//      rhs_lineage->Compress();
 			auto lineage_data = make_unique<LineageBinaryUnq>(nullptr, move(rhs_lineage));
 			result.cached_lineage_data = move(lineage_data);
 		}

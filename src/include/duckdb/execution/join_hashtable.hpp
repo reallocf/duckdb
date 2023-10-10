@@ -63,6 +63,7 @@ public:
 
 #ifdef LINEAGE
 		unique_ptr<LineageBinaryUnq> lineage_probe_data_unq;
+		LineageBinaryUnq lineage_probe_data_b;
 #endif
 
 		explicit ScanStructure(JoinHashTable &ht);
