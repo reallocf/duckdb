@@ -45,7 +45,9 @@ private:
 
 class LineageDataVectorBufferArray : public LineageData {
 public:
-	LineageDataVectorBufferArray(unique_ptr<data_t[]> vec_p, idx_t count) : vec(move(vec_p)), count(count) {
+	LineageDataVectorBufferArray(unique_ptr<data_t[]> vec_p, idx_t count, idx_t capacity=STANDARD_VECTOR_SIZE) : vec(move(vec_p)), count(count) {
+    capacity -= count;
+    Compress();
 #ifdef LINEAGE_DEBUG
 		Debug();
 #endif
@@ -58,16 +60,20 @@ public:
 	shared_ptr<LineageDataWithOffset> GetChild() override;
 	idx_t Size() override;
 	idx_t Backward(idx_t) override;
+  void Compress();
 
 private:
 	unique_ptr<data_t[]> vec;
 	idx_t count;
 	shared_ptr<LineageDataWithOffset> child;
+  idx_t capacity;
 };
 
 class LineageDataUIntPtrArray : public LineageData {
 public:
-	LineageDataUIntPtrArray(unique_ptr<uintptr_t[]> vec_p, idx_t count) : vec(move(vec_p)), count(count) {
+	LineageDataUIntPtrArray(unique_ptr<uintptr_t[]> vec_p, idx_t count, idx_t capacity=STANDARD_VECTOR_SIZE) : vec(move(vec_p)), count(count) {
+    capacity -= count;
+    Compress();
 #ifdef LINEAGE_DEBUG
 		Debug();
 #endif
@@ -80,16 +86,20 @@ public:
 	shared_ptr<LineageDataWithOffset> GetChild() override;
 	idx_t Size() override;
 	idx_t Backward(idx_t) override;
+  void Compress();
 
 private:
 	unique_ptr<uintptr_t[]> vec;
 	idx_t count;
 	shared_ptr<LineageDataWithOffset> child;
+  idx_t capacity;
 };
 
 class LineageDataUInt32Array : public LineageData {
 public:
-	LineageDataUInt32Array(unique_ptr<uint32_t[]>vec_p, idx_t count) : vec(move(vec_p)), count(count) {
+	LineageDataUInt32Array(unique_ptr<uint32_t[]>vec_p, idx_t count, idx_t capacity=STANDARD_VECTOR_SIZE) : vec(move(vec_p)), count(count) {
+    capacity -= count;
+    Compress();
 #ifdef LINEAGE_DEBUG
 		Debug();
 #endif
@@ -102,16 +112,19 @@ public:
 	shared_ptr<LineageDataWithOffset> GetChild() override;
 	idx_t Size() override;
 	idx_t Backward(idx_t) override;
+  void Compress();
 
 private:
 	unique_ptr<uint32_t[]> vec;
 	idx_t count;
 	shared_ptr<LineageDataWithOffset> child;
+  idx_t capacity;
 };
 
 class LineageSelVec : public LineageData {
 public:
 	LineageSelVec(const SelectionVector& vec_p, idx_t count, idx_t in_offset=0) : vec(vec_p), count(count), in_offset(in_offset) {
+    Compress();
 #ifdef LINEAGE_DEBUG
 		Debug();
 #endif
@@ -127,6 +140,7 @@ public:
 
 	// TODO should this be a func shared across all LineageData?
 	vector<LineageDataWithOffset> Divide();
+  void Compress();
 
 private:
 	SelectionVector vec;

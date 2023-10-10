@@ -240,6 +240,36 @@ shared_ptr<LineageDataWithOffset> LineageSelVec::GetChild() {
 	return child;
 }
 
+void LineageDataUInt32Array::Compress() {
+  if (capacity > 500) {
+    std::unique_ptr<uint32_t[]> destination_ptr(new uint32_t[count]);
+    std::copy(vec.get(), vec.get() + count, destination_ptr.get());
+    vec = move(destination_ptr);
+  }
+}
+
+void LineageDataUIntPtrArray::Compress() {
+  if (capacity > 500) {
+    std::unique_ptr<uintptr_t[]> destination_ptr(new uintptr_t[count]);
+    std::copy(vec.get(), vec.get() + count, destination_ptr.get());
+    vec = move(destination_ptr);
+  }
+}
+void LineageDataVectorBufferArray::Compress() {
+  if (capacity > 500) {
+    std::unique_ptr<data_t[]> destination_ptr(new data_t[count]);
+    std::copy(vec.get(), vec.get() + count, destination_ptr.get());
+    vec = move(destination_ptr);
+  }
+}
+
+void LineageSelVec::Compress() {
+	if (count < 500) {
+		SelectionVector dst(count);
+		std::copy(vec.data(), vec.data() + count, dst.data());
+		vec.Initialize(dst);
+	}
+}
 
 // LineageRange
 

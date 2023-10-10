@@ -488,7 +488,7 @@ void ScanStructure::NextInnerJoin(DataChunk &keys, DataChunk &left, DataChunk &r
 			GatherResult(vector, result_vector, result_count, i + ht.condition_types.size());
 		}
 #ifdef LINEAGE
-		auto lhs_lineage = make_unique<LineageDataUIntPtrArray>(move(key_locations_lineage), result_count);
+		auto lhs_lineage = make_unique<LineageDataUIntPtrArray>(move(key_locations_lineage), result_count, result_count);
 		auto rhs_lineage = make_unique<LineageSelVec>(move(result_vector), result_count);
 		lineage_probe_data = make_shared<LineageBinary>(move(lhs_lineage), move(rhs_lineage));
 #endif
@@ -525,7 +525,7 @@ void ScanStructure::NextSemiOrAntiJoin(DataChunk &keys, DataChunk &left, DataChu
 	SelectionVector sel(STANDARD_VECTOR_SIZE);
 	idx_t result_count = 0;
 #ifdef LINEAGE
-	unique_ptr<uintptr_t[]> key_locations_lineage(new uintptr_t[STANDARD_VECTOR_SIZE]);
+	unique_ptr<uintptr_t[]> key_locations_lineage(new uintptr_t[keys.size()]);
 	auto ptrs = FlatVector::GetData<uintptr_t>(this->pointers);
 #endif
 	for (idx_t i = 0; i < keys.size(); i++) {
@@ -543,7 +543,7 @@ void ScanStructure::NextSemiOrAntiJoin(DataChunk &keys, DataChunk &left, DataChu
 		// reference the columns of the left side from the result
 		result.Slice(left, sel, result_count);
 #ifdef LINEAGE
-		auto lhs_lineage = make_unique<LineageDataUIntPtrArray>(move(key_locations_lineage), result_count);
+		auto lhs_lineage = make_unique<LineageDataUIntPtrArray>(move(key_locations_lineage), result_count, keys.size());
 		auto rhs_lineage = make_unique<LineageSelVec>(move(sel), result_count);
 		lineage_probe_data = make_shared<LineageBinary>(move(lhs_lineage), move(rhs_lineage));
 #endif
@@ -612,7 +612,7 @@ void ScanStructure::ConstructMarkJoinResult(DataChunk &join_keys, DataChunk &chi
 	}
 #ifdef LINEAGE
 	SelectionVector lhs_sel(0, child.size());
-	auto lhs_lineage = make_unique<LineageDataUIntPtrArray>(move(key_locations_lineage), child.size());
+	auto lhs_lineage = make_unique<LineageDataUIntPtrArray>(move(key_locations_lineage), child.size(), child.size());
 	auto rhs_lineage = make_unique<LineageSelVec>(move(lhs_sel), child.size());
 	lineage_probe_data = make_shared<LineageBinary>(move(lhs_lineage), move(rhs_lineage));
 #endif
@@ -784,7 +784,7 @@ void ScanStructure::NextSingleJoin(DataChunk &keys, DataChunk &input, DataChunk 
 	result.SetCardinality(input.size());
 #ifdef LINEAGE
 	SelectionVector lhs_sel(0, input.size());
-	auto lhs_lineage = make_unique<LineageDataUIntPtrArray>(move(key_locations_lineage), result_count);
+	auto lhs_lineage = make_unique<LineageDataUIntPtrArray>(move(key_locations_lineage), result_count, input.size());
 	auto rhs_lineage = make_unique<LineageSelVec>(move(lhs_sel),  input.size());
 	lineage_probe_data = make_shared<LineageBinary>(move(lhs_lineage), move(rhs_lineage));
 #endif
