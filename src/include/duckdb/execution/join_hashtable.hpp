@@ -64,6 +64,10 @@ public:
 #ifdef LINEAGE
 		unique_ptr<LineageBinaryUnq> lineage_probe_data_unq;
 		LineageBinaryUnq lineage_probe_data_b;
+    //vector<unique_ptr<sel_t[]>> lineage_left;
+    //vector<unique_ptr<uintptr_t[]>> lineage_right;
+    vector<idx_t> lineage_counts;
+    std::forward_list< std::pair<unique_ptr<sel_t[]>, unique_ptr<uintptr_t[]>> > lineage_bin;
 #endif
 
 		explicit ScanStructure(JoinHashTable &ht);

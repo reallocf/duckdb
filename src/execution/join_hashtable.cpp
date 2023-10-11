@@ -489,12 +489,28 @@ void ScanStructure::NextInnerJoin(DataChunk &keys, DataChunk &left, DataChunk &r
 			GatherResult(vector, result_vector, result_count, i + ht.condition_types.size());
 		}
 #ifdef LINEAGE
-		auto rhs_lineage = make_unique<LineageDataArray<uintptr_t>>(move(key_locations_lineage), result_count, result_count);
-		auto lhs_lineage = make_unique<LineageSelVec>(move(result_vector), result_count);
-    lhs_lineage->Compress();
+    /*if (result_count < 500) {
+      SelectionVector dst(count);
+      std::copy(result_vector.data(), result_vector.data() + result_count, dst.data());
+      result_vector.Initialize(dst);
+    }*/
+   /* if (result_count < 500) {
+      unique_ptr<sel_t[]> dst = unique_ptr<sel_t[]>(new sel_t[result_count]);
+      std::copy(result_vector.data(), result_vector.data() + result_count, dst.get());
+      lineage_bin.push_back(std::make_pair(move(dst), move(key_locations_lineage)));
+    } else {
+      lineage_bin.push_back(std::make_pair(move(result_vector.sel_data()->owned_data), move(key_locations_lineage)));
+    }*/
+      lineage_bin.push_front(std::make_pair(move(result_vector.sel_data()->owned_data), move(key_locations_lineage)));
+    //lineage_counts.push_back(result_count);
+    //lineage_left.push_back(move(result_vector.sel_data()->owned_data));
+   // lineage_right.push_back(move(key_locations_lineage));
+	//	auto rhs_lineage = make_unique<LineageDataArray<uintptr_t>>(move(key_locations_lineage), result_count, result_count);
+	//	auto lhs_lineage = make_unique<LineageSelVec>(move(result_vector), result_count);
+//    lhs_lineage->Compress();
 		//lineage_probe_data_unq = make_unique<LineageBinaryUnq>(move(lhs_lineage), move(rhs_lineage));
-    lineage_probe_data_b.left = move(lhs_lineage);
-    lineage_probe_data_b.right = move(rhs_lineage);
+   // lineage_probe_data_b.left = move(lhs_lineage);
+    //lineage_probe_data_b.right = move(rhs_lineage);
 
 #endif
 		AdvancePointers();
