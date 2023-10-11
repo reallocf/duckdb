@@ -16,7 +16,7 @@ struct LineageDataWithOffset;
 
 class LineageData {
 public:
-	LineageData(idx_t count) : count(count), processed(false) {}
+	LineageData(idx_t count, idx_t child_offset=0) : count(count), processed(false), child_offset(child_offset) {}
 
   //! Return number of entries in the artifact
 	virtual idx_t Count() {

@@ -11,6 +11,11 @@ public:
 	}
 
 	ExpressionExecutor executor;
+#ifdef LINEAGE
+  vector<LineageRange> lineage_range;
+  vector<LineageSelVec> lineage_sel;
+  std::vector<std::reference_wrapper<LineageData>> lineage;
+#endif
 };
 
 PhysicalFilter::PhysicalFilter(vector<LogicalType> types, vector<unique_ptr<Expression>> select_list,
@@ -49,13 +54,17 @@ void PhysicalFilter::GetChunkInternal(ExecutionContext &context, DataChunk &chun
 	if (result_count == initial_count) {
 #ifdef LINEAGE
 		// nothing was filtered: skip adding any selection vectors
-		lineage_op.at(context.task.thread_id)->CaptureUnq( make_unique<LineageRange>(0, result_count), LINEAGE_UNARY, state->child_state->out_start);
+    state->lineage_range.push_back(LineageRange(0, result_count, state->child_state->out_start)); 
+    state->lineage.push_back(state->lineage_range.back());
+		//lineage_op.at(context.task.thread_id)->CaptureUnq( make_unique<LineageRange>(0, result_count), LINEAGE_UNARY, state->child_state->out_start);
 #endif
 		return;
 	}
 
 #ifdef LINEAGE
-	lineage_op.at(context.task.thread_id)->CaptureUnq(make_unique<LineageSelVec>(sel, result_count), LINEAGE_UNARY, state->child_state->out_start);
+    state->lineage_sel.push_back(LineageSelVec(sel, result_count, state->child_state->out_start));
+    state->lineage.push_back(state->lineage_sel.back());
+	//lineage_op.at(context.task.thread_id)->CaptureUnq(make_unique<LineageSelVec>(sel, result_count), LINEAGE_UNARY, state->child_state->out_start);
 #endif
 
 	chunk.Slice(sel, result_count);

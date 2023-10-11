@@ -67,7 +67,7 @@ vector<LineageDataWithOffset> LineageSelVec::Divide(idx_t child_offset) {
 }
 
 void LineageSelVec::Compress() {
-	if (count < 800) {
+	if (count < 500) {
 		SelectionVector dst(count);
 		std::copy(vec.data(), vec.data() + count, dst.data());
 		vec.Initialize(dst);

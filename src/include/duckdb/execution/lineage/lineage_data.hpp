@@ -115,7 +115,7 @@ private:
 // used to quickly capture Limits
 class LineageRange : public LineageData {
 public:
-	LineageRange(idx_t start, idx_t end) : LineageData(end-start), start(start), end(end) {
+	LineageRange(idx_t start, idx_t end, idx_t child_offset=0) : LineageData(end-start), start(start), end(end) {
 #ifdef LINEAGE_DEBUG
 		Debug();
 #endif
