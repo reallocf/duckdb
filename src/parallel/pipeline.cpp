@@ -151,11 +151,9 @@ bool Pipeline::LaunchScanTasks(PhysicalOperator *op, idx_t max_threads, unique_p
 		return false;
 	}
 #ifdef LINEAGE
-	if (executor.context.lineage_manager->trace_lineage) {
 		for (idx_t i = 0; i < max_threads; i++) {
 			LineageManager::CreateOperatorLineage(sink, i, true, false);
 		}
-	}
 #endif
 	this->parallel_node = op;
 	this->parallel_state = move(pstate);

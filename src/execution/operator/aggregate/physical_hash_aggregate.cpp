@@ -196,12 +196,17 @@ void PhysicalHashAggregate::Sink(ExecutionContext &context, GlobalOperatorState 
 			gstate.finalized_hts.push_back(
 			    make_unique<GroupedAggregateHashTable>(BufferManager::GetBufferManager(context.client), group_types,
 			                                           payload_types, bindings, HtEntryType::HT_WIDTH_64));
+#ifdef LINEAGE
+      gstate.finalized_hts.back()->lineage_op = lineage_op.at(context.task.thread_id);
+#endif
 		}
 		D_ASSERT(gstate.finalized_hts.size() == 1);
 		gstate.total_groups += gstate.finalized_hts[0]->AddChunk(group_chunk, aggregate_input_chunk);
 #ifdef LINEAGE
-		// TODO: don't use gstate
-		lineage_op.at(context.task.thread_id)->CaptureUnq(move(gstate.finalized_hts[0]->lineage_data), LINEAGE_SINK);
+    if (group_chunk.size() > 0) {
+      auto lop = reinterpret_cast<HALineage*>(lineage_op.at(context.task.thread_id).get());
+      lop->sink_log.push_back({0, lop->addchunk_log.size()-1});
+    }
 #endif
 		return;
 	}
@@ -218,6 +223,9 @@ void PhysicalHashAggregate::Sink(ExecutionContext &context, GlobalOperatorState 
 	if (!llstate.ht) {
 		llstate.ht = make_unique<PartitionableHashTable>(BufferManager::GetBufferManager(context.client),
 		                                                 gstate.partition_info, group_types, payload_types, bindings);
+#ifdef LINEAGE
+    llstate.ht->lineage_op = lineage_op.at(context.task.thread_id);
+#endif
 	}
 
 	gstate.total_groups +=
@@ -226,18 +234,16 @@ void PhysicalHashAggregate::Sink(ExecutionContext &context, GlobalOperatorState 
 #ifdef LINEAGE
 	// single threaded or multi threaded each can be partitioned or unpartitioned
 	if (!llstate.ht->IsPartitioned()) {
-		if (llstate.ht->unpartitioned_hts.back()->lineage_data) {
-			lineage_op.at(context.task.thread_id)->CaptureUnq(move(llstate.ht->unpartitioned_hts.back()->lineage_data), LINEAGE_SINK);
-		}
+	  auto lop = reinterpret_cast<HALineage*>(lineage_op.at(context.task.thread_id).get());
+    if (lop->radix_log.size() > 0) {
+      lop->sink_log.push_back({1, lop->radix_log.size()-1});
+    }
 	} else {
-#ifdef LINEAGE
-		if (llstate.ht->lineage_data) {
-			lineage_op.at(context.task.thread_id)->CaptureUnq(move(llstate.ht->lineage_data), LINEAGE_SINK);
-			llstate.ht->lineage_data = nullptr;
-		}
-#endif
+	  auto lop = reinterpret_cast<HALineage*>(lineage_op.at(context.task.thread_id).get());
+    if (lop->addchunk_log.size() > 0) {
+      lop->sink_log.push_back({2, lop->addchunk_log.size()-1});
+    }
 	}
-
 #endif
 }
 
@@ -278,9 +284,10 @@ void PhysicalHashAggregate::Combine(ExecutionContext &context, GlobalOperatorSta
 	}
 
 	if (!llstate.ht->IsPartitioned() && gstate.partition_info.n_partitions > 1 && gstate.total_groups > radix_limit) {
+#ifdef LINEAGE
+    llstate.ht->lineage_op = lineage_op.at(context.task.thread_id);
+#endif
 		llstate.ht->Partition();
-		lineage_op.at(context.task.thread_id)->CaptureUnq(move(llstate.ht->lineage_data), LINEAGE_COMBINE);
-		llstate.ht->lineage_data = nullptr;
 	}
 
 	lock_guard<mutex> glock(gstate.lock);
@@ -293,9 +300,6 @@ void PhysicalHashAggregate::Combine(ExecutionContext &context, GlobalOperatorSta
 
 	// we will never add new values to these HTs so we can drop the first part of the HT
 	llstate.ht->Finalize();
-#ifdef LINEAGE
-	llstate.ht->thread_id = context.task.thread_id;
-#endif
 	// at this point we just collect them the PhysicalHashAggregateFinalizeTask (below) will merge them in parallel
 	gstate.intermediate_hts.push_back(move(llstate.ht));
 }
@@ -313,8 +317,10 @@ public:
 			for (auto &ht : pht->GetPartition(radix)) {
 				gstate.finalized_hts[radix]->Combine(*ht);
 #ifdef LINEAGE
-				gstate.op.lineage_op.at(pht->thread_id)->CaptureUnq(make_unique<LineageVec>(move(gstate.finalized_hts[radix]->combine_lineage_data)), LINEAGE_FINALIZE);
-				gstate.finalized_hts[radix]->combine_lineage_data = make_shared<vector<shared_ptr<LineageData>>>();
+	      auto lop = reinterpret_cast<HALineage*>(gstate.finalized_hts[radix]->lineage_op.get());
+        if (lop->combine_log.size() > 0) {
+          lop->finalize_log.push_back({radix, &lop->combine_log.back()});
+        }
 #endif
 				ht.reset();
 			}
@@ -376,6 +382,9 @@ bool PhysicalHashAggregate::FinalizeInternal(ClientContext &context, unique_ptr<
 		// this should mostly have already happened in Combine, but if not we do it here
 		for (auto &pht : gstate.intermediate_hts) {
 			if (!pht->IsPartitioned()) {
+#ifdef LINEAGE
+        pht->lineage_op = lineage_op.at(-1);
+#endif
 				pht->Partition();
 			}
 		}
@@ -390,9 +399,18 @@ bool PhysicalHashAggregate::FinalizeInternal(ClientContext &context, unique_ptr<
 			    make_unique<GroupedAggregateHashTable>(BufferManager::GetBufferManager(context), group_types,
 			                                           payload_types, bindings, HtEntryType::HT_WIDTH_64);
 			if (immediate) {
+#ifdef LINEAGE
+        gstate.finalized_hts[r]->lineage_op = lineage_op.at(-1);
+#endif
 				PhysicalHashAggregateFinalizeTask::FinalizeHT(gstate, r);
 			} else {
 				D_ASSERT(pipeline);
+        this->lineage_op[r] = make_shared<HALineage>(
+            this->type,
+            this->id,
+            r
+        );
+        gstate.finalized_hts[r]->lineage_op = lineage_op.at(r);
 				auto new_task = make_unique<PhysicalHashAggregateFinalizeTask>(*pipeline, gstate, r);
 				TaskScheduler::GetScheduler(context).ScheduleTask(pipeline->token, move(new_task));
 			}
@@ -404,17 +422,14 @@ bool PhysicalHashAggregate::FinalizeInternal(ClientContext &context, unique_ptr<
 
 		gstate.finalized_hts.push_back(make_unique<GroupedAggregateHashTable>(
 		    BufferManager::GetBufferManager(context), group_types, payload_types, bindings, HtEntryType::HT_WIDTH_64));
+#ifdef LINEAGE
+        gstate.finalized_hts.back()->lineage_op = lineage_op.at(-1);
+#endif
 		for (auto &pht : gstate.intermediate_hts) {
 			auto unpartitioned = pht->GetUnpartitioned();
 			for (auto &unpartitioned_ht : unpartitioned) {
 				D_ASSERT(unpartitioned_ht);
 				gstate.finalized_hts[0]->Combine(*unpartitioned_ht);
-#ifdef LINEAGE
-				if (lineage_op.size() > 0 && gstate.finalized_hts[0]->combine_lineage_data->size() > 0) {
-					lineage_op.begin()->second->CaptureUnq(make_unique<LineageVec>(move(gstate.finalized_hts[0]->combine_lineage_data)), LINEAGE_COMBINE);
-					gstate.finalized_hts[0]->combine_lineage_data = make_shared<vector<shared_ptr<LineageData>>>();
-				}
-#endif
 				unpartitioned_ht.reset();
 			}
 			unpartitioned.clear();

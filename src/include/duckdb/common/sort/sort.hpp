@@ -13,7 +13,7 @@
 #include "duckdb/planner/bound_query_node.hpp"
 
 #ifdef LINEAGE
-#include "duckdb/execution/lineage/lineage_data.hpp"
+#include "duckdb/execution/lineage/operator_lineage.hpp"
 #endif
 namespace duckdb {
 
@@ -86,7 +86,8 @@ public:
 	idx_t l_start;
 	idx_t r_start;
 #ifdef LINEAGE
-	SelectionVector lineage_sel;
+public:
+	shared_ptr<OperatorLineage> lineage_op;
 #endif
 };
 
@@ -132,15 +133,16 @@ public:
 	//! Sorted data
 	vector<unique_ptr<SortedBlock>> sorted_blocks;
 
-#ifdef LINEAGE
-	//! Captured lineage for this local sort
-	unique_ptr<LineageSelVec> lineage;
-#endif
-
 private:
 	//! Selection vector and addresses for scattering the data to rows
 	const SelectionVector &sel_ptr = FlatVector::INCREMENTAL_SELECTION_VECTOR;
 	Vector addresses = Vector(LogicalType::POINTER);
+
+#ifdef LINEAGE
+public:
+	shared_ptr<OperatorLineage> lineage_op;
+#endif
+
 };
 
 struct MergeSorter {

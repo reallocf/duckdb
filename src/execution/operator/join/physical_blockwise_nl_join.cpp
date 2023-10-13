@@ -197,10 +197,12 @@ void PhysicalBlockwiseNLJoin::GetChunkInternal(ExecutionContext &context, DataCh
 			}
 			chunk.Slice(match_sel, result_count);
 #ifdef LINEAGE
+	  auto lop = reinterpret_cast<BNLJLineage*>(lineage_op.at(context.task.thread_id).get());
 			// left_position within the chunk retrieved from the child
-			auto lhs_lineage = make_unique<LineageConstant>(state->left_position, result_count);
-			auto rhs_lineage = make_unique<LineageSelVec>(move(match_sel), result_count, (state->right_position * STANDARD_VECTOR_SIZE));
-			lineage_op.at(context.task.thread_id)->CaptureUnq( make_unique<LineageBinaryUnq>(move(lhs_lineage), move(rhs_lineage)), LINEAGE_PROBE, state->child_state->out_start);
+		//	auto lhs_lineage = make_unique<LineageConstant>(state->left_position, result_count);
+		//	auto rhs_lineage = make_unique<LineageSelVec>(move(match_sel), result_count, (state->right_position * STANDARD_VECTOR_SIZE));
+		//	lineage_op.at(context.task.thread_id)->CaptureUnq( make_unique<LineageBinaryUnq>(move(lhs_lineage), move(rhs_lineage)), LINEAGE_PROBE, state->child_state->out_start);
+      lop->lineage.push_back({state->left_position, match_sel, result_count, state->right_position, state->child_state->out_start});
 #endif
 		} else {
 			// no result: reset the chunk

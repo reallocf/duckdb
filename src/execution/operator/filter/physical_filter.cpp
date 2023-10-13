@@ -11,11 +11,6 @@ public:
 	}
 
 	ExpressionExecutor executor;
-#ifdef LINEAGE
-  vector<LineageRange> lineage_range;
-  vector<LineageSelVec> lineage_sel;
-  std::vector<std::reference_wrapper<LineageData>> lineage;
-#endif
 };
 
 PhysicalFilter::PhysicalFilter(vector<LogicalType> types, vector<unique_ptr<Expression>> select_list,
@@ -40,6 +35,9 @@ void PhysicalFilter::GetChunkInternal(ExecutionContext &context, DataChunk &chun
 	SelectionVector sel(STANDARD_VECTOR_SIZE);
 	idx_t initial_count;
 	idx_t result_count;
+#ifdef LINEAGE
+	auto lop = reinterpret_cast<FilterLineage*>(lineage_op.at(context.task.thread_id).get());
+#endif
 	do {
 		// fetch a chunk from the child and run the filter
 		// we repeat this process until either (1) passing tuples are found, or (2) the child is completely exhausted
@@ -54,20 +52,20 @@ void PhysicalFilter::GetChunkInternal(ExecutionContext &context, DataChunk &chun
 	if (result_count == initial_count) {
 #ifdef LINEAGE
 		// nothing was filtered: skip adding any selection vectors
-    state->lineage_range.push_back(LineageRange(0, result_count, state->child_state->out_start)); 
-    state->lineage.push_back(state->lineage_range.back());
-		//lineage_op.at(context.task.thread_id)->CaptureUnq( make_unique<LineageRange>(0, result_count), LINEAGE_UNARY, state->child_state->out_start);
+    lop->lineage.push_back({nullptr, result_count, state->child_state->out_start});
 #endif
 		return;
 	}
 
-#ifdef LINEAGE
-    state->lineage_sel.push_back(LineageSelVec(sel, result_count, state->child_state->out_start));
-    state->lineage.push_back(state->lineage_sel.back());
-	//lineage_op.at(context.task.thread_id)->CaptureUnq(make_unique<LineageSelVec>(sel, result_count), LINEAGE_UNARY, state->child_state->out_start);
-#endif
 
 	chunk.Slice(sel, result_count);
+
+#ifdef LINEAGE
+    unique_ptr<sel_t[]> dst = unique_ptr<sel_t[]>(new sel_t[result_count]);
+    std::copy(sel.data(), sel.data() + result_count, dst.get());
+    lop->lineage.push_back({move(dst), result_count, state->child_state->out_start});
+   // lop->lineage.push_back({sel.sel_data(), result_count, state->child_state->out_start});
+#endif
 }
 
 unique_ptr<PhysicalOperatorState> PhysicalFilter::GetOperatorState() {

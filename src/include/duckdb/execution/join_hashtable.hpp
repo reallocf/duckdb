@@ -62,12 +62,8 @@ public:
 		bool finished;
 
 #ifdef LINEAGE
-		unique_ptr<LineageBinaryUnq> lineage_probe_data_unq;
-		LineageBinaryUnq lineage_probe_data_b;
-    //vector<unique_ptr<sel_t[]>> lineage_left;
-    //vector<unique_ptr<uintptr_t[]>> lineage_right;
-    vector<idx_t> lineage_counts;
-    std::forward_list< std::pair<unique_ptr<sel_t[]>, unique_ptr<uintptr_t[]>> > lineage_bin;
+    unique_ptr<sel_t[]> lineage_left;
+    unique_ptr<uintptr_t[]> lineage_right;
 #endif
 
 		explicit ScanStructure(JoinHashTable &ht);
@@ -126,7 +122,11 @@ public:
 	//! Probe the HT with the given input chunk, resulting in the given result
 	unique_ptr<ScanStructure> Probe(DataChunk &keys);
 	//! Scan the HT to construct the final full outer join result after
+#ifdef LINEAGE
+	void ScanFullOuter(DataChunk &result, JoinHTScanState &state, shared_ptr<OperatorLineage> lineage_op);
+#else
 	void ScanFullOuter(DataChunk &result, JoinHTScanState &state);
+#endif
 	idx_t Count() {
 		return block_collection->count;
 	}

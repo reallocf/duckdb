@@ -341,8 +341,9 @@ idx_t GroupedAggregateHashTable::AddChunk(DataChunk &groups, Vector &group_hashe
 		VectorOperations::AddInPlace(addresses, aggr.payload_size, payload.size());
 	}
 #ifdef LINEAGE
+  auto lop = reinterpret_cast<HALineage*>(lineage_op.get());
 	// this maps input to groups, we can use it later to map output to input
-	lineage_data = make_unique<LineageDataArray<data_t>>(move(addresses.GetBuffer()->data),  groups.size());
+  lop->addchunk_log.push_back({move(addresses.GetBuffer()->data), groups.size()}); 
 #endif
 	Verify();
 	return new_group_count;
@@ -554,9 +555,11 @@ void GroupedAggregateHashTable::FlushMove(Vector &source_addresses, Vector &sour
 	RowOperations::CombineStates(layout, source_addresses, group_addresses, count);
 
 #ifdef LINEAGE
-	auto source_lineage = make_unique<LineageDataArray<data_t>>(move(source_addresses.GetBuffer()->data),  count);
-	auto new_lineage =  make_unique<LineageDataArray<data_t>>(move(group_addresses.GetBuffer()->data),  count);
-	combine_lineage_data->push_back(make_unique<LineageBinary>(move(source_lineage), move(new_lineage)));
+	auto lop = reinterpret_cast<HALineage*>(lineage_op.get());
+  auto ptrs = FlatVector::GetData<data_t>(source_addresses);
+  unique_ptr<data_t[]> key_locations_lineage(new data_t[count]);
+  std::copy(ptrs,ptrs + count, key_locations_lineage.get());
+  lop->flushmove_log.push_back({move(key_locations_lineage), move(group_addresses.GetBuffer()->data), count});
 #endif
 }
 
@@ -573,6 +576,10 @@ void GroupedAggregateHashTable::Combine(GroupedAggregateHashTable &other) {
 		return;
 	}
 
+#ifdef LINEAGE
+	auto lop = reinterpret_cast<HALineage*>(lineage_op.get());
+  lop->combine_log.emplace_back();
+#endif
 	Vector addresses(LogicalType::POINTER);
 	auto addresses_ptr = FlatVector::GetData<data_ptr_t>(addresses);
 
@@ -590,13 +597,19 @@ void GroupedAggregateHashTable::Combine(GroupedAggregateHashTable &other) {
 		if (group_idx == STANDARD_VECTOR_SIZE) {
 			FlushMove(addresses, hashes, group_idx);
 #ifdef LINEAGE
-			addresses.Initialize();
-			addresses_ptr = FlatVector::GetData<data_ptr_t>(addresses);
+      if (lop->flushmove_log.size() > 0) {
+        lop->combine_log.back().push_back({&lop->flushmove_log.back()});
+      }
 #endif
 			group_idx = 0;
 		}
 	});
 	FlushMove(addresses, hashes, group_idx);
+  
+#ifdef LINEAGE
+  if (lop->flushmove_log.size() > 0)
+    lop->combine_log.back().push_back({&lop->flushmove_log.back()});
+#endif
 	string_heap->Merge(*other.string_heap);
 	Verify();
 }
@@ -617,6 +630,9 @@ void GroupedAggregateHashTable::Partition(vector<GroupedAggregateHashTable *> &p
                                           idx_t shift) {
 	D_ASSERT(partition_hts.size() > 1);
 	vector<PartitionInfo> partition_info(partition_hts.size());
+#ifdef LINEAGE
+	auto lop = reinterpret_cast<HALineage*>(lineage_op.get());
+#endif
 
 	PayloadApply([&](idx_t page_nr, idx_t page_offset, data_ptr_t ptr) {
 		auto hash = Load<hash_t>(ptr + hash_offset);
@@ -634,8 +650,9 @@ void GroupedAggregateHashTable::Partition(vector<GroupedAggregateHashTable *> &p
 			partition_hts[partition]->FlushMove(info.addresses, info.hashes, info.group_count);
 
 #ifdef LINEAGE
-			info.addresses.Initialize();
-			info.addresses_ptr = FlatVector::GetData<data_ptr_t>(info.addresses);
+      if (lop->flushmove_log.size() > 0) {
+        lop->partition_log.push_back({partition, &lop->flushmove_log.back()});
+      }
 #endif
 			info.group_count = 0;
 		}
@@ -646,6 +663,11 @@ void GroupedAggregateHashTable::Partition(vector<GroupedAggregateHashTable *> &p
 	for (auto &partition_entry : partition_hts) {
 		auto &info = partition_info[info_idx++];
 		partition_entry->FlushMove(info.addresses, info.hashes, info.group_count);
+#ifdef LINEAGE
+    if (lop->flushmove_log.size() > 0) {
+      lop->partition_log.push_back({info_idx-1, &lop->flushmove_log.back()});
+    }
+#endif
 		partition_entry->string_heap->Merge(*string_heap);
 		partition_entry->Verify();
 		total_count += partition_entry->Size();
@@ -694,8 +716,8 @@ idx_t GroupedAggregateHashTable::Scan(idx_t &scan_position, DataChunk &result) {
 	RowOperations::FinalizeStates(layout, addresses, result, group_cols);
 #ifdef LINEAGE
 	// this maps output to groups
-	auto scan_lineage = make_unique<LineageDataArray<data_t>>(move(addresses.GetBuffer()->data),  result.size());
-	lineage_op->CaptureUnq(move(scan_lineage), LINEAGE_SOURCE);
+	auto lop = reinterpret_cast<HALineage*>(lineage_op.get());
+	lop->scan_log.push_back({move(addresses.GetBuffer()->data), result.size()});
 #endif
 	scan_position += this_n;
 	return this_n;

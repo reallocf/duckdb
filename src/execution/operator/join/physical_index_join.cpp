@@ -34,11 +34,6 @@ public:
 	//! Vector of rows that mush be fetched for every LHS key
 	vector<vector<row_t>> rhs_rows;
 	ExpressionExecutor probe_executor;
-#ifdef LINEAGE
-    vector<SelectionVector> lineage_left;
-    vector<vector<row_t>> lineage_right;
-    vector<pair<idx_t, idx_t>> counts;
-#endif
 };
 
 PhysicalIndexJoin::PhysicalIndexJoin(LogicalOperator &op, unique_ptr<PhysicalOperator> left,
@@ -138,12 +133,8 @@ void PhysicalIndexJoin::Output(ExecutionContext &context, DataChunk &chunk, Phys
 	}
 
 #ifdef LINEAGE
-	//auto lhs_lineage = make_unique<LineageSelVec>(move(sel), output_sel_idx);
-	//auto rhs_lineage = make_unique<LineageDataRowVector>(fetch_rows, output_sel_idx);
-	//lineage_op.at(context.task.thread_id)->CaptureUnq(make_unique<LineageBinaryUnq>(move(lhs_lineage), move(rhs_lineage)), LINEAGE_PROBE, state->child_state->out_start);
-  state->lineage_left.push_back(move(sel));
-  state->lineage_right.push_back(move(fetch_rows));
-  state->counts.push_back(std::make_pair(output_sel_idx, state->child_state->out_start));
+  auto lop = reinterpret_cast<IndexJoinLineage*>(lineage_op.at(context.task.thread_id).get());
+  lop->lineage.push_back({sel, move(fetch_rows), output_sel_idx, state->child_state->out_start});
 #endif
 
 	state->result_size = output_sel_idx;

@@ -11,7 +11,6 @@
 #include "duckdb/execution/base_aggregate_hashtable.hpp"
 #ifdef LINEAGE
 #include "duckdb/execution/execution_context.hpp"
-#include "duckdb/execution/lineage/lineage_data.hpp"
 #include "duckdb/execution/lineage/operator_lineage.hpp"
 #endif
 
@@ -115,11 +114,6 @@ public:
 	constexpr static float LOAD_FACTOR = 1.5;
 	constexpr static uint8_t HASH_WIDTH = sizeof(hash_t);
 
-#ifdef LINEAGE
-	unique_ptr<LineageData> lineage_data;
-	shared_ptr<vector<shared_ptr<LineageData>>> combine_lineage_data = make_shared<vector<shared_ptr<LineageData>>>();
-#endif
-
 private:
 	HtEntryType entry_type;
 
@@ -185,6 +179,10 @@ private:
 
 	template <class FUNC = std::function<void(idx_t, idx_t, data_ptr_t)>>
 	void PayloadApply(FUNC fun);
+#ifdef LINEAGE
+public:
+  shared_ptr<OperatorLineage> lineage_op;
+#endif
 };
 
 } // namespace duckdb

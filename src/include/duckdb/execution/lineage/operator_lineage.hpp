@@ -53,24 +53,19 @@ public:
 	    idx_t opid,
 	    bool should_index
 	) : opid(opid), type(type), children(move(children)), should_index(should_index) {
-   /* log.resize(4);
-    log[0].emplace_back(); // Create an empty partition
-    log[1].emplace_back(); // Create an empty partition
-    log[2].emplace_back(); // Create an empty partition
-    log[3].emplace_back();*/ // Create an empty partition
   }
 
 	//void Capture(const shared_ptr<LineageData>& datum, idx_t lineage_idx, int thread_id=-1, idx_t child_offset=0);
 	void CaptureUnq(unique_ptr<LineageData> datum, idx_t lineage_idx, idx_t child_offset=0);
 
-	LineageProcessStruct GetLineageAsChunk(const vector<LogicalType>& types, idx_t count_so_far, DataChunk &insert_chunk, idx_t size= 0, int thread_id= -1, idx_t data_idx = 0, idx_t stage_idx = 0);
+	virtual LineageProcessStruct GetLineageAsChunk(const vector<LogicalType>& types, idx_t count_so_far, DataChunk &insert_chunk, idx_t size= 0, int thread_id= -1, idx_t data_idx = 0, idx_t stage_idx = 0);
 
-	idx_t Size();
-	idx_t Count();
-	idx_t ChunksCount();
+	virtual idx_t Size();
+	virtual idx_t Count();
+	virtual idx_t ChunksCount();
 	shared_ptr<LineageDataWithOffset> GetMyLatest();
 	shared_ptr<LineageDataWithOffset> GetChildLatest(idx_t lineage_idx);
-	void BuildIndexes();
+	virtual void BuildIndexes();
 
 public:
 	idx_t opid;
@@ -78,15 +73,7 @@ public:
 	ChunkCollection chunk_collection;
 	// data[0] used by all ops; data[1] used by pipeline breakers
 	// Lineage data in here!
-	//std::vector<LineageBinary> data_binary;
-	//std::vector<LineageBinary> data_sel;
-	//std::vector<LineageBinary> data_range;
-	//std::vector<std::reference_wrapper<LineageData>> data_ref[4];
 	std::vector<LineageDataWithOffset> data[4];
-	std::vector<unique_ptr<LineageData>> data_ptr[4];
-	LineageDataWithOffset data_single[4];
-	//std::forward_list<LineageDataWithOffset> data_test[4];
-  //std::vector<std::vector<std::vector<LineageDataWithOffset>>> log;
 	idx_t op_offset[4];
 	PhysicalOperatorType type;
 	shared_ptr<LineageVec> cached_internal_lineage = nullptr;
@@ -108,6 +95,297 @@ public:
 	vector<idx_t> hash_chunk_count;
 	// hm_range: maintains the existing ranges in hash join build side
 	std::vector<std::pair<idx_t, idx_t>> hm_range;
+};
+
+struct filter_artifact {
+  unique_ptr<sel_t[]> sel;
+ // buffer_ptr<SelectionData> sel;
+  uint32_t count;
+  idx_t child_offset;
+};
+
+class FilterLineage : public OperatorLineage {
+  public:
+    FilterLineage(PhysicalOperatorType type, idx_t opid, idx_t thread_id) :
+      OperatorLineage({}, type, opid, false), thread_id(thread_id) {
+    }
+    
+    idx_t Size() override;
+	  idx_t Count() override;
+	  idx_t ChunksCount() override;
+	  void BuildIndexes() override;
+
+
+public:
+  idx_t thread_id;
+  vector<filter_artifact> lineage;
+};
+
+class OrderByLineage : public OperatorLineage {
+  public:
+    OrderByLineage(PhysicalOperatorType type, idx_t opid, idx_t thread_id) :
+      OperatorLineage({}, type, opid, false), thread_id(thread_id) {
+    }
+    
+    idx_t Size() override;
+	  idx_t Count() override;
+	  idx_t ChunksCount() override;
+	  void BuildIndexes() override;
+
+
+public:
+  idx_t thread_id;
+  vector<vector<idx_t>> lineage;
+};
+
+
+struct hj_probe_artifact {
+  unique_ptr<sel_t[]> left;
+  unique_ptr<uintptr_t[]> right;
+  uint32_t count;
+  idx_t out_offset;
+};
+
+struct hj_build_artifact {
+  unique_ptr<data_t[]> scatter;
+  uint32_t count;
+};
+
+class HashJoinLineage : public OperatorLineage {
+  public:
+    HashJoinLineage(PhysicalOperatorType type, idx_t opid, idx_t thread_id) :
+      OperatorLineage({}, type, opid, false), thread_id(thread_id) {
+    }
+    
+    idx_t Size() override;
+	  idx_t Count() override;
+	  idx_t ChunksCount() override;
+	  void BuildIndexes() override;
+
+public:
+  idx_t thread_id;
+  vector<hj_build_artifact> lineage_build;
+  vector<hj_probe_artifact> lineage_binary;
+  vector<idx_t> output_index;
+  vector<idx_t> cached_output_index;
+};
+
+struct IJ_artifact {
+  SelectionVector left;
+  vector<row_t> right;
+  uint32_t count;
+  idx_t child_offset;
+};
+
+class IndexJoinLineage : public OperatorLineage {
+  public:
+    IndexJoinLineage(PhysicalOperatorType type, idx_t opid, idx_t thread_id) :
+      OperatorLineage({}, type, opid, false), thread_id(thread_id) {
+    }
+    
+    idx_t Size() override;
+	  idx_t Count() override;
+	  idx_t ChunksCount() override;
+	  void BuildIndexes() override;
+
+public:
+  idx_t thread_id;
+  vector<IJ_artifact> lineage;
+};
+
+struct cross_artifact {
+  uint32_t right_position;
+  uint32_t left_chunk;
+  idx_t out_start;
+};
+
+class CrossLineage : public OperatorLineage {
+  public:
+    CrossLineage(PhysicalOperatorType type, idx_t opid, idx_t thread_id) :
+      OperatorLineage({}, type, opid, false), thread_id(thread_id) {
+    }
+
+    idx_t Size() override;
+	  idx_t Count() override;
+	  idx_t ChunksCount() override;
+	  void BuildIndexes() override;
+
+public:
+  idx_t thread_id;
+  vector<cross_artifact> lineage;
+};
+
+struct nlj_artifact {
+  SelectionVector left;
+  SelectionVector right;
+  uint32_t count;
+  idx_t out_start;
+};
+
+class NLJLineage : public OperatorLineage {
+  public:
+    NLJLineage(PhysicalOperatorType type, idx_t opid, idx_t thread_id) :
+      OperatorLineage({}, type, opid, false), thread_id(thread_id) {
+    }
+    
+    idx_t Size() override;
+	  idx_t Count() override;
+	  idx_t ChunksCount() override;
+	  void BuildIndexes() override;
+
+public:
+  idx_t thread_id;
+  vector<nlj_artifact> lineage;
+};
+
+struct bnlj_artifact {
+  uint32_t left_position;
+  SelectionVector match_sel;
+  uint32_t count;
+  uint32_t right_position;
+  idx_t out_start;
+};
+
+class BNLJLineage : public OperatorLineage {
+  public:
+    BNLJLineage(PhysicalOperatorType type, idx_t opid, idx_t thread_id) :
+      OperatorLineage({}, type, opid, false), thread_id(thread_id) {
+    }
+
+    idx_t Size() override;
+	  idx_t Count() override;
+	  idx_t ChunksCount() override;
+	  void BuildIndexes() override;
+
+public:
+  idx_t thread_id;
+  vector<bnlj_artifact> lineage;
+};
+
+struct merge_artifact {
+  SelectionVector left;
+  SelectionVector right;
+  uint32_t count;
+  uint32_t right_chunk_index;
+  idx_t out_start;
+};
+
+class MergeLineage : public OperatorLineage {
+  public:
+    MergeLineage(PhysicalOperatorType type, idx_t opid, idx_t thread_id) :
+      OperatorLineage({}, type, opid, false), thread_id(thread_id) {
+    }
+    
+    idx_t Size() override;
+	  idx_t Count() override;
+	  idx_t ChunksCount() override;
+	  void BuildIndexes() override;
+
+public:
+  idx_t thread_id;
+  vector<merge_artifact> lineage;
+};
+
+struct pha_scan_artifact {
+  unique_ptr<uint32_t[]> gather;
+  uint32_t count;
+};
+
+class PHALineage : public OperatorLineage {
+  public:
+    PHALineage(PhysicalOperatorType type, idx_t opid, idx_t thread_id) :
+      OperatorLineage({}, type, opid, false), thread_id(thread_id) {
+    }
+
+    idx_t Size() override;
+	  idx_t Count() override;
+	  idx_t ChunksCount() override;
+	  void BuildIndexes() override;
+
+public:
+  idx_t thread_id;
+  vector<vector<uint32_t>> build_lineage;
+  vector<pha_scan_artifact> scan_lineage;
+};
+
+struct hg_artifact {
+  unique_ptr<data_t[]> addchunk_lineage;
+  uint32_t count;
+};
+
+struct flushmove_artifact {
+  unique_ptr<data_t[]> src;
+  unique_ptr<data_t[]> sink;
+  uint32_t count;
+};
+
+struct sink_artifact {
+  uint32_t branch;
+  idx_t lsn;
+};
+
+struct partition_artifact {
+  uint32_t partition;
+  flushmove_artifact* la;
+};
+
+struct radix_artifact {
+  uint32_t partition;
+  SelectionVector sel;
+  uint32_t sel_size;
+  hg_artifact* scatter;
+};
+
+struct finalize_artifact {
+  uint32_t partition;
+  vector<flushmove_artifact*>* combine;
+};
+
+class HALineage : public OperatorLineage {
+  public:
+    HALineage(PhysicalOperatorType type, idx_t opid, idx_t thread_id) :
+      OperatorLineage({}, type, opid, false), thread_id(thread_id) {
+    }
+	  
+    idx_t Size() override;
+	  idx_t Count() override;
+	  idx_t ChunksCount() override;
+	  void BuildIndexes() override;
+
+public:
+  idx_t thread_id;
+  vector<hg_artifact> addchunk_log;
+  vector<sink_artifact> sink_log;
+  vector<flushmove_artifact> flushmove_log;
+  vector<partition_artifact> partition_log;
+  vector<vector<radix_artifact>> radix_log;
+  vector<vector<flushmove_artifact*>> combine_log;
+  vector<finalize_artifact> finalize_log;
+  vector<hg_artifact> scan_log;
+};
+
+struct scan_artifact {
+  buffer_ptr<SelectionData> sel;
+  uint32_t count;
+  idx_t start;
+  idx_t vector_index;
+};
+
+
+class TableScanLineage : public OperatorLineage {
+  public:
+    TableScanLineage(PhysicalOperatorType type, idx_t opid, idx_t thread_id) :
+      OperatorLineage({}, type, opid, false), thread_id(thread_id) {
+    }
+
+	  idx_t Size() override;
+	  idx_t Count() override;
+	  idx_t ChunksCount() override;
+	  void BuildIndexes() override;
+
+public:
+  idx_t thread_id;
+  vector<scan_artifact> lineage;
 };
 
 struct LineageProcessStruct {

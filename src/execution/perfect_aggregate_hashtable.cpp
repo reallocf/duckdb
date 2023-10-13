@@ -86,7 +86,11 @@ static void ComputeGroupLocation(Vector &group, Value &min, uintptr_t *address_d
 	}
 }
 
+#ifdef LINEAGE
+void PerfectAggregateHashTable::AddChunk(DataChunk &groups, DataChunk &payload, shared_ptr<OperatorLineage> lineage_op) {
+#else
 void PerfectAggregateHashTable::AddChunk(DataChunk &groups, DataChunk &payload) {
+#endif
 	// first we need to find the location in the HT of each of the groups
 	auto address_data = FlatVector::GetData<uintptr_t>(addresses);
 	// zero-initialize the address data
@@ -101,11 +105,9 @@ void PerfectAggregateHashTable::AddChunk(DataChunk &groups, DataChunk &payload) 
 	}
 
 #ifdef LINEAGE
- // SelectionVector tuples_lineage;
-  //tuples_lineage.Initialize(groups.size());
- // tuples_lineage.back().resize(groups.size());
-  tuples_lineage.emplace_back();
-  auto cur_lineage = tuples_lineage.back();
+  auto lop = reinterpret_cast<PHALineage*>(lineage_op.get());
+  lop->build_lineage.emplace_back();
+  auto cur_lineage = lop->build_lineage.back();
   cur_lineage.resize(groups.size());
 #endif
 	// now we have the HT entry number for every tuple
@@ -130,9 +132,6 @@ void PerfectAggregateHashTable::AddChunk(DataChunk &groups, DataChunk &payload) 
 	}
 	RowOperations::InitializeStates(layout, addresses, sel, needs_init);
 
-#ifdef LINEAGE
-//	sink_per_chunk_lineage = make_unique<LineageSelVec>(move(tuples_lineage), groups.size());
-#endif
 	// after finding the group location we update the aggregates
 	idx_t payload_idx = 0;
 	auto &aggregates = layout.GetAggregates();
@@ -276,10 +275,8 @@ void PerfectAggregateHashTable::Scan(idx_t &scan_position, DataChunk &result) {
 	RowOperations::FinalizeStates(layout, addresses, result, grouping_columns);
 
 #ifdef LINEAGE
-  scan_lineage.push_back(LineageDataArray<uint32_t>(move(group_values_smrt), entry_count));
-	// Log group_values & count for this chunk. This maps output to groups
-	//auto per_chunk_lineage = make_unique<LineageDataArray<uint32_t>>(move(group_values_smrt), entry_count);
-	//lineage_op->CaptureUnq(move(per_chunk_lineage), LINEAGE_SOURCE);
+  auto lop = reinterpret_cast<PHALineage*>(lineage_op.get());
+  lop->scan_lineage.push_back({move(group_values_smrt), entry_count});
 #endif
 }
 

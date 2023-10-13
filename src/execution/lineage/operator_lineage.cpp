@@ -15,42 +15,8 @@ void OperatorLineage::CaptureUnq(unique_ptr<LineageData> datum, idx_t lineage_id
 	idx_t this_offset = op_offset[lineage_idx];
 	op_offset[lineage_idx] += datum->Count();
 	
- /* if (typeid(*datum) == typeid(LineageBinary)) {
-    data_binary.push_back(datum);
-    data_ref[lineage_idx].push_back(data_binary.back());
-  } else if (typeid(*datum) == typeid(LineageSelVec)) {
-    data_sel.push_back(datum);
-    data_ref[lineage_idx].push_back(data_sel.back());
-  } else if (typeid(*datum) == typeid(LineageRange)) {
-    data_range.push_back(datum);
-    data_ref[lineage_idx].push_back(data_range.back());
-  } else {*/
-   // data_ptr[lineage_idx].push_back(move(datum));
- // }
   data[lineage_idx].push_back(LineageDataWithOffset{move(datum), (int)child_offset, this_offset});
 }
-
-/*
-void OperatorLineage::Capture(const shared_ptr<LineageData>& datum, idx_t lineage_idx, int thread_id, idx_t child_offset) {
-	if (!trace_lineage || datum->Count() == 0) return;
-
-	// Set child ptr
-	//datum->SetChild(GetChildLatest(lineage_idx));
-
-	idx_t this_offset = op_offset[lineage_idx];
-	op_offset[lineage_idx] += datum->Count();
-  data[lineage_idx].push_back(LineageDataWithOffset{datum, (int)child_offset, this_offset});
-	////data_test[lineage_idx].push_front(LineageDataWithOffset{datum, (int)child_offset, this_offset});
-  //data_single[lineage_idx] = LineageDataWithOffset{datum, (int)child_offset, this_offset};
- *if (log[lineage_idx].back().size() >= 1000) {
-      // Create a new partition if needed
-      //log[lineage_idx].back().clear();
-      log[lineage_idx].emplace_back(); // Create an empty partition
-      log[lineage_idx].back().reserve(1000);
-  }
-  // Insert data into the appropriate partition
-  log[lineage_idx].back().push_back(LineageDataWithOffset{datum, (int)child_offset, this_offset});
-}*/
 
 void fillBaseChunk(DataChunk &insert_chunk, idx_t res_count, Vector &lhs_payload, Vector &rhs_payload, idx_t count_so_far, Vector &thread_id_vec) {
 	insert_chunk.SetCardinality(res_count);
@@ -423,47 +389,450 @@ LineageProcessStruct::LineageProcessStruct(idx_t i, idx_t i1, idx_t i2, idx_t i3
 
 void OperatorLineage::BuildIndexes() {
 		switch (this->type) {
-		case PhysicalOperatorType::ORDER_BY:
-		case PhysicalOperatorType::FILTER:
-		case PhysicalOperatorType::INDEX_JOIN:
-		case PhysicalOperatorType::LIMIT:
-		case PhysicalOperatorType::TABLE_SCAN: {
-      // Binary Search Index
-			auto size = data[LINEAGE_UNARY].size();
-			index.reserve(size);
-      idx_t count_so_far = 0;
-      // O(number of chunks)
-      for (auto i=0; i < size; ++i) {
-			  count_so_far += data[LINEAGE_UNARY][i].data->Count();
-				index.push_back(count_so_far);
-      }
+		case PhysicalOperatorType::HASH_JOIN: {
 
 			break;
 		}
-		case PhysicalOperatorType::HASH_JOIN: {
-      // Binary Search Index
-			auto size = data[LINEAGE_PROBE].size();
-			index.reserve(size);
-      idx_t count_so_far = 0;
-      // O(number of chunks)
-      for (auto i=0; i < size; ++i) {
-			  auto pdata = data[LINEAGE_PROBE][i].data;
-				if (typeid(*pdata) == typeid(LineageVec)) {
-          count_so_far += dynamic_cast<LineageVec&>(*pdata).BuildInnerIndex();
-        } else {
-			    count_so_far += data[LINEAGE_PROBE][i].data->Count();
-        }
-				index.push_back(count_so_far);
-      }
+		default:
+			// We must capture lineage for everything getting post-processed
+			D_ASSERT(false);
+		}
+}
 
-			size = data[LINEAGE_BUILD].size();
+// TableScanLineage
+//
+idx_t TableScanLineage::Size() {
+	idx_t size = 0;
+	for (const auto& lineage_data : lineage) {
+    if (lineage_data.sel != nullptr)
+		  size += lineage_data.count * sizeof(sel_t);
+    size += sizeof(scan_artifact);
+	}
+	return size;
+}
+
+idx_t TableScanLineage::Count() {
+	idx_t count = 0;
+	for (const auto& lineage_data : lineage) {
+		count += lineage_data.count;
+	}
+	return count;
+}
+
+idx_t TableScanLineage::ChunksCount() {
+  return lineage.size();
+}
+
+void TableScanLineage::BuildIndexes() {
+  // Binary Search Index
+  auto size = lineage.size();
+  index.reserve(size);
+  idx_t count_so_far = 0;
+  // O(number of chunks)
+  for (auto i=0; i < size; ++i) {
+    if (lineage[i].count == 0) continue;
+    count_so_far += lineage[i].count;
+    index.push_back(count_so_far);
+  }
+}
+
+/*
+LineageProcessStruct TableScanLineage::GetLineageAsChunk(const vector<LogicalType>& types, idx_t count_so_far,
+                                              DataChunk &insert_chunk, idx_t size, int thread_id, idx_t data_idx, idx_t stage_idx) {
+  if (data_idx >= lineage.size()) {
+	  return LineageProcessStruct{ count_so_far, 0, data_idx, stage_idx, true };
+  }
+    
+  Vector thread_id_vec(Value::INTEGER(thread_id));
+  // schema: [INTEGER in_index, INTEGER out_index, INTEGER thread_id]
+  idx_t res_count = lineage[data_idx].count;
+
+  if (res_count > STANDARD_VECTOR_SIZE) {
+  }
+  insert_chunk.Reset();
+  insert_chunk.SetCardinality(res_count);
+  Vector in_index(types[0], lineage[data_idx].sel.get()); // TODO: add offset
+  if (lineage[data_idx].sel != nullptr) {
+    Vector in_index(LogicalType::INTEGER, (data_ptr_t)lineage[i].sel->owned_data.get()); // TODO: add offset
+    std::cout << " here " << std::endl;
+    std::cout << in_index.ToString(lineage[i].count) << std::endl;
+  } else {
+    // generate seq vec
+  }
+  insert_chunk.data[0].Reference(in_index);
+  insert_chunk.data[1].Sequence(count_so_far, 1); // out_index
+  insert_chunk.data[2].Reference(thread_id_vec);  // thread_id
+
+  count_so_far += res_count;
+  return LineageProcessStruct{ count_so_far, 0, data_idx, stage_idx, lineage.size() > data_idx };
+}*/
+
+// HALineage
+//
+idx_t HALineage::Size() {
+	idx_t size = 0;
+	for (const auto& lineage_data : addchunk_log) {
+		size += lineage_data.count * sizeof(data_t);
+    size += sizeof(hg_artifact);
+	}
+	
+  for (const auto& lineage_data : sink_log) {
+    size += sizeof(sink_artifact);
+	}
+	
+  for (const auto& lineage_data : flushmove_log) {
+		size += 2*(lineage_data.count * sizeof(data_t));
+    size += sizeof(flushmove_artifact);
+	}
+	
+  for (const auto& lineage_data : partition_log) {
+    size += sizeof(partition_artifact);
+	}
+
+  // radix_log
+  for (const auto& lineage_data : radix_log) {
+    for (const auto& r: lineage_data) {
+      size += r.sel_size * sizeof(sel_t);
+      size += sizeof(radix_artifact);
+    }
+	}
+
+  // combine_log
+  for (const auto& lineage_data : combine_log) {
+    size += lineage_data.size() * sizeof(void*);
+	}
+
+  // finalize_log
+  for (const auto& lineage_data : finalize_log) {
+    if (lineage_data.combine)
+      size += lineage_data.combine->size() * sizeof(void*);
+    size += sizeof(finalize_artifact);
+	}
+
+  // scan_log
+	for (const auto& lineage_data : scan_log) {
+		size += lineage_data.count * sizeof(data_t);
+    size += sizeof(hg_artifact);
+	}
+	
+	return size;
+}
+
+idx_t HALineage::Count() {
+	idx_t count = 0;
+	for (const auto& lineage_data : addchunk_log) {
+		count += lineage_data.count;
+	}
+  // scan_log
+	return count;
+}
+idx_t HALineage::ChunksCount() {
+  return sink_log.size() + scan_log.size();
+}
+
+void HALineage::BuildIndexes() {
+  // build side
+	auto size = sink_log.size();
+  idx_t count_so_far = 0;
+  for (auto i=0; i < size; i++) {
+    if (sink_log[i].branch == 0) {
+      auto lsn = sink_log[i].lsn;
+      idx_t res_count = addchunk_log[lsn].count;
+      auto payload = addchunk_log[lsn].addchunk_lineage.get();
+      for (idx_t j=0; j < res_count; ++j) {
+        // TODO: add child pointer
+        hash_map_agg[(idx_t)payload[j]].push_back({j + count_so_far, nullptr});
+      }
+      count_so_far += res_count;
+    }
+  }
+  std::cout << " hash agg index side: " << hash_map_agg.size() << std::endl;
+
+  // scan side
+  // Binary Search Index
+  size = scan_log.size();
+  index.reserve(size);
+  count_so_far = 0;
+  // O(number of chunks)
+  for (auto i=0; i < size; ++i) {
+    count_so_far += scan_log[i].count;
+    index.push_back(count_so_far);
+  }
+}
+
+// PHALineage
+//
+idx_t PHALineage::Size() {
+	idx_t size = 0;
+	for (const auto& lineage_data : build_lineage) {
+		size += lineage_data.size() * sizeof(uint32_t);
+	}
+	
+	for (const auto& lineage_data : scan_lineage) {
+		size += lineage_data.count * sizeof(uint32_t);
+    size += sizeof(pha_scan_artifact);
+	}
+	
+	return size;
+}
+
+idx_t PHALineage::Count() {
+	idx_t count = 0;
+	for (const auto& lineage_data : build_lineage) {
+		count += lineage_data.size();
+	}
+	
+	for (const auto& lineage_data : scan_lineage) {
+		count += lineage_data.count;
+	}
+	
+	return count;
+}
+
+
+idx_t PHALineage::ChunksCount() {
+  return build_lineage.size() + scan_lineage.size();
+}
+
+void PHALineage::BuildIndexes() {
+	auto size = build_lineage.size();
+  idx_t count_so_far = 0;
+  for (auto i=0; i < size; i++) {
+    idx_t res_count = build_lineage[i].size();
+    auto payload = build_lineage[i];
+    for (idx_t j=0; j < res_count; ++j) {
+      // TODO: add child pointer
+      hash_map_agg[(idx_t)payload[j]].push_back({j + count_so_far, nullptr});
+    }
+    count_so_far += res_count;
+  }
+  std::cout << "Perfect hash agg index side: " << hash_map_agg.size() << std::endl;
+  
+  // scan side
+  // Binary Search Index
+  size = scan_lineage.size();
+  index.reserve(size);
+  count_so_far = 0;
+  // O(number of chunks)
+  for (auto i=0; i < size; ++i) {
+    count_so_far += scan_lineage[i].count;
+    index.push_back(count_so_far);
+  }
+}
+
+
+// MergeLineage
+//
+idx_t MergeLineage::Size() {
+	idx_t size = 0;
+	for (const auto& lineage_data : lineage) {
+		size += 2* (lineage_data.count * sizeof(sel_t));
+    size += sizeof(merge_artifact);
+	}
+	return size;
+}
+
+idx_t MergeLineage::Count() {
+	idx_t count = 0;
+	for (const auto& lineage_data : lineage) {
+		count += 2* (lineage_data.count);
+	}
+	return count;
+}
+idx_t MergeLineage::ChunksCount() {
+  return lineage.size();
+}
+
+void MergeLineage::BuildIndexes() {
+  // Binary Search Index
+  idx_t size = lineage.size();
+  index.reserve(size);
+  idx_t count_so_far = 0;
+  // O(number of chunks)
+  for (idx_t i=0; i < size; ++i) {
+    count_so_far += lineage[i].count;
+    index.push_back(count_so_far);
+  }
+}
+
+
+// BNLJLineage
+//
+idx_t BNLJLineage::Size() {
+	idx_t size = 0;
+	for (const auto& lineage_data : lineage) {
+		size += (lineage_data.count * sizeof(sel_t));
+    size += sizeof(bnlj_artifact);
+	}
+	return size;
+}
+
+idx_t BNLJLineage::Count() {
+	idx_t count = 0;
+	for (const auto& lineage_data : lineage) {
+		count += lineage_data.count;
+	}
+	return count;
+}
+idx_t BNLJLineage::ChunksCount() {
+  return lineage.size();
+}
+
+void BNLJLineage::BuildIndexes() {
+  // Binary Search Index
+  idx_t size = lineage.size();
+  index.reserve(size);
+  idx_t count_so_far = 0;
+  // O(number of chunks)
+  for (idx_t i=0; i < size; ++i) {
+    count_so_far += lineage[i].count;
+    index.push_back(count_so_far);
+  }
+}
+
+
+// NLJLineage
+//
+idx_t NLJLineage::Size() {
+	idx_t size = 0;
+	for (const auto& lineage_data : lineage) {
+		size += 2* (lineage_data.count * sizeof(sel_t));
+    size += sizeof(nlj_artifact);
+	}
+	return size;
+}
+
+idx_t NLJLineage::Count() {
+	idx_t count = 0;
+	for (const auto& lineage_data : lineage) {
+		count += 2* (lineage_data.count);
+	}
+	return count;
+}
+
+idx_t NLJLineage::ChunksCount() {
+  return lineage.size();
+}
+
+void NLJLineage::BuildIndexes() {
+  // Binary Search Index
+  idx_t size = lineage.size();
+  index.reserve(size);
+  idx_t count_so_far = 0;
+  // O(number of chunks)
+  for (idx_t i=0; i < size; ++i) {
+    count_so_far += lineage[i].count;
+    index.push_back(count_so_far);
+  }
+}
+
+
+// CrossLineage
+//
+idx_t CrossLineage::Size() {
+	idx_t size = 0;
+  size = lineage.size() * sizeof(cross_artifact);
+	return size;
+}
+
+idx_t CrossLineage::Count() {
+	idx_t count = 0;
+	for (const auto& lineage_data : lineage) {
+		count += lineage_data.left_chunk;
+	}
+	return count;
+}
+
+idx_t CrossLineage::ChunksCount() {
+  return lineage.size();
+}
+
+void CrossLineage::BuildIndexes() {
+  // Binary Search Index
+  idx_t size = lineage.size();
+  index.reserve(size);
+  idx_t count_so_far = 0;
+  // O(number of chunks)
+  for (idx_t i=0; i < size; ++i) {
+    count_so_far += lineage[i].left_chunk;
+    index.push_back(count_so_far);
+  }
+}
+
+// IndexJoinLineage
+//
+idx_t IndexJoinLineage::Size() {
+	idx_t size = 0;
+	for (const auto& lineage_data : lineage) {
+		size += lineage_data.count * sizeof(row_t);
+		size += lineage_data.count * sizeof(sel_t);
+    size += sizeof(IJ_artifact);
+	}
+	return size;
+}
+
+idx_t IndexJoinLineage::Count() {
+	idx_t count = 0;
+	for (const auto& lineage_data : lineage) {
+		count += lineage_data.count;
+	}
+	return 2*count;
+}
+
+idx_t IndexJoinLineage::ChunksCount() {
+  return lineage.size();
+}
+
+void IndexJoinLineage::BuildIndexes() {
+}
+
+
+// HashJoinLineage
+//
+idx_t HashJoinLineage::Size() {
+	idx_t size = 0;
+	for (const auto& lineage_data : lineage_build) {
+		size += lineage_data.count * sizeof(data_t);
+    size += sizeof(hj_build_artifact);
+	}
+	
+  for (const auto& lineage_data : lineage_binary) {
+		size += lineage_data.count * sizeof(sel_t);
+		size += lineage_data.count * sizeof(uintptr_t);
+    size += sizeof(hj_probe_artifact);
+	}
+
+  size += output_index.size() * sizeof(void*);
+	return size;
+}
+
+idx_t HashJoinLineage::Count() {
+	idx_t count = 0;
+	for (const auto& lineage_data : lineage_build) {
+		count += lineage_data.count;
+	}
+	
+  for (const auto& lineage_data : lineage_binary) {
+		count += 2* lineage_data.count;
+	}
+
+	return count;
+}
+
+idx_t HashJoinLineage::ChunksCount() {
+  return lineage_binary.size() + lineage_build.size();
+}
+
+void HashJoinLineage::BuildIndexes() {
+  // build
+			idx_t size = lineage_build.size();
       idx_t start_base = 0;
       idx_t last_base = 0;
+      idx_t count_so_far = 0;
       uint64_t offset = 0;
       if (size > 0) {
-        LineageDataWithOffset this_data = data[LINEAGE_BUILD][0];
-        auto payload = (uint64_t*)this_data.data->Process(0);
-        idx_t res_count = this_data.data->Count();
+        auto payload = (uint64_t*)(lineage_build[0].scatter.get());
+        idx_t res_count = lineage_build[0].count;
         start_base = payload[0];
         last_base = payload[res_count - 1];
         hm_range.emplace_back(start_base, last_base);
@@ -471,15 +840,14 @@ void OperatorLineage::BuildIndexes() {
         if (offset == 0 && res_count > 1) {
           offset = payload[1] - payload[0];
         }
+        count_so_far += res_count;
       }
 
       for (auto i=1; i < size; ++i) {
         // build hash table with range -> acc
         // if x in range -> then use range.start and adjust the value using acc
-        LineageDataWithOffset this_data = data[LINEAGE_BUILD][i];
-        auto payload = (uint64_t*)this_data.data->Process(0);
-        idx_t count_so_far = this_data.this_offset;
-        idx_t res_count = this_data.data->Count();
+        auto payload = (lineage_build[i].scatter.get());
+        idx_t res_count = lineage_build[i].count;
         if (offset == 0) offset = payload[res_count - 1] - start_base;
         auto diff = (payload[res_count - 1] - start_base) / offset;
         if (diff + 1 !=  count_so_far + res_count - hash_chunk_count.back()) {
@@ -503,69 +871,93 @@ void OperatorLineage::BuildIndexes() {
         } else {
           hm_range.back().second = payload[res_count - 1];
         }
-      }
-			break;
-		}
-		case PhysicalOperatorType::HASH_GROUP_BY:
-		case PhysicalOperatorType::PERFECT_HASH_GROUP_BY: {
-			// Hash Aggregate / Perfect Hash Aggregate
-			auto size = data[LINEAGE_SINK].size();
-      idx_t count_so_far = 0;
-			// build hash table
-      if (type == PhysicalOperatorType::PERFECT_HASH_GROUP_BY) {
-        for (auto i=0; i < size; i++) {
-          LineageDataWithOffset this_data = data[LINEAGE_SINK][i];
-          idx_t res_count = this_data.data->Count();
-          auto payload = (sel_t*)this_data.data->Process(0);
-          for (idx_t j=0; j < res_count; ++j) {
-            hash_map_agg[(idx_t)payload[j]].push_back({j + count_so_far, nullptr});
-          }
-          count_so_far += res_count;
-        }
-      } else {
-        for (auto i=0; i < size; i++) {
-          LineageDataWithOffset this_data = data[LINEAGE_SINK][i];
-          idx_t res_count = this_data.data->Count();
-          auto payload = (uint64_t*)this_data.data->Process(0);
-          for (idx_t j=0; j < res_count; ++j) {
-            hash_map_agg[(idx_t)payload[j]].push_back({j + count_so_far, nullptr});
-          }
-          count_so_far += res_count;
-        }
+        count_so_far += res_count;
       }
 
-      // Scan side
+      // scan
       // Binary Search Index
-			size = data[LINEAGE_SOURCE].size();
+			size = output_index.size();
 			index.reserve(size);
       count_so_far = 0;
       // O(number of chunks)
       for (auto i=0; i < size; ++i) {
-			  count_so_far += data[LINEAGE_UNARY][i].data->Count();
+        auto lsn = output_index[i];
+			  count_so_far += lineage_binary[lsn].count;
 				index.push_back(count_so_far);
       }
-			break;
-		}
-		case PhysicalOperatorType::BLOCKWISE_NL_JOIN:
-		case PhysicalOperatorType::CROSS_PRODUCT:
-		case PhysicalOperatorType::PIECEWISE_MERGE_JOIN:
-		case PhysicalOperatorType::NESTED_LOOP_JOIN: {
-      // Binary Search Index
-			idx_t size = data[LINEAGE_PROBE].size();
-			index.reserve(size);
-      idx_t count_so_far = 0;
-      // O(number of chunks)
-      for (idx_t i=0; i < size; ++i) {
-			  count_so_far += data[LINEAGE_PROBE][i].data->Count();
-				index.push_back(count_so_far);
-      }
-			break;
-		}
-		default:
-			// We must capture lineage for everything getting post-processed
-			D_ASSERT(false);
-		}
 }
+
+
+// OrderByLineage
+//
+idx_t OrderByLineage::Size() {
+	idx_t size = 0;
+	for (const auto& lineage_data : lineage) {
+		size += lineage_data.size() * sizeof(idx_t);
+	}
+	return size;
+}
+
+idx_t OrderByLineage::Count() {
+	idx_t count = 0;
+	for (const auto& lineage_data : lineage) {
+		count += lineage_data.size();
+	}
+	return count;
+}
+
+idx_t OrderByLineage::ChunksCount() {
+  return lineage.size();
+}
+
+void OrderByLineage::BuildIndexes() {
+  // Binary Search Index
+  auto size = lineage.size();
+  index.reserve(size);
+  idx_t count_so_far = 0;
+  // O(number of chunks)
+  for (auto i=0; i < size; ++i) {
+    count_so_far += lineage[i].size();
+    index.push_back(count_so_far);
+  }
+}
+
+// FilterLineage
+//
+idx_t FilterLineage::Size() {
+	idx_t size = 0;
+	for (const auto& lineage_data : lineage) {
+    if (lineage_data.sel != nullptr)
+		  size += lineage_data.count * sizeof(sel_t);
+    size += sizeof(filter_artifact);
+	}
+	return size;
+}
+
+idx_t FilterLineage::Count() {
+	idx_t count = 0;
+	for (const auto& lineage_data : lineage) {  
+    count += lineage_data.count;
+	}
+	return count;
+}
+
+idx_t FilterLineage::ChunksCount() {
+  return lineage.size();
+}
+
+void FilterLineage::BuildIndexes() {
+  // Binary Search Index
+  auto size = lineage.size();
+  index.reserve(size);
+  idx_t count_so_far = 0;
+  // O(number of chunks)
+  for (auto i=0; i < size; ++i) {
+    count_so_far += lineage[i].count;
+    index.push_back(count_so_far);
+  }
+}
+
 
 } // namespace duckdb
 #endif

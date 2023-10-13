@@ -205,11 +205,6 @@ public:
 	DataChunk left_condition;
 	//! The executor of the LHS condition
 	ExpressionExecutor lhs_executor;
-#ifdef LINEAGE
-    vector<SelectionVector> lineage_left;
-    vector<SelectionVector> lineage_right;
-    vector<pair<idx_t, idx_t>> counts;
-#endif
 
 	idx_t left_tuple;
 	idx_t right_tuple;
@@ -273,6 +268,9 @@ void PhysicalNestedLoopJoin::ResolveComplexJoin(ExecutionContext &context, DataC
                                                 PhysicalOperatorState *state_p) const {
 	auto state = reinterpret_cast<PhysicalNestedLoopJoinState *>(state_p);
 	auto &gstate = (NestedLoopJoinGlobalState &)*sink_state;
+#ifdef LINEAGE
+	auto lop = reinterpret_cast<NLJLineage*>(lineage_op.at(context.task.thread_id).get());
+#endif
 
 	do {
 		if (state->fetch_next_right) {
@@ -349,18 +347,7 @@ void PhysicalNestedLoopJoin::ResolveComplexJoin(ExecutionContext &context, DataC
 			chunk.Slice(state->child_chunk, lvector, match_count);
 			chunk.Slice(right_data, rvector, match_count, state->child_chunk.ColumnCount());
 #ifdef LINEAGE
-      if (match_count < 500) {
-        SelectionVector dst(match_count);
-        std::copy(lvector.data(), lvector.data() + match_count, dst.data());
-        lvector.Initialize(dst);
-        
-        SelectionVector rdst(match_count);
-        std::copy(rvector.data(), rvector.data() + match_count, rdst.data());
-        rvector.Initialize(rdst);
-      }
-      state->lineage_left.push_back(move(lvector));
-      state->lineage_right.push_back(move(rvector));
-      state->counts.push_back(std::make_pair(match_count, state->child_state->out_start));
+    lop->lineage.push_back({lvector, rvector, match_count, state->child_state->out_start});
           //match_count, state->child_state->out_start), 
            // LineageSelVec(move(rvector), match_count, state->right_chunk * STANDARD_VECTOR_SIZE )
         //));

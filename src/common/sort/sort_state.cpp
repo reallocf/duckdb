@@ -149,9 +149,6 @@ void LocalSortState::Sort(GlobalSortState &global_sort_state) {
 	if (radix_sorting_data->count == 0) {
 		return;
 	}
-#ifdef LINEAGE
-	idx_t count = radix_sorting_data->count;
-#endif
 	// Move all data to a single SortedBlock
 	sorted_blocks.emplace_back(make_unique<SortedBlock>(*buffer_manager, global_sort_state));
 	auto &sb = *sorted_blocks.back();
@@ -170,14 +167,10 @@ void LocalSortState::Sort(GlobalSortState &global_sort_state) {
 	// Now perform the actual sort
 	SortInMemory();
 #ifdef LINEAGE
-	global_sort_state.lineage_sel = SelectionVector(count);
-	// Re-order before the merge sort
-	ReOrder(global_sort_state);
-	lineage = make_unique<LineageSelVec>(global_sort_state.lineage_sel, count);
-#else
-	// Re-order before the merge sort
-	ReOrder(global_sort_state);
+	global_sort_state.lineage_op = lineage_op;
 #endif
+	// Re-order before the merge sort
+	ReOrder(global_sort_state);
 }
 
 RowDataBlock LocalSortState::ConcatenateBlocks(RowDataCollection &row_data) {
@@ -209,13 +202,18 @@ void LocalSortState::ReOrder(SortedData &sd, data_ptr_t sorting_ptr, RowDataColl
 	ordered_data_block.count = count;
 	auto ordered_data_handle = buffer_manager->Pin(ordered_data_block.block);
 	data_ptr_t ordered_data_ptr = ordered_data_handle->Ptr();
+	auto lop = reinterpret_cast<OrderByLineage*>(lineage_op.get());
+  lop->lineage.emplace_back();
+  auto cur_lineage = lop->lineage.back();
+  cur_lineage.resize(count);
+
 	// Re-order fixed-size row layout
 	const idx_t row_width = sd.layout.GetRowWidth();
 	const idx_t sorting_entry_size = gstate.sort_layout.entry_size;
 	for (idx_t i = 0; i < count; i++) {
 		idx_t index = Load<idx_t>(sorting_ptr);
 #ifdef LINEAGE
-		gstate.lineage_sel.set_index(i, index);
+    cur_lineage[i] = index;
 #endif
 		memcpy(ordered_data_ptr, unordered_data_ptr + index * row_width, row_width);
 		ordered_data_ptr += row_width;
