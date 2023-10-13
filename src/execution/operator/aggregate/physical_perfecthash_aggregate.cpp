@@ -155,10 +155,10 @@ void PhysicalPerfectHashAggregate::Sink(ExecutionContext &context, GlobalOperato
 	aggregate_input_chunk.Verify();
 	D_ASSERT(aggregate_input_chunk.ColumnCount() == 0 || group_chunk.size() == aggregate_input_chunk.size());
 
-	lstate.ht->AddChunk(group_chunk, aggregate_input_chunk);
 #ifdef LINEAGE
-  //lstate.lineage.push_back(move(lstate.ht->tuples_lineage));
-//	lineage_op.at(context.task.thread_id)->CaptureUnq(move(lstate.ht->sink_per_chunk_lineage), LINEAGE_SINK);
+	lstate.ht->AddChunk(group_chunk, aggregate_input_chunk, lineage_op.at(context.task.thread_id));
+#else
+	lstate.ht->AddChunk(group_chunk, aggregate_input_chunk);
 #endif
 }
 

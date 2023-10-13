@@ -202,13 +202,6 @@ public:
 	}
 
 	DataChunk cached_chunk;
-#ifdef LINEAGE
-//	unique_ptr<vector<LineageBinaryUnq>> cached_lineage = make_unique<vector<LineageBinaryUnq>>();
-  //unique_ptr<vector<unique_ptr<LineageData>>> cached_lineage_unq = make_unique<vector<unique_ptr<LineageData>>>();
-  vector<LineageBinaryUnq> cached_lineage_unq;
-  vector<unique_ptr<LineageData>> lineage;
-  vector<LineageBinaryUnq> lineage_unq;
-#endif
 	DataChunk join_keys;
 	ExpressionExecutor probe_executor;
 	unique_ptr<JoinHashTable::ScanStructure> scan_structure;
@@ -250,44 +243,43 @@ void PhysicalHashJoin::GetChunkInternal(ExecutionContext &context, DataChunk &ch
 	bool join_is_inner_right_semi =
 	    (sink.hash_table->join_type == JoinType::INNER || sink.hash_table->join_type == JoinType::RIGHT ||
 	     sink.hash_table->join_type == JoinType::SEMI);
+#ifdef LINEAGE
+    auto lop = reinterpret_cast<HashJoinLineage*>(lineage_op.at(context.task.thread_id).get());
+    bool trace_lineage = context.client.lineage_manager->trace_lineage;
+#endif
 
-	if (sink.hash_table->Count() == 0 && join_is_inner_right_semi) {
-		// empty hash table with INNER, RIGHT or SEMI join means empty result set
-		return;
-	}
+    if (sink.hash_table->Count() == 0 && join_is_inner_right_semi) {
+      // empty hash table with INNER, RIGHT or SEMI join means empty result set
+      return;
+    }
 
-	do {
-		ProbeHashTable(context, chunk, state);
+    do {
+      ProbeHashTable(context, chunk, state);
 
-		if (chunk.size() == 0) {
+      if (chunk.size() == 0) {
 #if STANDARD_VECTOR_SIZE >= 128
-			if (state->cached_chunk.size() > 0) {
-				// finished probing but cached data remains, return cached chunk
-				chunk.Move(state->cached_chunk);
-				state->cached_chunk.Initialize(types);
-#ifdef LINEAGE /*
-				//if (state->cached_lineage->size() > 0) {
-				if (state->cached_lineage_unq.size() > 0) {
-           for (auto& ptr : state->cached_lineage_unq) {
-            state->lineage_unq.push_back(std::move(ptr)); // Transfer ownership
+        if (state->cached_chunk.size() > 0) {
+          // finished probing but cached data remains, return cached chunk
+          chunk.Move(state->cached_chunk);
+          state->cached_chunk.Initialize(types);
+#ifdef LINEAGE 
+          if (trace_lineage) {
+            lop->output_index.insert(lop->output_index.end(),
+                std::make_move_iterator(lop->cached_output_index.begin()),
+                std::make_move_iterator(lop->cached_output_index.end()));
+                lop->cached_output_index.clear();
           }
-          state->cached_lineage_unq.clear();
-        //  lineage_op.at(context.task.thread_id)->CaptureUnq(
-          //  state->lineage.push_back( make_unique<LineageVecUnq>(move(state->cached_lineage_unq)));
-        //  lineage_op.at(context.task.thread_id)->CaptureUnq(make_unique<LineageVecUnq>(move(state->cached_lineage_unq)), LINEAGE_PROBE);
-       //   state->cached_lineage = make_unique<vector<LineageBinaryUnq>>();
-        //  state->cached_lineage_unq = make_unique<vector<unique_ptr<LineageData>>>();
-				}
-        */
 #endif
 			} else
 #endif
 			    if (IsRightOuterJoin(join_type)) {
 #ifdef LINEAGE
-				chunk.trace_lineage = context.client.lineage_manager->trace_lineage;
-#endif
+				// check if we need to scan any unmatched tuples from the RHS for the full/right outer join
+				sink.hash_table->ScanFullOuter(chunk, sink.ht_scan_state, lineage_op.at(context.task.thread_id));
+#else
 				// check if we need to scan any unmatched tuples from the RHS for the full/right outer join
 				sink.hash_table->ScanFullOuter(chunk, sink.ht_scan_state);
+#endif
 #ifdef LINEAGE/*
 				if (chunk.cached_lineage_data) {
             state->lineage.push_back( move(chunk.cached_lineage_data) );
@@ -303,31 +295,23 @@ void PhysicalHashJoin::GetChunkInternal(ExecutionContext &context, DataChunk &ch
 				// small chunk: add it to chunk cache and continue
 				state->cached_chunk.Append(chunk);
 #ifdef LINEAGE
-		/*	if (context.client.lineage_manager->trace_lineage) {
-					// If we haven't pushed to the parent operator, child_offset remains the same (chunk merge)
-          state->scan_structure->lineage_probe_data_b.child_offset = state->child_state->out_start;
-					//state->cached_lineage->push_back(move(*state->scan_structure->lineage_probe_data_unq));
-					//state->cached_lineage_unq->push_back(move(state->scan_structure->lineage_probe_data_unq));
-					state->cached_lineage_unq.push_back(move(state->scan_structure->lineage_probe_data_b));
-				}*/
+        if (trace_lineage && chunk.size() > 0) {
+          lop->lineage_binary.push_back({move(state->scan_structure->lineage_left),
+              move(state->scan_structure->lineage_right),
+              chunk.size(), state->child_state->out_start});
+          lop->cached_output_index.push_back(&lop->lineage_binary.back());
+        }
 #endif
 				if (state->cached_chunk.size() >= (STANDARD_VECTOR_SIZE - 64)) {
 					// chunk cache full: return it
 					chunk.Move(state->cached_chunk);
 					state->cached_chunk.Initialize(types);
 #ifdef LINEAGE
-		/*		//if (state->cached_lineage->size() > 0) {
-				if (state->cached_lineage_unq.size() > 0) {
-           for (auto& ptr : state->cached_lineage_unq) {
-            state->lineage_unq.push_back(std::move(ptr)); // Transfer ownership
+          if (trace_lineage) {
+            lop->output_index.insert(lop->output_index.end(), std::make_move_iterator(lop->cached_output_index.begin()),
+                std::make_move_iterator(lop->cached_output_index.end()));
+            lop->cached_output_index.clear();
           }
-          state->cached_lineage_unq.clear();
-           // lineage_op.at(context.task.thread_id)->CaptureUnq(make_unique<LineageVecUnq>(move(state->cached_lineage_unq)), LINEAGE_PROBE);
-           // state->lineage.push_back( make_unique<LineageVecUnq>(move(state->cached_lineage_unq)));
-          //  state->cached_lineage = nullptr;
-          //  state->cached_lineage = make_unique<vector<LineageBinaryUnq>>();
-           // state->cached_lineage_unq = make_unique<vector<unique_ptr<LineageData>>>();
-					}*/
 #endif
 					return;
 				} else {
@@ -337,20 +321,23 @@ void PhysicalHashJoin::GetChunkInternal(ExecutionContext &context, DataChunk &ch
 				}
 			} else {
 #ifdef LINEAGE
-		/*	if (context.client.lineage_manager->trace_lineage && chunk.size() > 0) {
-				//	 lineage_op.at(context.task.thread_id)->CaptureUnq(move(state->scan_structure->lineage_probe_data_unq), LINEAGE_PROBE, state->child_state->out_start);
-            //state->lineage.push_back( move(state->scan_structure->lineage_probe_data_unq) );
-            state->lineage_unq.push_back( move(state->scan_structure->lineage_probe_data_b) );
-				}*/
+			  if (trace_lineage && chunk.size() > 0) {
+          lop->lineage_binary.push_back({move(state->scan_structure->lineage_left),
+            move(state->scan_structure->lineage_right),
+            chunk.size(), state->child_state->out_start});
+          lop->output_index.push_back(&lop->lineage_binary.back());
+				}
 #endif
 				return;
 			}
 #else
 #ifdef LINEAGE
-		/*	if (context.client.lineage_manager->trace_lineage && chunk.size() > 0) {
-						//lineage_op.at(context.task.thread_id)->CaptureUnq(move(state->scan_structure->lineage_probe_data_unq), LINEAGE_PROBE, state->child_state->out_start);
-            state->lineage_unq.push_back( move(state->scan_structure->lineage_probe_data_b) );
-				}*/
+			if (trace_lineage && chunk.size() > 0) {
+          lop->lineage_binary.push_back({move(state->scan_structure->lineage_left),
+              move(state->scan_structure->lineage_right),
+              chunk.size(), state->child_state->out_start});
+          lop->output_index.push_back(&lop->lineage_binary.back());
+			}
 #endif
 			return;
 #endif

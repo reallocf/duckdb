@@ -97,11 +97,10 @@ void PhysicalOrder::Sink(ExecutionContext &context, GlobalOperatorState &gstate_
 void PhysicalOrder::Combine(ExecutionContext &context, GlobalOperatorState &gstate_p, LocalSinkState &lstate_p) {
 	auto &gstate = (OrderGlobalState &)gstate_p;
 	auto &lstate = (OrderLocalState &)lstate_p;
-	gstate.global_sort_state.AddLocalState(lstate.local_sort_state);
 #ifdef LINEAGE
-	if (lstate.local_sort_state.lineage)
-	  lineage_op.at(context.task.thread_id)->CaptureUnq(move(lstate.local_sort_state.lineage), LINEAGE_UNARY);
+  lstate.local_sort_state.lineage_op = lineage_op.at(context.task.thread_id);
 #endif
+	gstate.global_sort_state.AddLocalState(lstate.local_sort_state);
 }
 
 class PhysicalOrderMergeTask : public Task {

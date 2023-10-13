@@ -105,11 +105,6 @@ public:
 	//! Child column scans
 	unique_ptr<ColumnScanState[]> column_scans;
 
-#ifdef LINEAGE
-	//! Captured scan selection vector
-	unique_ptr<LineageSelVec> scan_lineage_data;
-	idx_t chunk_id;
-#endif
 public:
 	//! Move to the next vector, skipping past the current one
 	void NextVector();
@@ -135,6 +130,9 @@ public:
 public:
 	//! Move to the next vector
 	void NextVector();
+#ifdef LINEAGE
+  shared_ptr<OperatorLineage> lineage_op;
+#endif
 };
 
 class CreateIndexScanState : public TableScanState {

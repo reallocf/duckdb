@@ -295,9 +295,6 @@ void RowGroup::TemplatedScan(Transaction *transaction, RowGroupScanState &state,
 		idx_t current_row = state.vector_index * STANDARD_VECTOR_SIZE;
 		auto max_count = MinValue<idx_t>(STANDARD_VECTOR_SIZE, state.max_row - current_row);
 
-		#ifdef LINEAGE
-				state.chunk_id = this->start/1024 + state.vector_index;
-		#endif
 		//! first check the zonemap if we have to scan this partition
 		if (!CheckZonemapSegments(state)) {
 			continue;
@@ -421,12 +418,18 @@ void RowGroup::TemplatedScan(Transaction *transaction, RowGroupScanState &state,
 			count = approved_tuple_count;
 
 #ifdef LINEAGE
-			state.scan_lineage_data = make_unique<LineageSelVec>(sel, approved_tuple_count);
+      if (state.parent.lineage_op) {
+        auto lop = reinterpret_cast<TableScanLineage*>(state.parent.lineage_op.get());
+        lop->lineage.push_back({sel.sel_data(), approved_tuple_count, this->start, state.vector_index});
+      }
 #endif
 		}
 
 #ifdef LINEAGE
-		state.chunk_id = this->start/1024 + state.vector_index;
+    if (state.parent.lineage_op) {
+      auto lop = reinterpret_cast<TableScanLineage*>(state.parent.lineage_op.get());
+      lop->lineage.push_back({nullptr, this->start, state.vector_index});
+    }
 #endif
 		result.SetCardinality(count);
 		state.vector_index++;

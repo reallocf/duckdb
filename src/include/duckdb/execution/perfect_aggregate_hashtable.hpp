@@ -21,7 +21,11 @@ public:
 
 public:
 	//! Add the given data to the HT
+#ifdef LINEAGE
+	void AddChunk(DataChunk &groups, DataChunk &payload, shared_ptr<OperatorLineage> lineage_op);
+#else
 	void AddChunk(DataChunk &groups, DataChunk &payload);
+#endif
 
 	//! Combines the target perfect aggregate HT into this one
 	void Combine(PerfectAggregateHashTable &other);
@@ -29,11 +33,6 @@ public:
 	//! Scan the HT starting from the scan_position
 #ifdef LINEAGE
 	void Scan(idx_t &scan_position, DataChunk &result, shared_ptr<OperatorLineage> lineage_op);
-	// Used to map input to groups
-	//unique_ptr<LineageSelVec> sink_per_chunk_lineage;
-  //SelectionVector tuples_lineage;
-  vector<vector<uint32_t>> tuples_lineage;
-  vector<LineageDataArray<uint32_t>> scan_lineage;
 #else
 	void Scan(idx_t &scan_position, DataChunk &result);
 #endif

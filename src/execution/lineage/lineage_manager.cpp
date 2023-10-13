@@ -137,12 +137,82 @@ void LineageManager::CreateOperatorLineage(PhysicalOperator *op, int thd_id, boo
 		    || (op->type == PhysicalOperatorType::PROJECTION && should_index); // Pass through should_index on projection
 		CreateOperatorLineage(op->children[i].get(), thd_id, trace_lineage, child_should_index);
 	}
-	op->lineage_op[thd_id] = make_shared<OperatorLineage>(
-	    GetChildrenForOp(op, thd_id),
-	    op->type,
-	    op->id,
-	    should_index
-	);
+	
+  if (op->type ==  PhysicalOperatorType::FILTER) {
+    op->lineage_op[thd_id] = make_shared<FilterLineage>(
+        op->type,
+        op->id,
+        thd_id
+    );
+  } else if (op->type ==  PhysicalOperatorType::ORDER_BY) {
+    op->lineage_op[thd_id] = make_shared<OrderByLineage>(
+        op->type,
+        op->id,
+        thd_id
+    );
+  } else if (op->type == PhysicalOperatorType::HASH_JOIN) {
+    op->lineage_op[thd_id] = make_shared<HashJoinLineage>(
+        op->type,
+        op->id,
+        thd_id
+    );
+  } else if (op->type == PhysicalOperatorType::INDEX_JOIN) {
+    op->lineage_op[thd_id] = make_shared<IndexJoinLineage>(
+        op->type,
+        op->id,
+        thd_id
+    );
+  } else if (op->type == PhysicalOperatorType::CROSS_PRODUCT) {
+    op->lineage_op[thd_id] = make_shared<CrossLineage>(
+        op->type,
+        op->id,
+        thd_id
+    );
+  } else if (op->type == PhysicalOperatorType::NESTED_LOOP_JOIN) {
+    op->lineage_op[thd_id] = make_shared<NLJLineage>(
+        op->type,
+        op->id,
+        thd_id
+    );
+  } else if (op->type == PhysicalOperatorType::BLOCKWISE_NL_JOIN) {
+    op->lineage_op[thd_id] = make_shared<BNLJLineage>(
+        op->type,
+        op->id,
+        thd_id
+    );
+  } else if (op->type == PhysicalOperatorType::PIECEWISE_MERGE_JOIN) {
+    op->lineage_op[thd_id] = make_shared<MergeLineage>(
+        op->type,
+        op->id,
+        thd_id
+    );
+  } else if (op->type == PhysicalOperatorType::PERFECT_HASH_GROUP_BY) {
+    op->lineage_op[thd_id] = make_shared<PHALineage>(
+        op->type,
+        op->id,
+        thd_id
+    );
+  } else if (op->type == PhysicalOperatorType::HASH_GROUP_BY) {
+    op->lineage_op[thd_id] = make_shared<HALineage>(
+        op->type,
+        op->id,
+        thd_id
+    );
+  } else if (op->type == PhysicalOperatorType::TABLE_SCAN) {
+    op->lineage_op[thd_id] = make_shared<TableScanLineage>(
+        op->type,
+        op->id,
+        thd_id
+    );
+  } else {
+    op->lineage_op[thd_id] = make_shared<OperatorLineage>(
+        GetChildrenForOp(op, thd_id),
+        op->type,
+        op->id,
+        should_index
+    );
+  }
+
 	op->lineage_op[thd_id]->trace_lineage = trace_lineage;
 	if (
 	    op->type == PhysicalOperatorType::HASH_JOIN ||

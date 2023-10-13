@@ -45,9 +45,6 @@ public:
 
 	idx_t left_position;
 	idx_t right_position;
-#ifdef LINEAGE
-  std::vector<std::pair<int, int>> lineage;
-#endif
 };
 
 unique_ptr<PhysicalOperatorState> PhysicalCrossProduct::GetOperatorState() {
@@ -59,6 +56,9 @@ void PhysicalCrossProduct::GetChunkInternal(ExecutionContext &context, DataChunk
 	auto state = reinterpret_cast<PhysicalCrossProductOperatorState *>(state_p);
 	auto &sink = (CrossProductGlobalState &)*sink_state;
 	auto &right_collection = sink.rhs_materialized;
+#ifdef LINEAGE
+	auto lop = reinterpret_cast<CrossLineage*>(lineage_op.at(context.task.thread_id).get());
+#endif
 
 	if (sink.rhs_materialized.Count() == 0) {
 		// no RHS: empty result
@@ -92,13 +92,8 @@ void PhysicalCrossProduct::GetChunkInternal(ExecutionContext &context, DataChunk
 	}
 
 #ifdef LINEAGE
-  state->lineage.push_back(std::make_pair(state->right_position, left_chunk.size()));
-    // right_position -> tuple id from right side + all tuples from the left side
-//	if (lineage_op.count(context.task.thread_id)) {
-	//	lineage_op.at(context.task.thread_id)->CaptureUnq(make_unique<LineageConstant>(
-		//	state->right_position,
-			//left_chunk.size()), LINEAGE_PROBE,state->child_state->out_start);
-	//}
+  // right_position -> tuple id from right side + all tuples from the left side
+  lop->lineage.push_back({state->right_position, left_chunk.size(), state->child_state->out_start});
 #endif
 
 	// for the next iteration, move to the next position on the right side

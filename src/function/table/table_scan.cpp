@@ -27,9 +27,6 @@ struct TableScanOperatorData : public FunctionOperatorData {
 	//! The current position in the scan
 	TableScanState scan_state;
 	vector<column_t> column_ids;
-#ifdef LINEAGE
-  std::vector<unique_ptr<LineageData>> lineage;
-#endif
 };
 
 static unique_ptr<FunctionOperatorData> TableScanInit(ClientContext &context, const FunctionData *bind_data_p,
@@ -73,19 +70,12 @@ static void TableScanFunc(ClientContext &context, const FunctionData *bind_data_
 	auto &bind_data = (TableScanBindData &)*bind_data_p;
 	auto &state = (TableScanOperatorData &)*operator_state;
 	auto &transaction = Transaction::GetTransaction(context);
+#ifdef LINEAGE
+	state.scan_state.lineage_op = state.current_lop;
+#endif
 	// transaction is shared between multiple threads?
 	bind_data.table->storage->Scan(transaction, output, state.scan_state, state.column_ids);
 
-#ifdef LINEAGE
-	auto scan_lop = state.current_lop;
-	idx_t in_start = state.scan_state.row_group_scan_state.chunk_id * STANDARD_VECTOR_SIZE;
-	if (state.scan_state.row_group_scan_state.scan_lineage_data) {
-		//scan_lop->CaptureUnq(move(state.scan_state.row_group_scan_state.scan_lineage_data), LINEAGE_UNARY, in_start);
-		state.lineage.push_back(move(state.scan_state.row_group_scan_state.scan_lineage_data));
-	} else if (output.size() > 0) {
-     state.lineage.push_back(make_unique<LineageRange>(0, output.size()));
-	}
-#endif
 	bind_data.chunk_count++;
 }
 
