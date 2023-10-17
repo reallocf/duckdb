@@ -22,28 +22,10 @@
 #include <iostream>
 #include <utility>
 
-#ifndef LINEAGE_UNARY
-
-// Define meaningful lineage_idx names
-#define LINEAGE_UNARY 0
-#define LINEAGE_SINK 0
-#define LINEAGE_COMBINE 2
-#define LINEAGE_FINALIZE 3
-#define LINEAGE_SOURCE 1
-#define LINEAGE_BUILD 0
-#define LINEAGE_PROBE 1
-
-#endif
-
 namespace duckdb {
 enum class PhysicalOperatorType : uint8_t;
 struct LineageDataWithOffset;
 struct LineageProcessStruct;
-
-struct SourceAndMaybeData {
-	idx_t source;
-	shared_ptr<LineageDataWithOffset> data;
-};
 
 class OperatorLineage {
 public:
@@ -55,30 +37,20 @@ public:
 	) : opid(opid), type(type), children(move(children)), should_index(should_index) {
   }
 
-	//void Capture(const shared_ptr<LineageData>& datum, idx_t lineage_idx, int thread_id=-1, idx_t child_offset=0);
-	void CaptureUnq(unique_ptr<LineageData> datum, idx_t lineage_idx, idx_t child_offset=0);
-
 	virtual LineageProcessStruct GetLineageAsChunk(const vector<LogicalType>& types, idx_t count_so_far, DataChunk &insert_chunk, idx_t size= 0, int thread_id= -1, idx_t data_idx = 0, idx_t stage_idx = 0);
 
 	virtual idx_t Size();
 	virtual idx_t Count();
 	virtual idx_t ChunksCount();
-	shared_ptr<LineageDataWithOffset> GetMyLatest();
-	shared_ptr<LineageDataWithOffset> GetChildLatest(idx_t lineage_idx);
 	virtual void BuildIndexes();
 
 public:
 	idx_t opid;
 	bool trace_lineage;
 	ChunkCollection chunk_collection;
-	// data[0] used by all ops; data[1] used by pipeline breakers
-	// Lineage data in here!
-	std::vector<LineageDataWithOffset> data[4];
-	idx_t op_offset[4];
 	PhysicalOperatorType type;
-	shared_ptr<LineageVec> cached_internal_lineage = nullptr;
 	std::vector<shared_ptr<OperatorLineage>> children;
-    bool should_index;
+  bool should_index;
 	JoinType join_type;
 
   /*  Indexes */
@@ -90,11 +62,8 @@ public:
   vector<idx_t> index;
 
 	// Index for hash aggregate
-  std::unordered_map<idx_t, vector<SourceAndMaybeData>> hash_map_agg;
+  std::unordered_map<idx_t, vector<idx_t>> hash_map_agg;
 	// hash_chunk_count: maintain count of data that belong to previous ranges
-	vector<idx_t> hash_chunk_count;
-	// hm_range: maintains the existing ranges in hash join build side
-	std::vector<std::pair<idx_t, idx_t>> hm_range;
 };
 
 struct filter_artifact {
@@ -110,6 +79,8 @@ class FilterLineage : public OperatorLineage {
       OperatorLineage({}, type, opid, false), thread_id(thread_id) {
     }
     
+    LineageProcessStruct GetLineageAsChunk(const vector<LogicalType>& types, idx_t count_so_far, DataChunk &insert_chunk, idx_t size= 0, int thread_id= -1, idx_t data_idx = 0, idx_t stage_idx = 0) override;
+    
     idx_t Size() override;
 	  idx_t Count() override;
 	  idx_t ChunksCount() override;
@@ -121,12 +92,40 @@ public:
   vector<filter_artifact> lineage;
 };
 
+struct limit_artifact {
+  uint32_t start;
+  uint32_t end;
+  idx_t child_offset;
+};
+
+class LimitLineage : public OperatorLineage {
+  public:
+    LimitLineage(PhysicalOperatorType type, idx_t opid, idx_t thread_id) :
+      OperatorLineage({}, type, opid, false), thread_id(thread_id) {
+    }
+    
+    LineageProcessStruct GetLineageAsChunk(const vector<LogicalType>& types, idx_t count_so_far, DataChunk &insert_chunk, idx_t size= 0, int thread_id= -1, idx_t data_idx = 0, idx_t stage_idx = 0) override;
+    
+    idx_t Size() override;
+	  idx_t Count() override;
+	  idx_t ChunksCount() override;
+	  void BuildIndexes() override;
+    
+
+public:
+  idx_t thread_id;
+  vector<limit_artifact> lineage;
+};
+
+
 class OrderByLineage : public OperatorLineage {
   public:
     OrderByLineage(PhysicalOperatorType type, idx_t opid, idx_t thread_id) :
       OperatorLineage({}, type, opid, false), thread_id(thread_id) {
     }
     
+    LineageProcessStruct GetLineageAsChunk(const vector<LogicalType>& types, idx_t count_so_far, DataChunk &insert_chunk, idx_t size= 0, int thread_id= -1, idx_t data_idx = 0, idx_t stage_idx = 0) override;
+
     idx_t Size() override;
 	  idx_t Count() override;
 	  idx_t ChunksCount() override;
@@ -157,6 +156,8 @@ class HashJoinLineage : public OperatorLineage {
       OperatorLineage({}, type, opid, false), thread_id(thread_id) {
     }
     
+    LineageProcessStruct GetLineageAsChunk(const vector<LogicalType>& types, idx_t count_so_far, DataChunk &insert_chunk, idx_t size= 0, int thread_id= -1, idx_t data_idx = 0, idx_t stage_idx = 0) override;
+
     idx_t Size() override;
 	  idx_t Count() override;
 	  idx_t ChunksCount() override;
@@ -168,6 +169,17 @@ public:
   vector<hj_probe_artifact> lineage_binary;
   vector<idx_t> output_index;
   vector<idx_t> cached_output_index;
+  
+  vector<unique_ptr<sel_t[]>> right_val_log;
+	
+  // Specialized Index
+  vector<idx_t> hash_chunk_count;
+	// hm_range: maintains the existing ranges in hash join build side
+	std::vector<std::pair<idx_t, idx_t>> hm_range;
+  // offset: difference between two consecutive values with a range
+	uint64_t offset = 0;
+	idx_t start_base = 0;
+	idx_t last_base = 0;
 };
 
 struct IJ_artifact {
@@ -183,6 +195,8 @@ class IndexJoinLineage : public OperatorLineage {
       OperatorLineage({}, type, opid, false), thread_id(thread_id) {
     }
     
+    LineageProcessStruct GetLineageAsChunk(const vector<LogicalType>& types, idx_t count_so_far, DataChunk &insert_chunk, idx_t size= 0, int thread_id= -1, idx_t data_idx = 0, idx_t stage_idx = 0) override;
+
     idx_t Size() override;
 	  idx_t Count() override;
 	  idx_t ChunksCount() override;
@@ -204,6 +218,8 @@ class CrossLineage : public OperatorLineage {
     CrossLineage(PhysicalOperatorType type, idx_t opid, idx_t thread_id) :
       OperatorLineage({}, type, opid, false), thread_id(thread_id) {
     }
+
+    LineageProcessStruct GetLineageAsChunk(const vector<LogicalType>& types, idx_t count_so_far, DataChunk &insert_chunk, idx_t size= 0, int thread_id= -1, idx_t data_idx = 0, idx_t stage_idx = 0) override;
 
     idx_t Size() override;
 	  idx_t Count() override;
@@ -228,6 +244,8 @@ class NLJLineage : public OperatorLineage {
       OperatorLineage({}, type, opid, false), thread_id(thread_id) {
     }
     
+    LineageProcessStruct GetLineageAsChunk(const vector<LogicalType>& types, idx_t count_so_far, DataChunk &insert_chunk, idx_t size= 0, int thread_id= -1, idx_t data_idx = 0, idx_t stage_idx = 0) override;
+    
     idx_t Size() override;
 	  idx_t Count() override;
 	  idx_t ChunksCount() override;
@@ -251,6 +269,8 @@ class BNLJLineage : public OperatorLineage {
     BNLJLineage(PhysicalOperatorType type, idx_t opid, idx_t thread_id) :
       OperatorLineage({}, type, opid, false), thread_id(thread_id) {
     }
+    
+    LineageProcessStruct GetLineageAsChunk(const vector<LogicalType>& types, idx_t count_so_far, DataChunk &insert_chunk, idx_t size= 0, int thread_id= -1, idx_t data_idx = 0, idx_t stage_idx = 0) override;
 
     idx_t Size() override;
 	  idx_t Count() override;
@@ -276,6 +296,8 @@ class MergeLineage : public OperatorLineage {
       OperatorLineage({}, type, opid, false), thread_id(thread_id) {
     }
     
+    LineageProcessStruct GetLineageAsChunk(const vector<LogicalType>& types, idx_t count_so_far, DataChunk &insert_chunk, idx_t size= 0, int thread_id= -1, idx_t data_idx = 0, idx_t stage_idx = 0) override;
+    
     idx_t Size() override;
 	  idx_t Count() override;
 	  idx_t ChunksCount() override;
@@ -296,6 +318,8 @@ class PHALineage : public OperatorLineage {
     PHALineage(PhysicalOperatorType type, idx_t opid, idx_t thread_id) :
       OperatorLineage({}, type, opid, false), thread_id(thread_id) {
     }
+
+    LineageProcessStruct GetLineageAsChunk(const vector<LogicalType>& types, idx_t count_so_far, DataChunk &insert_chunk, idx_t size= 0, int thread_id= -1, idx_t data_idx = 0, idx_t stage_idx = 0) override;
 
     idx_t Size() override;
 	  idx_t Count() override;
@@ -347,6 +371,8 @@ class HALineage : public OperatorLineage {
       OperatorLineage({}, type, opid, false), thread_id(thread_id) {
     }
 	  
+    LineageProcessStruct GetLineageAsChunk(const vector<LogicalType>& types, idx_t count_so_far, DataChunk &insert_chunk, idx_t size= 0, int thread_id= -1, idx_t data_idx = 0, idx_t stage_idx = 0) override;
+
     idx_t Size() override;
 	  idx_t Count() override;
 	  idx_t ChunksCount() override;
@@ -362,6 +388,13 @@ public:
   vector<vector<flushmove_artifact*>> combine_log;
   vector<finalize_artifact> finalize_log;
   vector<hg_artifact> scan_log;
+
+  // context for current scan
+  // TODO: state should be passed and manageed by
+  // lineage scan
+  idx_t scan_log_index=0;
+  idx_t current_key=0;
+  idx_t offset_within_key=0;
 };
 
 struct scan_artifact {
@@ -377,6 +410,8 @@ class TableScanLineage : public OperatorLineage {
     TableScanLineage(PhysicalOperatorType type, idx_t opid, idx_t thread_id) :
       OperatorLineage({}, type, opid, false), thread_id(thread_id) {
     }
+	
+    LineageProcessStruct GetLineageAsChunk(const vector<LogicalType>& types, idx_t count_so_far, DataChunk &insert_chunk, idx_t size= 0, int thread_id= -1, idx_t data_idx = 0, idx_t stage_idx = 0) override;
 
 	  idx_t Size() override;
 	  idx_t Count() override;

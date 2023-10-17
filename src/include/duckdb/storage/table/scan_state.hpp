@@ -14,9 +14,6 @@
 
 #include "duckdb/execution/adaptive_filter.hpp"
 
-#ifdef LINEAGE
-#include "duckdb/execution/lineage/lineage_data.hpp"
-#endif
 namespace duckdb {
 class ColumnSegment;
 class LocalTableStorage;

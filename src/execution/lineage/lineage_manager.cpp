@@ -144,6 +144,12 @@ void LineageManager::CreateOperatorLineage(PhysicalOperator *op, int thd_id, boo
         op->id,
         thd_id
     );
+  } else if (op->type ==  PhysicalOperatorType::LIMIT) {
+    op->lineage_op[thd_id] = make_shared<LimitLineage>(
+        op->type,
+        op->id,
+        thd_id
+    );
   } else if (op->type ==  PhysicalOperatorType::ORDER_BY) {
     op->lineage_op[thd_id] = make_shared<OrderByLineage>(
         op->type,
@@ -250,7 +256,7 @@ void LineageManager::StoreQueryLineage(std::unique_ptr<PhysicalOperator> op, str
 	// id of a query is their offset in query_to_id vector
 	idx_t query_id = query_to_id.size();
 	query_to_id.push_back(query);
-	//CreateLineageTables(op.get(), query_id);
+	CreateLineageTables(op.get(), query_id);
 	queryid_to_plan[query_id] = move(op);
 }
 

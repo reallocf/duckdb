@@ -64,7 +64,6 @@ void PhysicalFilter::GetChunkInternal(ExecutionContext &context, DataChunk &chun
     unique_ptr<sel_t[]> dst = unique_ptr<sel_t[]>(new sel_t[result_count]);
     std::copy(sel.data(), sel.data() + result_count, dst.get());
     lop->lineage.push_back({move(dst), result_count, state->child_state->out_start});
-   // lop->lineage.push_back({sel.sel_data(), result_count, state->child_state->out_start});
 #endif
 }
 

@@ -11,7 +11,6 @@
 #include "duckdb/common/common.hpp"
 #include "duckdb/common/types/vector.hpp"
 #include "duckdb/common/winapi.hpp"
-#include "duckdb/execution/lineage/lineage_top.hpp"
 
 struct ArrowArray;
 
@@ -131,7 +130,6 @@ public:
 
 #ifdef LINEAGE
 	bool trace_lineage = false;
-	unique_ptr<LineageData> cached_lineage_data;
 #endif
 private:
 	//! The amount of tuples stored in the data chunk

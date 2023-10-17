@@ -100,9 +100,10 @@ void PhysicalLimit::GetChunkInternal(ExecutionContext &context, DataChunk &chunk
 	} while (chunk.size() == 0);
 
 #ifdef LINEAGE
+	auto lop = reinterpret_cast<LimitLineage*>(lineage_op.at(context.task.thread_id).get());
 	auto lineage_start = orig_offset == 0 ? offset : 0;
 	auto lineage_end = lineage_start + chunk.size();
-    lineage_op.at(context.task.thread_id)->CaptureUnq(make_unique<LineageRange>(lineage_start, lineage_end), LINEAGE_UNARY);
+  lop->lineage.push_back({lineage_start, lineage_end, state->child_state->out_start});
 #endif
 }
 
