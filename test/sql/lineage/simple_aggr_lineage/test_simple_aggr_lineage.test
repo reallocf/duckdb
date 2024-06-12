@@ -1,0 +1,376 @@
+# name: test/sql/lineage/simple_aggr_lineage/test_simple_aggr_lineage.test
+# description: Test Simple Aggregate Lineage
+# group: [simple_aggr_lineage]
+
+
+statement ok
+PRAGMA explain_output = PHYSICAL_ONLY;
+
+statement ok
+CREATE TABLE t1(i INTEGER);
+
+statement ok
+INSERT INTO t1 SELECT i FROM range(0,5) tbl(i);
+
+statement ok
+PRAGMA trace_lineage = "ON";
+
+query I
+select COUNT(*) from t1
+----
+5
+
+statement ok
+PRAGMA trace_lineage = "OFF";
+
+query II
+SELECT * FROM queries_list;
+----
+9	select COUNT(*) from t1
+11	PRAGMA trace_lineage = "OFF";
+
+
+query IIIIII
+select rowid, filter_exists, in_chunk_id, in_index, out_index, out_chunk_id from SEQ_SCAN_9_1;
+----
+0	False	0	0	0	0
+1	False	0	0	0	0
+
+statement ok
+CREATE TABLE t2(i INTEGER);
+
+statement ok
+INSERT INTO t2 SELECT i FROM range(1,11) tbl(i);
+
+statement ok
+PRAGMA trace_lineage = "ON";
+
+query I
+select AVG(i) from t2
+----
+5.5
+
+statement ok
+PRAGMA trace_lineage = "OFF";
+
+query II
+SELECT * FROM queries_list;
+----
+9	select COUNT(*) from t1
+11	PRAGMA trace_lineage = "OFF";
+23	select AVG(i) from t2
+25	PRAGMA trace_lineage = "OFF";
+
+
+query IIIIII
+select rowid, filter_exists, in_chunk_id, in_index, out_index, out_chunk_id from SEQ_SCAN_23_2;
+----
+0	False	0	0	0	0
+1	False	0	0	0	0
+
+
+statement ok
+CREATE TABLE t3(i INTEGER);
+
+statement ok
+INSERT INTO t3 SELECT i FROM range(1,100000) tbl(i);
+
+statement ok
+PRAGMA trace_lineage = "ON";
+
+query I
+select AVG(i) from t3
+----
+50000
+
+statement ok
+PRAGMA trace_lineage = "OFF";
+
+query II
+SELECT * FROM queries_list;
+----
+9	select COUNT(*) from t1
+11	PRAGMA trace_lineage = "OFF";
+23	select AVG(i) from t2
+25	PRAGMA trace_lineage = "OFF";
+37	select AVG(i) from t3
+39	PRAGMA trace_lineage = "OFF";
+
+
+query IIIIII
+select rowid, filter_exists, in_chunk_id, in_index, out_index, out_chunk_id from SEQ_SCAN_37_2 limit 5;
+----
+0	False	0	0	0	0
+1	False	0	0	0	0
+2	False	1	0	0	1
+3	False	1	0	0	1
+4	False	2	0	0	2
+
+
+#SUM test 10
+
+statement ok
+CREATE TABLE t4(i INTEGER);
+
+statement ok
+INSERT INTO t4 SELECT i FROM range(1,11) tbl(i);
+
+statement ok
+PRAGMA trace_lineage = "ON";
+
+query I
+select SUM(i) from t4
+----
+55
+
+statement ok
+PRAGMA trace_lineage = "OFF";
+
+query II
+SELECT * FROM queries_list;
+----
+9	select COUNT(*) from t1
+11	PRAGMA trace_lineage = "OFF";
+23	select AVG(i) from t2
+25	PRAGMA trace_lineage = "OFF";
+37	select AVG(i) from t3
+39	PRAGMA trace_lineage = "OFF";
+51	select SUM(i) from t4
+53	PRAGMA trace_lineage = "OFF";
+
+
+query IIIIII
+select rowid, filter_exists, in_chunk_id, in_index, out_index, out_chunk_id from SEQ_SCAN_51_2;
+----
+0	False	0	0	0	0
+1	False	0	0	0	0
+
+#SUM test 100000
+
+statement ok
+CREATE TABLE t5(i INTEGER);
+
+statement ok
+INSERT INTO t5 SELECT i FROM range(1,100000) tbl(i);
+
+statement ok
+PRAGMA trace_lineage = "ON";
+
+query I
+select SUM(i) from t5
+----
+4999950000
+
+statement ok
+PRAGMA trace_lineage = "OFF";
+
+query II
+SELECT * FROM queries_list;
+----
+9	select COUNT(*) from t1
+11	PRAGMA trace_lineage = "OFF";
+23	select AVG(i) from t2
+25	PRAGMA trace_lineage = "OFF";
+37	select AVG(i) from t3
+39	PRAGMA trace_lineage = "OFF";
+51	select SUM(i) from t4
+53	PRAGMA trace_lineage = "OFF";
+65	select SUM(i) from t5
+67	PRAGMA trace_lineage = "OFF";
+
+
+query IIIIII
+select rowid, filter_exists, in_chunk_id, in_index, out_index, out_chunk_id from SEQ_SCAN_65_2 limit 5;
+----
+0	False	0	0	0	0
+1	False	0	0	0	0
+2	False	1	0	0	1
+3	False	1	0	0	1
+4	False	2	0	0	2
+
+#MIN test 10
+
+statement ok
+CREATE TABLE t6(i INTEGER);
+
+statement ok
+INSERT INTO t6 SELECT i FROM range(1,10) tbl(i);
+
+statement ok
+PRAGMA trace_lineage = "ON";
+
+query I
+select MIN(i) from t6
+----
+1
+
+statement ok
+PRAGMA trace_lineage = "OFF";
+
+query II
+SELECT * FROM queries_list;
+----
+9	select COUNT(*) from t1
+11	PRAGMA trace_lineage = "OFF";
+23	select AVG(i) from t2
+25	PRAGMA trace_lineage = "OFF";
+37	select AVG(i) from t3
+39	PRAGMA trace_lineage = "OFF";
+51	select SUM(i) from t4
+53	PRAGMA trace_lineage = "OFF";
+65	select SUM(i) from t5
+67	PRAGMA trace_lineage = "OFF";
+79	select MIN(i) from t6
+81	PRAGMA trace_lineage = "OFF";
+
+
+query IIIIII
+select rowid, filter_exists, in_chunk_id, in_index, out_index, out_chunk_id from SEQ_SCAN_79_2;
+----
+0	False	0	0	0	0
+1	False	0	0	0	0
+
+#MIN test 100000
+
+statement ok
+CREATE TABLE t7(i INTEGER);
+
+statement ok
+INSERT INTO t7 SELECT i FROM range(1,100000) tbl(i);
+
+statement ok
+PRAGMA trace_lineage = "ON";
+
+query I
+select MIN(i) from t7
+----
+1
+
+statement ok
+PRAGMA trace_lineage = "OFF";
+
+query II
+SELECT * FROM queries_list;
+----
+9	select COUNT(*) from t1
+11	PRAGMA trace_lineage = "OFF";
+23	select AVG(i) from t2
+25	PRAGMA trace_lineage = "OFF";
+37	select AVG(i) from t3
+39	PRAGMA trace_lineage = "OFF";
+51	select SUM(i) from t4
+53	PRAGMA trace_lineage = "OFF";
+65	select SUM(i) from t5
+67	PRAGMA trace_lineage = "OFF";
+79	select MIN(i) from t6
+81	PRAGMA trace_lineage = "OFF";
+93	select MIN(i) from t7
+95	PRAGMA trace_lineage = "OFF";
+
+
+
+query IIIIII
+select rowid, filter_exists, in_chunk_id, in_index, out_index, out_chunk_id from SEQ_SCAN_93_2 limit 5;
+----
+0	False	0	0	0	0
+1	False	0	0	0	0
+2	False	1	0	0	1
+3	False	1	0	0	1
+4	False	2	0	0	2
+
+#MAX test 10
+
+statement ok
+CREATE TABLE t8(i INTEGER);
+
+statement ok
+INSERT INTO t8 SELECT i FROM range(1,11) tbl(i);
+
+statement ok
+PRAGMA trace_lineage = "ON";
+
+query I
+select MAX(i) from t8
+----
+10
+
+statement ok
+PRAGMA trace_lineage = "OFF";
+
+query II
+SELECT * FROM queries_list;
+----
+9	select COUNT(*) from t1
+11	PRAGMA trace_lineage = "OFF";
+23	select AVG(i) from t2
+25	PRAGMA trace_lineage = "OFF";
+37	select AVG(i) from t3
+39	PRAGMA trace_lineage = "OFF";
+51	select SUM(i) from t4
+53	PRAGMA trace_lineage = "OFF";
+65	select SUM(i) from t5
+67	PRAGMA trace_lineage = "OFF";
+79	select MIN(i) from t6
+81	PRAGMA trace_lineage = "OFF";
+93	select MIN(i) from t7
+95	PRAGMA trace_lineage = "OFF";
+107	select MAX(i) from t8
+109	PRAGMA trace_lineage = "OFF";
+
+
+
+query IIIIII
+select rowid, filter_exists, in_chunk_id, in_index, out_index, out_chunk_id from SEQ_SCAN_107_2;
+----
+0	False	0	0	0	0
+1	False	0	0	0	0
+
+#MAX test 100000
+
+statement ok
+CREATE TABLE t9(i INTEGER);
+
+statement ok
+INSERT INTO t9 SELECT i FROM range(1,1000001) tbl(i);
+
+statement ok
+PRAGMA trace_lineage = "ON";
+
+query I
+select MAX(i) from t9
+----
+1000000
+
+statement ok
+PRAGMA trace_lineage = "OFF";
+
+query II
+SELECT * FROM queries_list;
+----
+9	select COUNT(*) from t1
+11	PRAGMA trace_lineage = "OFF";
+23	select AVG(i) from t2
+25	PRAGMA trace_lineage = "OFF";
+37	select AVG(i) from t3
+39	PRAGMA trace_lineage = "OFF";
+51	select SUM(i) from t4
+53	PRAGMA trace_lineage = "OFF";
+65	select SUM(i) from t5
+67	PRAGMA trace_lineage = "OFF";
+79	select MIN(i) from t6
+81	PRAGMA trace_lineage = "OFF";
+93	select MIN(i) from t7
+95	PRAGMA trace_lineage = "OFF";
+107	select MAX(i) from t8
+109	PRAGMA trace_lineage = "OFF";
+121	select MAX(i) from t9
+123	PRAGMA trace_lineage = "OFF";
+
+query IIIIII
+select rowid, filter_exists, in_chunk_id, in_index, out_index, out_chunk_id from SEQ_SCAN_121_2 limit 5;
+----
+0	False	0	0	0	0
+1	False	0	0	0	0
+2	False	1	0	0	1
+3	False	1	0	0	1
+4	False	2	0	0	2
